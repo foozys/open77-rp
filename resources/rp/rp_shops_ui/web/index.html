@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Магазин</title>
+<style>
+  :root {
+    --bg: rgba(10, 12, 18, 0.94);
+    --line: rgba(120, 220, 140, 0.3);
+    --accent: #78dc8c;
+    --cyan: #5ef6ff;
+    --warn: #ff5e6c;
+    --text: #e8f1f2;
+    --muted: #8fa3a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 16px/1.35 "Segoe UI", Arial, sans-serif; user-select: none; }
+  #root { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+  #root.open { display: block; }
+  #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 620px;
+    padding: 24px 26px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  #panel.atm { border-top-color: var(--cyan); }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+  #panel.atm h1 { color: var(--cyan); }
+  #wallet { text-align: right; font-size: 14px; color: var(--muted); }
+  #wallet b { color: var(--text); }
+  .item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08); }
+  .item .name { flex: 1; }
+  .item .name small { display: block; color: var(--muted); font-size: 12px; }
+  .item .price { width: 80px; text-align: right; font-weight: 600; }
+  .item input { width: 56px; padding: 5px 6px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--line);
+    color: var(--text); font: inherit; text-align: center; }
+  button { padding: 7px 12px; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    font: inherit; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+  button:hover { background: rgba(120, 220, 140, 0.12); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  #panel.atm button { border-color: var(--cyan); color: var(--cyan); }
+  #atm { display: none; }
+  #panel.atm #atm { display: block; }
+  #panel.atm #items { display: none; }
+  #atm .row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+  #atm input { flex: 1; padding: 8px 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(94, 246, 255, 0.3);
+    color: var(--text); font: inherit; }
+  #message { min-height: 22px; margin-top: 14px; font-size: 14px; }
+  #message.ok { color: var(--accent); }
+  #message.bad { color: var(--warn); }
+  .hint { margin-top: 10px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="panel">
+    <header>
+      <h1 id="title"></h1>
+      <div id="wallet">Наличные <b id="cash"></b><br>Счёт <b id="bank"></b></div>
+    </header>
+    <div id="items"></div>
+    <div id="atm">
+      <div class="row">
+        <input id="amount" type="number" min="1" placeholder="Сумма, €$">
+        <button id="deposit">Внести</button>
+        <button id="withdraw">Снять</button>
+      </div>
+    </div>
+    <div id="message"></div>
+    <div class="hint">Esc — закрыть</div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const money = n => `${String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} €$`;
+  let busy = false;
+
+  function setBusy(value) {
+    busy = value;
+    document.querySelectorAll("button").forEach(b => { b.disabled = value; });
+  }
+
+  function message(text, ok) {
+    const node = $("message");
+    node.textContent = text || "";
+    node.className = text ? (ok ? "ok" : "bad") : "";
+  }
+
+  function wallet(p) {
+    $("cash").textContent = money(p.cash || 0);
+    $("bank").textContent = money(p.bank || 0);
+  }
+
+  function renderItems(items) {
+    const list = $("items");
+    list.replaceChildren();
+    for (const item of items || []) {
+      const row = document.createElement("div");
+      row.className = "item";
+      row.innerHTML = `<div class="name"><span></span><small></small></div><div class="price"></div>
+        <input type="number" min="1" max="20" value="1"><button data-method="cash">Наличные</button><button data-method="bank">Карта</button>`;
+      row.querySelector(".name span").textContent = item.label;
+      row.querySelector(".name small").textContent = `${(item.weightG / 1000).toFixed(2)} кг · ${item.w}×${item.h} клеток`;
+      row.querySelector(".price").textContent = money(item.price);
+      const input = row.querySelector("input");
+      row.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+        if (busy) return;
+        const count = Math.max(1, Math.min(20, Math.floor(Number(input.value) || 1)));
+        setBusy(true);
+        message("");
+        Open77.emit("shop:buy", { item: item.id, count, method: b.dataset.method });
+      }));
+      list.append(row);
+    }
+  }
+
+  function atm(direction) {
+    if (busy) return;
+    const amount = Math.floor(Number($("amount").value) || 0);
+    if (amount < 1) return message("Введите сумму.", false);
+    setBusy(true);
+    message("");
+    Open77.emit("shop:atm", { direction, amount });
+  }
+  $("deposit").addEventListener("click", () => atm("deposit"));
+  $("withdraw").addEventListener("click", () => atm("withdraw"));
+
+  document.addEventListener("keydown", e => {
+    if (!$("root").classList.contains("open")) return;
+    if (e.key === "Escape") { e.preventDefault(); Open77.emit("shop:close", {}); }
+    if (e.key === "Enter" && document.activeElement === $("amount")) atm("deposit");
+  });
+
+  Open77.on("shop:show", p => {
+    $("panel").classList.toggle("atm", p.kind === "atm");
+    $("title").textContent = p.title || "";
+    wallet(p);
+    renderItems(Array.isArray(p.items) ? p.items : []);
+    $("amount").value = "";
+    message("");
+    setBusy(false);
+    $("root").classList.add("open");
+  });
+  Open77.on("shop:result", p => {
+    wallet(p);
+    message(p.text, p.ok);
+    setBusy(false);
+  });
+  Open77.on("shop:close", () => $("root").classList.remove("open"));
+
+  Open77.ready();
+</script>
+</body>
+</html>

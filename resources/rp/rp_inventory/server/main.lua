@@ -379,6 +379,23 @@ AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     if playerId then inv[playerId] = nil end
 end)
 
+-- Каталог для других ресурсов (магазины): { [id] = { label, labelEn, w, h, weightG, stack } }.
+exports("catalog", function()
+    local items = {}
+    for id, def in pairs(InvConfig.items) do
+        items[id] = { label = def.label, labelEn = def.labelEn, w = def.w, h = def.h, weightG = def.weightG,
+                      stack = def.stack }
+    end
+    return items
+end)
+
+-- Поместится ли count штук в сетку игрока. nil — инвентарь ещё не загружен (решит сверка).
+exports("fits", function(playerId, itemId, count)
+    local state = inv[math.tointeger(tonumber(playerId)) or 0]
+    if not state then return nil end
+    return Grid.fits(state.stacks, itemId, math.tointeger(tonumber(count)) or 1)
+end)
+
 -- Предметы живут в памяти координатора: объявлять на каждом его ready.
 CreateThread(function() Store.define() end)
 AddEventHandler("open77_transactions:ready", function() Store.define() end)
