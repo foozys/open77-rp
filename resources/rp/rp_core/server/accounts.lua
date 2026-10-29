@@ -15,10 +15,9 @@ function Accounts.byLicense(license)
     end
 end
 
+-- Админ-роль с этим правом или право в acl.jsonc.
 function Accounts.bypassesWhitelist(playerId)
-    local allowed, reason = Open77.acl.isAllowed(playerId, "rp.whitelist.bypass")
-    if reason then log.warn("проверка ACL игрока %d: %s", playerId, tostring(reason)) end
-    return allowed == true
+    return Roles.can(playerId, "rp.whitelist.bypass")
 end
 
 -- Игрок без допуска должен увидеть свой license: по нему админ его добавит.
@@ -135,17 +134,24 @@ function Accounts.load(playerId)
         return
     end
 
-    local whitelisted
-    whitelisted, err = Db.scalar(
-        "SELECT whitelisted_at IS NOT NULL FROM rp_accounts WHERE license = ?", { account.license })
+    local access
+    access, err = Db.single([[
+        SELECT a.whitelisted_at IS NOT NULL AS whitelisted, s.role
+        FROM rp_accounts a LEFT JOIN rp_staff s ON s.license = a.license
+        WHERE a.license = ?
+    ]], { account.license })
     if Accounts.online[playerId] ~= account then return end
-    if err then
-        log.error("проверка whitelist %s: %s", account.license, err)
+    if err or not access then
+        log.error("проверка whitelist %s: %s", account.license, tostring(err or "аккаунт не найден"))
         Accounts.online[playerId] = nil
         kick(playerId, MSG_DB_ERROR)
         return
     end
-    account.whitelisted = tonumber(whitelisted) == 1 or whitelisted == true
+    account.whitelisted = tonumber(access.whitelisted) == 1 or access.whitelisted == true
+    account.role = Roles.byId[access.role] and access.role or nil
+    if access.role and not account.role then
+        log.warn("у %s неизвестная роль %s (нет в RpConfig.staffRoles)", account.license, tostring(access.role))
+    end
     if Tune.whitelistEnabled and not account.whitelisted and not Accounts.bypassesWhitelist(playerId) then
         log.info("игрок %d (%s) без допуска, отключён", playerId, account.license)
         Accounts.online[playerId] = nil
@@ -154,7 +160,8 @@ function Accounts.load(playerId)
     end
 
     account.loaded = true
-    log.info("игрок %d вошёл: %s, license=%s", playerId, account.name, account.license)
+    log.info("игрок %d вошёл: %s, license=%s%s", playerId, account.name, account.license,
+        account.role and (", роль " .. account.role) or "")
     local sent, sendReason = TriggerEvent("rp_core:accountLoaded", playerId, account.license)
     if sent == false then log.warn("rp_core:accountLoaded не отправлено: %s", tostring(sendReason)) end
 end

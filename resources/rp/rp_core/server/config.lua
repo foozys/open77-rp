@@ -5,6 +5,27 @@ RpConfig = {
     -- Ресурсы, которым разрешено вызывать служебные экспорты ядра (аудит и т.п.).
     trustedResourcePrefix = "rp_",
 
+    -- Админ-роли, от младшей к старшей: старшая получает все права младших.
+    -- maxBanSeconds — предел срока бана без права rp.ban.permanent.
+    -- Права (их же можно выдать через acl.jsonc, у владельца там "*"):
+    --   rp.staff             — член администрации
+    --   rp.whitelist.bypass  — вход без анкеты
+    --   rp.view              — rp.account, rp.characters, rp.staff, rp.status, rp.tune (просмотр)
+    --   rp.kick, rp.ban      — кик, временный бан
+    --   rp.whitelist.add / rp.whitelist.remove
+    --   rp.ban.permanent     — бессрочный бан и бан дольше maxBanSeconds
+    --   rp.unban
+    --   rp.staff.manage      — назначать роли ниже своей
+    --   rp.tune              — менять настройки ядра
+    staffRoles = {
+        { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view" } },
+        { id = "moderator", label = "Модератор", permissions = { "rp.kick", "rp.ban", "rp.whitelist.add" },
+          maxBanSeconds = 7 * 86400 },
+        { id = "admin", label = "Администратор",
+          permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove" } },
+        { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
+    },
+
     tunables = {
         logLevel = {
             value = "info", type = "enum", choices = { "debug", "info", "warn", "error" },

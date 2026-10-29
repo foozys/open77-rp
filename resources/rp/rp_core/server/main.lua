@@ -66,8 +66,24 @@ exports("audit", function(action, actor, target, details)
     return true
 end)
 
--- Диагностика: в консоли сервера `rp.status`. Ограничена ACL (command.rp.status).
-RegisterCommand("rp.status", function()
-    log.info("БД готова: %s, схема rp_core v%d, уровень лога: %s, аудит: %s",
+-- Админ-роль игрока: id, название (или nil). Онлайн и загруженный аккаунт.
+exports("staff_role", function(playerId)
+    local id = Util.toPlayerId(playerId)
+    local role = id and Roles.of(id)
+    if not role then return nil end
+    return role.id, role.label
+end)
+
+-- Есть ли у игрока право (админ-роль или acl.jsonc). Только чтение.
+exports("can", function(playerId, permission)
+    local id = Util.toPlayerId(playerId)
+    if not id or type(permission) ~= "string" then return false end
+    return Roles.can(id, permission)
+end)
+
+-- Диагностика: `rp.status` (право rp.view; консоль — всегда).
+RegisterCommand("rp.status", function(source)
+    if not Roles.require(source, "rp.view") then return end
+    Util.reply(source, "БД готова: %s, схема rp_core v%d, уровень лога: %s, аудит: %s",
         tostring(Core.dbReady), Core.schemaVersion, Tune.logLevel, tostring(Tune.auditLog))
-end, true)
+end, false)

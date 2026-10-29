@@ -101,3 +101,16 @@ Migrations.add(4, "characters", {
             ADD COLUMN IF NOT EXISTS next_character_id BIGINT UNSIGNED NULL
     ]],
 })
+
+-- Админ-роль аккаунта (id из RpConfig.staffRoles). Нет строки — не администрация.
+Migrations.add(5, "staff_roles", {
+    [[
+        CREATE TABLE IF NOT EXISTS rp_staff (
+            license    VARCHAR(64) NOT NULL,
+            role       VARCHAR(32) NOT NULL,
+            granted_by VARCHAR(64) NOT NULL,
+            granted_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (license)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ]],
+})

@@ -4,7 +4,7 @@ auto_start true
 
 -- database.access: миграции, аудит, аккаунты; players.life.read: Util.isAlive;
 -- players.gate: проверка бана на входе; players.disconnect: кик забаненных;
--- acl.read: обход whitelist для админов (rp.whitelist.bypass);
+-- acl.read: права из acl.jsonc как запасной ключ к админ-ролям (Roles.can);
 -- network.events: связь с экраном выбора (rp_charselect); players.teleport: появление на месте выхода
 permissions {
     "database.access", "players.life.read", "players.gate", "players.disconnect", "acl.read",
@@ -17,6 +17,7 @@ server_script "server/log.lua"
 server_script "server/util.lua"
 server_script "server/migrations.lua"
 server_script "server/schema.lua"
+server_script "server/roles.lua"
 server_script "server/bans.lua"
 server_script "server/accounts.lua"
 server_script "server/characters.lua"
