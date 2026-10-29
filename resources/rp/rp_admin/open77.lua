@@ -9,11 +9,13 @@ dependency "rp_core"
 -- players.life.read: позиция, жив ли игрок, заморожен ли; players.life.freeze: заморозка;
 -- players.life.revive + players.stats.apply/damage.apply: воскресить, вылечить
 -- (damage.apply — прежнее имя stats.apply, валидатор devkit требует оба);
--- network.events: chat:ready, чтобы выдать подсказку /report
+-- network.events: chat:ready, чтобы выдать подсказку /report; метка карты для rp.tpm;
+-- map.read: клиент читает поставленную метку (rp.tpm)
 permissions {
     "database.access", "network.events", "players.teleport", "players.spectate", "players.life.read", "players.life.freeze",
-    "players.life.revive", "players.stats.apply", "players.damage.apply",
+    "players.life.revive", "players.stats.apply", "players.damage.apply", "map.read",
 }
 
 server_script "server/config.lua"
 server_script "server/main.lua"
+client_script "client/main.lua"

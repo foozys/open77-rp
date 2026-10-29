@@ -159,6 +159,44 @@ RegisterCommand("rp.tpc", function(source, args)
     notify(source, ok and "Готово. Вернуться — rp.back." or "Не получилось: %s.", explainTeleport(why))
 end, false)
 
+-- rp.tpm — к своей метке на карте (право rp.teleport). Метку присылает клиент;
+-- принимаем ответ только на свой запрос не старше 10 с и снова проверяем право.
+local waypointAsked = {}
+
+RegisterCommand("rp.tpm", function(source)
+    if not source or source < 1 or not allowed(source, "rp.teleport") then return end
+    waypointAsked[source] = Open77.time.unix()
+    local ok, why = TriggerClientEvent("rp_admin:askWaypoint", source)
+    if not ok then
+        waypointAsked[source] = nil
+        notify(source, "Не получилось: %s.", tostring(why))
+    end
+end, false)
+
+RegisterNetEvent("rp_admin:waypoint", function(position, reason)
+    local playerId = tonumber(source)
+    local asked = playerId and waypointAsked[playerId]
+    if not asked then return end
+    waypointAsked[playerId] = nil
+    if Open77.time.unix() - asked > 10 or not allowed(playerId, "rp.teleport") then return end
+    local x = type(position) == "table" and tonumber(position.x)
+    local y = type(position) == "table" and tonumber(position.y)
+    local z = type(position) == "table" and tonumber(position.z)
+    if not x or not y or not z then
+        return notify(playerId, reason and "Карта недоступна: %s." or "Поставьте метку на карте.", reason)
+    end
+    local here = placeOf(playerId)
+    local ok, why = teleport(playerId, { x = x, y = y, z = z + 1.0, heading = here and here.heading or 0,
+                                         bucket = here and here.bucket or 0 })
+    notify(playerId, ok and "Вы у метки. Вернуться — rp.back." or "Не получилось: %s.", explainTeleport(why))
+    if ok then log("info", "tpm %d -> %.1f %.1f %.1f", playerId, x, y, z) end
+end)
+
+AddEventHandler("onPlayerDisconnected", function(playerIdStr)
+    local playerId = tonumber(playerIdStr)
+    if playerId then waypointAsked[playerId] = nil end
+end)
+
 -- rp.back [ID] — вернуть на место до последнего телепорта (себя или игрока)
 RegisterCommand("rp.back", function(source, args)
     if not source or source < 1 or not allowed(source, "rp.teleport") then return end
