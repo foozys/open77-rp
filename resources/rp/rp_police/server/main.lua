@@ -138,8 +138,18 @@ local function revokeKit(playerId, userId)
     granted[playerId] = nil
 end
 
+-- Клиенту — что показывать в контекстном меню (Alt) на других игроках.
+local function pushOfficer(playerId)
+    send(playerId, "rp_police:officer", {
+        arrest = onDuty(playerId, PoliceConfig.arrestPermission),
+        fine = onDuty(playerId, PoliceConfig.finePermission),
+        maxFine = PoliceConfig.fineMax, maxJail = PoliceConfig.jailMaxMinutes,
+    })
+end
+
 -- Выдать или забрать права набора по тому, на смене ли игрок с правом ареста.
 local function syncKit(playerId)
+    pushOfficer(playerId)
     if onDuty(playerId, PoliceConfig.arrestPermission) then
         local userId = userIdOf(playerId)
         if not userId or granted[playerId] == userId then return end
@@ -182,7 +192,7 @@ local function officerOnly(source, permission)
 end
 
 -- /cuff <ID> — надеть наручники; на задержанном вами — снять.
-RegisterCommand("cuff", function(source, args)
+local function cmdCuff(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
     local id = target(source, args[1])
     if not id then return end
@@ -197,7 +207,8 @@ RegisterCommand("cuff", function(source, args)
     notify(source, "%s в наручниках. /escort — вести, /search — обыскать, /jail — в КПЗ.", nameOf(id))
     notify(id, "Офицер %s надел на вас наручники.", nameOf(source))
     log("info", "cuff %d -> %d", source, id)
-end, false)
+end
+RegisterCommand("cuff", cmdCuff, false)
 
 RegisterCommand("uncuff", function(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
@@ -210,7 +221,7 @@ RegisterCommand("uncuff", function(source, args)
 end, false)
 
 -- /escort <ID> — вести задержанного (он идёт за вами); повторно — остановиться (снова наручники).
-RegisterCommand("escort", function(source, args)
+local function cmdEscort(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
     local id = target(source, args[1])
     if not id then return end
@@ -227,7 +238,8 @@ RegisterCommand("escort", function(source, args)
     else
         notify(source, "%s остановлен, в наручниках.", nameOf(id))
     end
-end, false)
+end
+RegisterCommand("escort", cmdEscort, false)
 
 -- -- обыск и изъятие ------------------------------------------------------------------
 
@@ -238,7 +250,7 @@ local function sendPockets(officer, id)
 end
 
 -- /search <ID> — обыскать задержанного (руки вверх на пару секунд), затем окно с карманами.
-RegisterCommand("search", function(source, args)
+local function cmdSearch(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
     local id = target(source, args[1])
     if not id then return end
@@ -248,7 +260,8 @@ RegisterCommand("search", function(source, args)
     searches[source] = { target = id, at = Open77.time.unix(), ticket = ticket }
     notify(source, "Обыск %s…", nameOf(id))
     notify(id, "Офицер %s вас обыскивает.", nameOf(source))
-end, false)
+end
+RegisterCommand("search", cmdSearch, false)
 
 AddEventHandler("open77_rp_basics:searched", function(officerArg, targetArg, ticket)
     local officer, id = tonumber(officerArg), tonumber(targetArg)
@@ -294,7 +307,7 @@ end)
 
 -- /fine <ID> <сумма> <причина> — штраф со счёта в кассу NCPD; не хватает — сколько есть,
 -- остаток записывается долгом.
-RegisterCommand("fine", function(source, args)
+local function cmdFine(source, args)
     if not officerOnly(source, PoliceConfig.finePermission) then return end
     local id = target(source, args[1])
     if not id then return end
@@ -327,7 +340,8 @@ RegisterCommand("fine", function(source, args)
     core("audit", "police_fine", core("account_license", source), core("account_license", id),
         { amount = amount, paid = paid, reason = reason })
     log("info", "штраф %d -> %d: %d (списано %d) %s", source, id, amount, paid, reason)
-end, false)
+end
+RegisterCommand("fine", cmdFine, false)
 
 -- /fines <ID> — последние штрафы и долг игрока.
 RegisterCommand("fines", function(source, args)
@@ -397,7 +411,7 @@ local function freeFromJail(playerId, why)
 end
 
 -- /jail <ID> <минуты> <причина> — посадить задержанного вами в ближайшую камеру.
-RegisterCommand("jail", function(source, args)
+local function cmdJail(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
     local id = target(source, args[1])
     if not id then return end
@@ -422,7 +436,29 @@ RegisterCommand("jail", function(source, args)
     core("audit", "police_jail", core("account_license", source), core("account_license", id),
         { minutes = minutes, reason = reason })
     log("info", "КПЗ %d -> %d: %d мин, %s", source, id, minutes, reason)
-end, false)
+end
+RegisterCommand("jail", cmdJail, false)
+
+-- Контекстное меню (Alt на игроке, rp_police_ui): те же команды с теми же проверками.
+-- a, b — сумма и причина штрафа или минуты и причина КПЗ.
+local MENU = { cuff = cmdCuff, escort = cmdEscort, search = cmdSearch, fine = cmdFine, jail = cmdJail }
+RegisterNetEvent("rp_police:menu", function(verb, targetId, a, b)
+    local playerId = tonumber(source)
+    local fn = type(verb) == "string" and MENU[verb]
+    local id = math.tointeger(tonumber(targetId))
+    if not playerId or not fn or not id then return end
+    local args = { tostring(id) }
+    if verb == "fine" or verb == "jail" then
+        args[2] = tostring(math.tointeger(tonumber(a)) or "")
+        args[3] = type(b) == "string" and b:sub(1, 200) or ""
+    end
+    fn(playerId, args)
+end)
+
+RegisterNetEvent("rp_police:requestOfficer", function()
+    local playerId = tonumber(source)
+    if playerId then pushOfficer(playerId) end
+end)
 
 -- /unjail <ID> — выпустить досрочно (NCPD на смене или администрация с rp.police).
 RegisterCommand("unjail", function(source, args)
@@ -497,6 +533,7 @@ AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
     CreateThread(function()
         -- После входа персонаж не на смене: права набора, оставшиеся с прошлой сессии, — забрать.
         revokeKit(playerId)
+        pushOfficer(playerId)
         if not dbReady then return end
         local row = db("single", "SELECT seconds_left, reason FROM rp_police_jail WHERE character_id = ?", { characterId })
         if not row then return end

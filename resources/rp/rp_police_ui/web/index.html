@@ -26,6 +26,18 @@
   button:hover { background: rgba(90, 160, 255, 0.12); }
   .empty { color: var(--muted); }
   .hint { margin-top: 12px; color: var(--muted); font-size: 12px; }
+  #form { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+  #form.open { display: block; }
+  #formBox { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 440px; padding: 22px 24px;
+    background: var(--bg); border: 1px solid rgba(90, 160, 255, 0.35); border-top: 3px solid var(--accent); }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .field input { width: 100%; padding: 8px 10px; background: rgba(255, 255, 255, 0.05); color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; outline: none; user-select: text; }
+  .field input:focus { border-color: var(--accent); }
+  .buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  button.ghost { border-color: rgba(255, 255, 255, 0.2); color: var(--muted); }
+  #formError { color: var(--warn); font-size: 13px; min-height: 18px; }
   #jail { display: none; position: absolute; top: 24px; left: 50%; transform: translateX(-50%); padding: 10px 22px;
     background: rgba(10, 12, 18, 0.82); border: 1px solid rgba(90, 160, 255, 0.35); border-top: 3px solid var(--accent);
     text-align: center; pointer-events: none; }
@@ -36,6 +48,16 @@
 </head>
 <body>
 <div id="jail"><small>КПЗ</small><b id="jailLeft"></b><small id="jailReason"></small></div>
+<div id="form">
+  <div id="formBox">
+    <h1 id="formTitle"></h1>
+    <div class="sub" id="formWho"></div>
+    <div class="field"><label id="numLabel"></label><input id="num" type="number" min="1"></div>
+    <div class="field"><label>Причина</label><input id="reason" maxlength="200"></div>
+    <div id="formError"></div>
+    <div class="buttons"><button class="ghost" id="formCancel">Отмена</button><button id="formOk"></button></div>
+  </div>
+</div>
 <div id="search">
   <div id="panel">
     <h1>Обыск</h1>
@@ -87,9 +109,45 @@
     if (left <= 0 && jailTimer) { clearInterval(jailTimer); jailTimer = null; }
   }
 
+  // Штраф / КПЗ из контекстного меню.
+  let form = null;
+  function openForm(p) {
+    form = p;
+    const fine = p.kind === "fine";
+    $("formTitle").textContent = fine ? "Штраф" : "КПЗ";
+    $("formWho").textContent = `Игрок [${p.target}]`;
+    $("numLabel").textContent = fine ? `Сумма, €$ (до ${p.maxFine})` : `Минуты (до ${p.maxJail})`;
+    $("num").max = fine ? p.maxFine : p.maxJail;
+    $("num").value = fine ? "" : "5";
+    $("reason").value = "";
+    $("formError").textContent = "";
+    $("formOk").textContent = fine ? "Выписать" : "Посадить";
+    $("form").classList.add("open");
+    $("num").focus();
+  }
+  function submitForm() {
+    if (!form) return;
+    const n = parseInt($("num").value, 10);
+    const max = form.kind === "fine" ? form.maxFine : form.maxJail;
+    const reason = $("reason").value.trim();
+    if (!(n >= 1 && n <= max)) { $("formError").textContent = `Нужно число от 1 до ${max}.`; return; }
+    if (!reason) { $("formError").textContent = "Укажите причину."; return; }
+    Open77.emit("pol:formSubmit", { kind: form.kind, target: form.target, number: n, reason });
+  }
+  $("formOk").addEventListener("click", submitForm);
+  $("formCancel").addEventListener("click", () => Open77.emit("pol:formClose", {}));
+
   document.addEventListener("keydown", e => {
+    if ($("form").classList.contains("open")) {
+      if (e.key === "Escape") { e.preventDefault(); Open77.emit("pol:formClose", {}); }
+      else if (e.key === "Enter") { e.preventDefault(); submitForm(); }
+      return;
+    }
     if (e.key === "Escape" && $("search").classList.contains("open")) { e.preventDefault(); Open77.emit("pol:close", {}); }
   });
+
+  Open77.on("pol:form", openForm);
+  Open77.on("pol:closeForm", () => { form = null; $("form").classList.remove("open"); });
 
   Open77.on("pol:search", p => { renderSearch(p); $("search").classList.add("open"); });
   Open77.on("pol:closeSearch", () => $("search").classList.remove("open"));
