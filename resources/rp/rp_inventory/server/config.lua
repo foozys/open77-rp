@@ -3,7 +3,8 @@
 --
 -- Предмет: label — название; w, h — сколько клеток занимает; weightG — вес одной
 -- штуки в граммах; stack — сколько штук в одной клетке-стопке (1 — не складывается);
--- color — цвет плашки в окне; use = "consume" — при использовании тратится одна штука.
+-- color — цвет плашки в окне; use = "consume" — при использовании тратится одна штука;
+-- heal — доля здоровья, которую восстанавливает (1 — полностью); раненым быть обязательно.
 -- id предмета: a-z, 0-9 и _, до 64 символов. Удалять предмет из каталога, пока он
 -- у кого-то есть, нельзя: open77_transactions откажет в операциях с ним.
 
@@ -19,8 +20,8 @@ InvConfig = {
         sandwich   = { label = "Сэндвич",           w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
         cigarettes = { label = "Сигареты",          w = 1, h = 1, weightG = 40,   stack = 20, color = "#8a8a8a", use = "consume" },
         lighter    = { label = "Зажигалка",         w = 1, h = 1, weightG = 30,   stack = 1,  color = "#d65a31" },
-        bandage    = { label = "Бинт",              w = 1, h = 1, weightG = 60,   stack = 5,  color = "#e8e8e8", use = "consume" },
-        medkit     = { label = "Аптечка",           w = 2, h = 2, weightG = 900,  stack = 1,  color = "#c0392b", use = "consume" },
+        bandage    = { label = "Бинт",              w = 1, h = 1, weightG = 60,   stack = 5,  color = "#e8e8e8", use = "consume", heal = 0.25 },
+        medkit     = { label = "Аптечка",           w = 2, h = 2, weightG = 900,  stack = 1,  color = "#c0392b", use = "consume", heal = 1 },
         phone      = { label = "Телефон",           w = 1, h = 2, weightG = 200,  stack = 1,  color = "#2c3e50" },
         notebook   = { label = "Блокнот",           w = 1, h = 1, weightG = 150,  stack = 1,  color = "#7f6a4e" },
         toolbox    = { label = "Набор инструментов", w = 3, h = 2, weightG = 3500, stack = 1,  color = "#b8860b" },

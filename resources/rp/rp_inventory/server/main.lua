@@ -235,12 +235,27 @@ RegisterNetEvent("rp_inventory:use", function(index, itemId)
     withStack(playerId, index, itemId, function(state, stack, at)
         local def = InvConfig.items[stack.i]
         if def.use ~= "consume" then return notify(playerId, "%s нельзя использовать.", def.label) end
+        local life = Open77.players.getLifeState(playerId)
+        if not life or life.phase ~= "alive" then return notify(playerId, "Сейчас нельзя.") end
+        local health
+        if def.heal then
+            health = Open77.stats.getHealth(playerId)
+            if not health then return notify(playerId, "Сейчас нельзя.") end
+            if health.current >= health.maximum then return notify(playerId, "Вы не ранены.") end
+        end
         local opId = Store.newOpId("rpuse")
         local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.use", reason = "use",
             lines = { { item = stack.i, count = 1, from = state.account, to = SOURCE } } })
         if not receipt then return notify(playerId, "Не получилось: %s.", explain(why or "busy")) end
         takeFrom(state, at, 1)
         refresh(playerId)
+        if def.heal then
+            -- Здоровье могло измениться, пока шла операция: перечитываем.
+            health = Open77.stats.getHealth(playerId) or health
+            local value = math.min(health.maximum, health.current + health.maximum * def.heal)
+            local ok, reason = Open77.stats.setHealth(playerId, value)
+            if not ok then log("warn", "лечение игрока %d: %s", playerId, tostring(reason)) end
+        end
         notify(playerId, "Вы использовали: %s.", def.label)
         TriggerEvent("rp_inventory:used", playerId, itemId, state.characterId)
     end)
@@ -285,7 +300,9 @@ RegisterNetEvent("rp_inventory:drop", function(index, itemId, count)
         local pile, why = Store.boxes("create", {
             kind = "pile", position = { x = pos.x, y = pos.y, z = pos.z }, bucket = pos.bucket or 0,
             label = def.label, capacityG = math.max(1000, def.weightG * count + 100),
-            ttlMs = InvConfig.dropTtlMs, prompt = { label = "Подобрать: " .. def.label, key = "E" },
+            -- подсказку над кучей рисует движок, кириллицу он не показывает
+            ttlMs = InvConfig.dropTtlMs,
+            prompt = { label = core("transliterate", "Подобрать: " .. def.label) or "Pick up", key = "E" },
         })
         if not pile then return notify(playerId, "Не получилось выбросить: %s.", explain(why)) end
         local opId = Store.newOpId("rpdrop")

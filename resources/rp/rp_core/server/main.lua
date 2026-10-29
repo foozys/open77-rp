@@ -65,6 +65,12 @@ exports("character_subject", function(characterId)
     return Characters.subjectForId(id)
 end)
 
+-- Кириллица → латиница: для текстов, которые рисует движок (экран ошибок,
+-- подсказки над предметами в мире) — кириллицу он не отображает.
+exports("transliterate", function(text)
+    return Util.transliterate(tostring(text or ""))
+end)
+
 exports("audit", function(action, actor, target, details)
     local caller = GetInvokingResource()
     if type(caller) ~= "string" or caller:sub(1, #RpConfig.trustedResourcePrefix) ~= RpConfig.trustedResourcePrefix then
