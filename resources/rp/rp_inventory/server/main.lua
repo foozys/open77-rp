@@ -300,9 +300,9 @@ RegisterNetEvent("rp_inventory:drop", function(index, itemId, count)
         local pile, why = Store.boxes("create", {
             kind = "pile", position = { x = pos.x, y = pos.y, z = pos.z }, bucket = pos.bucket or 0,
             label = def.label, capacityG = math.max(1000, def.weightG * count + 100),
-            -- подсказку над кучей рисует движок, кириллицу он не показывает
+            -- подсказку над кучей рисует движок, кириллицу он не показывает: английское название
             ttlMs = InvConfig.dropTtlMs,
-            prompt = { label = core("transliterate", "Подобрать: " .. def.label) or "Pick up", key = "E" },
+            prompt = { label = "Pick up: " .. (def.labelEn or itemId), key = "E" },
         })
         if not pile then return notify(playerId, "Не получилось выбросить: %s.", explain(why)) end
         local opId = Store.newOpId("rpdrop")

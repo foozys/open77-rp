@@ -1,8 +1,9 @@
 -- Инвентарь-сетка. Количество предметов хранит open77_transactions (карманы
 -- персонажа "char:rpc-<id>"), раскладку по клеткам — rp_inventory.
 --
--- Предмет: label — название; w, h — сколько клеток занимает; weightG — вес одной
--- штуки в граммах; stack — сколько штук в одной клетке-стопке (1 — не складывается);
+-- Предмет: label — название; labelEn — английское название для текстов, которые
+-- рисует движок (подсказка над предметом на земле): кириллицу он не показывает;
+-- w, h — сколько клеток занимает; weightG — вес одной штуки в граммах; stack — сколько штук в одной клетке-стопке (1 — не складывается);
 -- color — цвет плашки в окне; use = "consume" — при использовании тратится одна штука;
 -- heal — доля здоровья, которую восстанавливает (1 — полностью); раненым быть обязательно.
 -- id предмета: a-z, 0-9 и _, до 64 символов. Удалять предмет из каталога, пока он
@@ -16,15 +17,15 @@ InvConfig = {
     dropTtlMs = 30 * 60 * 1000,       -- выброшенное лежит на земле 30 минут
 
     items = {
-        water      = { label = "Бутылка воды",      w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
-        sandwich   = { label = "Сэндвич",           w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
-        cigarettes = { label = "Сигареты",          w = 1, h = 1, weightG = 40,   stack = 20, color = "#8a8a8a", use = "consume" },
-        lighter    = { label = "Зажигалка",         w = 1, h = 1, weightG = 30,   stack = 1,  color = "#d65a31" },
-        bandage    = { label = "Бинт",              w = 1, h = 1, weightG = 60,   stack = 5,  color = "#e8e8e8", use = "consume", heal = 0.25 },
-        medkit     = { label = "Аптечка",           w = 2, h = 2, weightG = 900,  stack = 1,  color = "#c0392b", use = "consume", heal = 1 },
-        phone      = { label = "Телефон",           w = 1, h = 2, weightG = 200,  stack = 1,  color = "#2c3e50" },
-        notebook   = { label = "Блокнот",           w = 1, h = 1, weightG = 150,  stack = 1,  color = "#7f6a4e" },
-        toolbox    = { label = "Набор инструментов", w = 3, h = 2, weightG = 3500, stack = 1,  color = "#b8860b" },
-        scrap      = { label = "Металлолом",        w = 1, h = 1, weightG = 400,  stack = 10, color = "#6d7b8d" },
+        water      = { label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
+        sandwich   = { label = "Сэндвич",           labelEn = "Sandwich",     w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
+        cigarettes = { label = "Сигареты",          labelEn = "Cigarettes",   w = 1, h = 1, weightG = 40,   stack = 20, color = "#8a8a8a", use = "consume" },
+        lighter    = { label = "Зажигалка",         labelEn = "Lighter",      w = 1, h = 1, weightG = 30,   stack = 1,  color = "#d65a31" },
+        bandage    = { label = "Бинт",              labelEn = "Bandage",      w = 1, h = 1, weightG = 60,   stack = 5,  color = "#e8e8e8", use = "consume", heal = 0.25 },
+        medkit     = { label = "Аптечка",           labelEn = "Medkit",       w = 2, h = 2, weightG = 900,  stack = 1,  color = "#c0392b", use = "consume", heal = 1 },
+        phone      = { label = "Телефон",           labelEn = "Phone",        w = 1, h = 2, weightG = 200,  stack = 1,  color = "#2c3e50" },
+        notebook   = { label = "Блокнот",           labelEn = "Notebook",     w = 1, h = 1, weightG = 150,  stack = 1,  color = "#7f6a4e" },
+        toolbox    = { label = "Набор инструментов", labelEn = "Toolbox",   w = 3, h = 2, weightG = 3500, stack = 1,  color = "#b8860b" },
+        scrap      = { label = "Металлолом",        labelEn = "Scrap metal",  w = 1, h = 1, weightG = 400,  stack = 10, color = "#6d7b8d" },
     },
 }
