@@ -30,6 +30,8 @@ RpConfig = {
     --   rp.announce          — объявление на весь сервер
     -- rp_shops:
     --   rp.shops             — ставить и убирать магазины
+    -- rp_vehicles:
+    --   rp.vehicles          — автосалоны и гаражи (rp.dealer, rp.garage), выдать машину (rp.givecar)
     -- (жалобы /report видит и отвечает на них rp.pm каждый с правом rp.staff)
     staffRoles = {
         { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view", "rp.teleport" } },
@@ -38,7 +40,7 @@ RpConfig = {
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
-                          "rp.heal", "rp.unwarn", "rp.announce", "rp.shops" } },
+                          "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 

@@ -130,7 +130,9 @@
       "rp/rp_admin",
       "rp/rp_needs",
       "rp/rp_shops",
-      "rp/rp_shops_ui"
+      "rp/rp_shops_ui",
+      "rp/rp_vehicles",
+      "rp/rp_vehicles_ui"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,

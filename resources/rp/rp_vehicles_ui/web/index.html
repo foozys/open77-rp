@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Транспорт</title>
+<style>
+  :root {
+    --bg: rgba(10, 12, 18, 0.94);
+    --line: rgba(94, 246, 255, 0.3);
+    --accent: #5ef6ff;
+    --money: #f3e600;
+    --ok: #78dc8c;
+    --warn: #ff5e6c;
+    --text: #e8f1f2;
+    --muted: #8fa3a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 16px/1.35 "Segoe UI", Arial, sans-serif; user-select: none; }
+  #root { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+  #root.open { display: block; }
+  #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 600px; max-height: 80vh;
+    overflow-y: auto; padding: 24px 26px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+  #wallet { font-size: 14px; color: var(--muted); }
+  #wallet b { color: var(--money); font-size: 18px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08); }
+  .row .name { flex: 1; }
+  .row .name small { display: block; color: var(--muted); font-size: 12px; }
+  .row .price { font-weight: 600; }
+  button { padding: 7px 14px; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    font: inherit; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+  button:hover { background: rgba(94, 246, 255, 0.12); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .empty { color: var(--muted); }
+  #message { min-height: 22px; margin-top: 14px; font-size: 14px; }
+  #message.ok { color: var(--ok); }
+  #message.bad { color: var(--warn); }
+  .hint { margin-top: 10px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="panel">
+    <header>
+      <h1 id="title"></h1>
+      <div id="wallet"></div>
+    </header>
+    <div id="list"></div>
+    <div id="message"></div>
+    <div class="hint">Esc — закрыть</div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const money = n => `${String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} €$`;
+  let busy = false;
+
+  function setBusy(value) {
+    busy = value;
+    document.querySelectorAll("#list button").forEach(b => { if (!b.dataset.off) b.disabled = value; });
+  }
+
+  function message(text, ok) {
+    const node = $("message");
+    node.textContent = text || "";
+    node.className = text ? (ok ? "ok" : "bad") : "";
+  }
+
+  function row(name, sub, extra, label, action, disabled) {
+    const el = document.createElement("div");
+    el.className = "row";
+    el.innerHTML = `<div class="name"><span></span><small></small></div><div class="price"></div><button></button>`;
+    el.querySelector(".name span").textContent = name;
+    el.querySelector(".name small").textContent = sub || "";
+    el.querySelector(".price").textContent = extra || "";
+    const button = el.querySelector("button");
+    button.textContent = label;
+    if (disabled) { button.disabled = true; button.dataset.off = "1"; }
+    button.addEventListener("click", () => {
+      if (busy) return;
+      setBusy(true);
+      message("");
+      action();
+    });
+    $("list").append(el);
+  }
+
+  function renderDealer(p) {
+    $("wallet").innerHTML = "На счёте <b></b>";
+    $("wallet").querySelector("b").textContent = money(p.bank || 0);
+    for (const m of p.models || []) {
+      row(m.label, "", money(m.price), "Купить", () => Open77.emit("veh:buy", { model: m.model }));
+    }
+  }
+
+  function renderGarage(p) {
+    $("wallet").textContent = "";
+    const list = p.vehicles || [];
+    if (!list.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "У вас нет машин. Купить — в автосалоне.";
+      $("list").append(empty);
+      return;
+    }
+    for (const v of list) {
+      if (!v.out) {
+        row(v.label, v.plate, "в гараже", "Выгнать", () => Open77.emit("veh:takeOut", { id: v.id }));
+      } else if (v.near) {
+        row(v.label, v.plate, "рядом", "Поставить", () => Open77.emit("veh:park", { id: v.id }));
+      } else {
+        row(v.label, v.plate, "в городе", "Поставить", () => {}, true);
+      }
+    }
+  }
+
+  document.addEventListener("keydown", e => {
+    if (!$("root").classList.contains("open")) return;
+    if (e.key === "Escape") { e.preventDefault(); Open77.emit("veh:close", {}); }
+  });
+
+  Open77.on("veh:show", p => {
+    $("title").textContent = p.title || "";
+    $("list").replaceChildren();
+    if (p.kind === "dealer") renderDealer(p); else renderGarage(p);
+    // Обновление уже открытого окна (после «Поставить») не стирает сообщение о результате.
+    if (!$("root").classList.contains("open")) message("");
+    setBusy(false);
+    $("root").classList.add("open");
+  });
+  Open77.on("veh:result", p => {
+    message(p.text, p.ok);
+    setBusy(false);
+  });
+  Open77.on("veh:close", () => { $("root").classList.remove("open"); message(""); });
+
+  Open77.ready();
+</script>
+</body>
+</html>
