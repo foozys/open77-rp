@@ -4,6 +4,7 @@
 !/.gitignore
 !/CLAUDE.md
 !/TESTING-2P.md
+!/DOCS.md
 !/server.jsonc
 !/acl.jsonc
 !/Start-Logged.cmd
