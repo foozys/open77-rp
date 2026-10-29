@@ -222,8 +222,6 @@ local function spawn(row, garage, playerId)
                    playerId = playerId, keys = {} }
     byVehicle[vehicleId] = rpId
     db("update", "UPDATE rp_vehicles SET state = 'out' WHERE id = ?", { rpId })
-    local seated, why = Open77.vehicles.warpPlayerIntoVehicle(playerId, vehicleId, "driver")
-    if not seated then log("debug", "игрок %d не посажен в машину: %s", playerId, tostring(why)) end
     return vehicleId
 end
 
