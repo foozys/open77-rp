@@ -1,0 +1,21 @@
+-- NCPD: наручники, сопровождение, обыск с изъятием (open77_rp_basics + rp_inventory),
+-- штрафы, КПЗ с таймером, вызовы 911. Права — права работы в rp_jobs, только на смене.
+-- Точки КПЗ ставит администрация: rp.jailpoint add cell | exit.
+
+PoliceConfig = {
+    arrestPermission = "ncpd.arrest", -- наручники, сопровождение, обыск, изъятие, КПЗ
+    finePermission = "ncpd.fine",     -- штрафы
+    callPermission = "ncpd.basic",    -- кому приходят вызовы 911
+
+    actionDistance = 3,      -- как близко стоять к задержанному (наручники, штраф, обыск)
+
+    fineMax = 50000,         -- самый большой штраф, €$
+    fineAccount = "soc:ncpd", -- куда идут штрафы (касса NCPD; rp.society ncpd — посмотреть)
+
+    jailMaxMinutes = 30,     -- самый долгий срок в КПЗ
+    jailCellDistance = 15,   -- офицер должен стоять у камеры не дальше стольких метров
+    jailRadius = 12,         -- отошёл от камеры дальше — возвращает обратно
+
+    callCooldownSeconds = 60, -- /911 не чаще
+    callBlipSeconds = 300,   -- сколько метка вызова висит у полицейских
+}

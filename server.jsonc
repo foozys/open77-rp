@@ -119,6 +119,7 @@
       "open77_zones",
       "open77_transactions",
       "open77_containers",
+      "open77_rp_basics",
       "rp/rp_core",
       "rp/rp_charselect",
       "rp/rp_chat",
@@ -135,7 +136,9 @@
       "rp/rp_vehicles",
       "rp/rp_vehicles_ui",
       "rp/rp_medical",
-      "rp/rp_medical_ui"
+      "rp/rp_medical_ui",
+      "rp/rp_police",
+      "rp/rp_police_ui"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,

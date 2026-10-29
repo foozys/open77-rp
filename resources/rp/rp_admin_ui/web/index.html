@@ -245,6 +245,14 @@
       { title: "Убрать больницу", desc: "Ближайшую (до 8 м)", perm: "rp.medical", cmd: () => ["rp.hospital", "remove"], danger: true },
       { title: "Список больниц", desc: "", perm: "rp.medical", cmd: () => ["rp.hospital", "list"] },
     ]},
+    { id: "police", label: "Полиция", actions: [
+      { title: "Выпустить из КПЗ", desc: "Досрочно", perm: "rp.police", fields: [F.player()], cmd: v => ["rp.unjail", v.id] },
+      { title: "Поставить камеру КПЗ", desc: "Там, где вы стоите", perm: "rp.police", cmd: () => ["rp.jailpoint", "add", "cell"] },
+      { title: "Поставить выход из КПЗ", desc: "Куда выходят отсидевшие", perm: "rp.police", cmd: () => ["rp.jailpoint", "add", "exit"] },
+      { title: "Убрать точку КПЗ", desc: "Ближайшую (до 8 м)", perm: "rp.police", cmd: () => ["rp.jailpoint", "remove"], danger: true },
+      { title: "Список точек КПЗ", desc: "", perm: "rp.police", cmd: () => ["rp.jailpoint", "list"] },
+      { title: "Касса NCPD", desc: "Штрафы идут сюда", perm: "rp.jobs", cmd: () => ["rp.society", "ncpd"] },
+    ]},
     { id: "shops", label: "Магазины", actions: [
       { title: "Поставить магазин", desc: "Точка там, где вы стоите", perm: "rp.shops",
         fields: [F.select("type", "Тип", "shopTypes")], cmd: v => ["rp.shop", "add", v.type] },

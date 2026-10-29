@@ -476,6 +476,55 @@ exports("give_instance", function(playerId, itemId, meta, price)
     return lines[1].instance
 end)
 
+-- Карманы игрока для обыска (только rp_*): { { index, item, label, count, plate?, amount? } },
+-- или nil, reason. Свежие: перед ответом сверяются с open77_transactions.
+exports("pockets", function(playerId)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    playerId = math.tointeger(tonumber(playerId))
+    local state, problem = playerId and ensure(playerId)
+    if not state then return nil, problem or "invalid_argument" end
+    refresh(playerId)
+    local list = {}
+    for index, stack in ipairs(state.stacks) do
+        local record = stack.u and state.instances and state.instances[stack.u]
+        list[#list + 1] = { index = index, item = stack.i, label = labelOf(stack.i), count = stack.n,
+                            plate = record and type(record.meta.plate) == "string" and record.meta.plate or nil,
+                            amount = record and tonumber(record.meta.amount) or nil }
+    end
+    return list
+end)
+
+-- Переложить count штук стопки index (предмет itemId) от одного игрока другому (только rp_*,
+-- например изъятие при обыске). Проверки «рядом» и прав — на вызывающем.
+-- true, или nil, reason ("stale" — стопка изменилась, "no_space", …).
+exports("seize", function(fromId, toId, index, itemId, count)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    fromId, toId, index = math.tointeger(tonumber(fromId)), math.tointeger(tonumber(toId)), math.tointeger(tonumber(index))
+    local from, problem = fromId and ensure(fromId)
+    if not from then return nil, problem or "invalid_argument" end
+    local to, problemTo = toId and ensure(toId)
+    if not to then return nil, problemTo or "invalid_argument" end
+    local stack = index and from.stacks[index]
+    if not stack or stack.i ~= itemId then return nil, "stale" end
+    if from.busy or to.busy then return nil, "busy" end
+    count = clampCount(count, stack)
+    if not Grid.fits(to.stacks, stack.i, count) then return nil, "no_space" end
+    local opId = Store.newOpId("rpseize")
+    if not opId then return nil, "store_unavailable" end
+    from.busy, to.busy = true, true
+    local receipt, why = Store.transfer({ opId = opId, kind = "rp.seize", reason = caller,
+        lines = { lineFor(stack, count, from.account, to.account) } })
+    from.busy, to.busy = false, false
+    if not receipt then return nil, why or "busy" end
+    takeFrom(from, index, count)
+    refresh(fromId)
+    refresh(toId)
+    log("info", "seize %d -> %d: %s x%d (%s, %s)", fromId, toId, itemId, count, caller, opId)
+    return true
+end)
+
 -- Предметы живут в памяти координатора: объявлять на каждом его ready.
 CreateThread(function() Store.define() end)
 AddEventHandler("open77_transactions:ready", function() Store.define() end)
