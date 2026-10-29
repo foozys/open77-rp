@@ -307,6 +307,21 @@ local function spawnFor(playerId)
             local vehicleId, why = spawnAt(row, spot, tonumber(row.locked) == 1)
             if vehicleId then
                 log("info", "машина #%d (%s) вернулась в город: игрок %d", rpId, row.plate, playerId)
+                -- При входе машина создаётся, пока игра у игрока ещё грузит мир, и краска
+                -- на клиенте не применяется (в БД она верная). Переставить её позже:
+                -- сброс и та же краска снова, чтобы клиент получил изменение, а не повтор.
+                local paint = paintOf(row)
+                if paint then
+                    CreateThread(function()
+                        for _, delay in ipairs({ 5000, 10000 }) do
+                            Wait(delay)
+                            local car = live[rpId]
+                            if not car or car.vehicleId ~= vehicleId or not Open77.vehicles.get(vehicleId) then return end
+                            Open77.vehicles.resetPaint(vehicleId)
+                            Open77.vehicles.setPaint(vehicleId, paint)
+                        end
+                    end)
+                end
             else
                 log("warn", "машина #%d (%s) не создана: %s", rpId, row.plate, tostring(why))
             end
