@@ -156,17 +156,26 @@ showLook = function(id)
     preview, previewId = created, id
 end
 
+-- open77_appearance закончил надевать сохранённую внешность на тело. Без
+-- побочных эффектов, в отличие от previewReady.
+local function appearanceSettled()
+    local ok, ready = pcall(Open77.exports.callSync, "open77_appearance", "wardrobeMutationReady")
+    return ok and ready == true
+end
+
 -- Анкета: манекен с телом, которое игрок только что создал в редакторе.
 showSelf = function()
     CreateThread(function()
-        -- Тело надевается не мгновенно: ждём, пока снимок станет непустым.
-        for _ = 1, 20 do
+        -- Внешность надевается несколько секунд; снимок до этого — чужое лицо.
+        for _ = 1, 60 do
             if not state or state.mode ~= "profile" or not scene then return end
-            local body = Open77.appearance.captureBody()
-            if type(body) == "table" and type(body.groups) == "table" and #body.groups > 0 then
-                looks.self = { body = body }
-                showLook("self")
-                return
+            if appearanceSettled() then
+                local body = Open77.appearance.captureBody()
+                if type(body) == "table" and type(body.groups) == "table" and #body.groups > 0 then
+                    looks.self = { body = body }
+                    showLook("self")
+                    return
+                end
             end
             Wait(500)
         end
@@ -300,7 +309,12 @@ local LOOK_MAX_BYTES = 7680
 -- Сервер просит снимок: после появления в мире и после правки внешности.
 RegisterNetEvent("rp_charselect:captureLook", function()
     CreateThread(function()
-        Wait(5000) -- дать open77_appearance надеть тело
+        -- ждём, пока open77_appearance наденет внешность (до минуты)
+        for _ = 1, 60 do
+            if appearanceSettled() then break end
+            Wait(1000)
+        end
+        Wait(1000)
         local body, reason = Open77.appearance.captureBody()
         if not body then
             print("[rp_charselect] снимок тела: " .. tostring(reason))
