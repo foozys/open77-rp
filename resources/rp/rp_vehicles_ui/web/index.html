@@ -114,22 +114,27 @@
     }
     const act = (event, id) => () => Open77.emit(event, { id });
     for (const v of list) {
+      if (v.status === "elsewhere") {
+        row(v.label, v.plate, `${v.out ? "в городе, " : ""}гараж #${v.elsewhere}`, []);
+        continue;
+      }
       const buttons = [];
       if (v.status === "garage") {
         buttons.push({ label: "Выгнать", action: act("veh:takeOut", v.id) });
       } else if (v.status === "near") {
         buttons.push({ label: "Поставить", action: act("veh:park", v.id) });
-      } else {
+      } else if (v.home) {
         buttons.push({ label: `Эвакуировать · ${money(p.towPrice)}`, action: act("veh:tow", v.id),
                        title: "Машину доставят в гараж, где бы она ни была" });
       }
-      if (v.owner) {
+      if (v.owner && v.home) {
         buttons.push({ label: `Ключ · ${money(p.keyPrice)}`, action: act("veh:key", v.id),
                        title: "Изготовить ключ: он появится в инвентаре, его можно передать" });
         buttons.push({ label: `Сменить замок · ${money(p.rekeyPrice)}`, action: act("veh:rekey", v.id),
                        title: "Все прежние ключи перестанут подходить" });
       }
-      const where = { garage: "в гараже", near: "рядом", city: "в городе" }[v.status] || "";
+      const where = v.status === "near" && !v.home ? "рядом · сменит гараж"
+        : ({ garage: "в гараже", near: "рядом", city: "в городе" }[v.status] || "");
       row(v.label, v.owner ? v.plate : `${v.plate} · по ключу`, where, buttons);
     }
   }
