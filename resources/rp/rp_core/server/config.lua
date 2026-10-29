@@ -20,12 +20,23 @@ RpConfig = {
     --   rp.jobs              — назначать работу и ранг (rp.setjob в rp_jobs), смотреть кассы организаций
     --   rp.staff.manage      — назначать роли ниже своей
     --   rp.tune              — менять настройки ядра
+    -- rp_admin:
+    --   rp.teleport          — телепорт к игроку, игрока к себе, по координатам
+    --   rp.spectate          — наблюдение за игроком
+    --   rp.freeze            — заморозить игрока
+    --   rp.warn              — выдать предупреждение
+    --   rp.heal              — вылечить, воскресить
+    --   rp.unwarn            — снять предупреждение
+    --   rp.announce          — объявление на весь сервер
+    -- (жалобы /report видит и отвечает на них rp.pm каждый с правом rp.staff)
     staffRoles = {
-        { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view" } },
-        { id = "moderator", label = "Модератор", permissions = { "rp.kick", "rp.ban", "rp.whitelist.add" },
+        { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view", "rp.teleport" } },
+        { id = "moderator", label = "Модератор",
+          permissions = { "rp.kick", "rp.ban", "rp.whitelist.add", "rp.spectate", "rp.freeze", "rp.warn" },
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
-          permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs" } },
+          permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
+                          "rp.heal", "rp.unwarn", "rp.announce" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 

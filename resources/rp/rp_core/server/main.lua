@@ -71,6 +71,37 @@ exports("transliterate", function(text)
     return Util.transliterate(tostring(text or ""))
 end)
 
+-- Может ли source действовать над аккаунтом license: только над младшими по роли.
+-- Для аккаунта не в сети ждёт БД: вызывать через Open77.exports.call. true, или false, текст.
+exports("outranks", function(source, license)
+    local id = math.tointeger(tonumber(source))
+    if id == nil or type(license) ~= "string" then return false, "Неверная цель." end
+    return Roles.outranks(id, license)
+end)
+
+-- Бан от имени другого rp_*-ресурса (автобан за варны и т.п.); игрок в сети отключается.
+-- Ждёт БД: вызывать через Open77.exports.call. id бана, или nil, reason.
+exports("ban", function(license, seconds, reason, bannedBy)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, #RpConfig.trustedResourcePrefix) ~= RpConfig.trustedResourcePrefix then
+        return nil, "caller_denied"
+    end
+    seconds = math.tointeger(tonumber(seconds))
+    if type(license) ~= "string" or not license:match("^%x+$") or not seconds or seconds < 0
+        or type(reason) ~= "string" or reason == "" then
+        return nil, "invalid_argument"
+    end
+    local id, err = Bans.add(license, seconds, Util.truncateUtf8(reason, 255), tostring(bannedBy or caller))
+    if not id then return nil, err end
+    local playerId = Accounts.byLicense(license)
+    if playerId then
+        local ban = Bans.findByLicense(license)
+        local ok, why = Open77.players.disconnect(playerId, ban and Bans.message(ban) or Util.kickText(reason))
+        if not ok then log.warn("бан %s: игрок %d не отключён: %s", license, playerId, tostring(why)) end
+    end
+    return id
+end)
+
 exports("audit", function(action, actor, target, details)
     local caller = GetInvokingResource()
     if type(caller) ~= "string" or caller:sub(1, #RpConfig.trustedResourcePrefix) ~= RpConfig.trustedResourcePrefix then

@@ -126,7 +126,8 @@
       "rp/rp_hud",
       "rp/rp_inventory",
       "rp/rp_inventory_ui",
-      "rp/rp_jobs"
+      "rp/rp_jobs",
+      "rp/rp_admin"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,
