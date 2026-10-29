@@ -372,6 +372,10 @@ AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
                 { heading = hospital.heading, bucket = hospital.bucket, dismount = true })
             if pending then pending:await() else log("warn", "игрок %d не перенесён в больницу: %s", playerId, tostring(why)) end
         end
+        -- rp_core восстановил здоровье раненого (почти ноль) — после больницы как обычно.
+        local hp = Open77.players.getHealth(playerId)
+        local max = hp and tonumber(hp.maxHealth) or 100
+        Open77.players.setHealth(playerId, math.max(1, math.floor(max * MedicalConfig.hospitalHealth)))
         local paid = charge(playerId, MedicalConfig.hospitalPrice, "rp.medical.hospital")
         notify(playerId, "Вы вышли из игры раненым и очнулись в больнице. %s", paidText(paid, MedicalConfig.hospitalPrice))
         log("info", "игрок %d вошёл после ранения: больница, оплата %d", playerId, paid)

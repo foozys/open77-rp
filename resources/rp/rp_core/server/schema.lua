@@ -114,3 +114,11 @@ Migrations.add(5, "staff_roles", {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ]],
 })
+
+-- Здоровье персонажа при выходе (доля от максимума, 0..1). NULL — полное.
+Migrations.add(6, "character_health", {
+    [[
+        ALTER TABLE rp_characters
+            ADD COLUMN IF NOT EXISTS health DOUBLE NULL
+    ]],
+})

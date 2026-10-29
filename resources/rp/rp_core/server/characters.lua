@@ -86,7 +86,7 @@ end
 
 local SELECT_COLUMNS = [[
     id, slot, status, first_name, last_name, DATE_FORMAT(birth_date, '%d.%m.%Y') AS birth_text,
-    pos_x, pos_y, pos_z, heading, look IS NOT NULL AS has_look
+    pos_x, pos_y, pos_z, heading, health, look IS NOT NULL AS has_look
 ]]
 
 local function loadList(license)
@@ -210,6 +210,16 @@ local function place(playerId, s)
         if x and not placed then log.warn("игрок %d остался на месте появления", playerId) end
         if Characters.sessions[playerId] ~= s then return end
         if not placed then setBucket(playerId, 0) end
+        -- Здоровье с прошлого выхода (доля от максимума); NULL — полное, как у нового.
+        local health = tonumber(row.health)
+        if health and health < 1 and Util.isAlive(playerId) then
+            local hp = Open77.players.getHealth(playerId)
+            local max = hp and tonumber(hp.maxHealth)
+            if max and max > 0 then
+                local ok, why = Open77.players.setHealth(playerId, math.max(1, math.floor(max * health + 0.5)))
+                if not ok then log.warn("здоровье игрока %d не восстановлено: %s", playerId, tostring(why)) end
+            end
+        end
         s.phase = "playing"
         log.info("игрок %d играет за #%d %s", playerId, row.id, fullName(row))
         TriggerEvent("rp_core:characterLoaded", playerId, row.id)
@@ -691,20 +701,35 @@ local function readPosition(playerId, s)
     if read and read.fresh and read.position and read.bucket == 0 then
         s.lastPos = { x = read.position.x, y = read.position.y, z = read.position.z, heading = tonumber(read.heading) or 0 }
     end
+    -- Здоровье — доля от максимума; мёртвого не читаем (останется последнее живое).
+    local hp = not Open77.players.isDead(playerId) and Open77.players.getHealth(playerId)
+    local health, max = hp and tonumber(hp.health), hp and tonumber(hp.maxHealth)
+    if health and max and max > 0 then
+        s.lastHealth = math.floor(math.max(0.01, math.min(1, health / max)) * 1000 + 0.5) / 1000
+    end
+end
+
+local function save(row, what, sql, params)
+    local queued, reason = Open77.database.update(sql, params, function(_, err)
+        if err then log.error("%s #%d не сохранено: %s", what, row.id, tostring(err)) end
+    end)
+    if queued == false then log.error("%s #%d не сохранено: %s", what, row.id, tostring(reason)) end
 end
 
 local function writePosition(s)
-    local p, row = s.lastPos, s.current
-    if not p or not row or s.savedPos == p then return end
-    s.savedPos = p
-    row.pos_x, row.pos_y, row.pos_z, row.heading = p.x, p.y, p.z, p.heading
-    local queued, reason = Open77.database.update(
-        "UPDATE rp_characters SET pos_x = ?, pos_y = ?, pos_z = ?, heading = ? WHERE id = ?",
-        { p.x, p.y, p.z, p.heading, row.id },
-        function(_, err)
-            if err then log.error("позиция #%d не сохранена: %s", row.id, tostring(err)) end
-        end)
-    if queued == false then log.error("позиция #%d не сохранена: %s", row.id, tostring(reason)) end
+    local p, h, row = s.lastPos, s.lastHealth, s.current
+    if not row then return end
+    if p and s.savedPos ~= p then
+        s.savedPos = p
+        row.pos_x, row.pos_y, row.pos_z, row.heading = p.x, p.y, p.z, p.heading
+        save(row, "позиция", "UPDATE rp_characters SET pos_x = ?, pos_y = ?, pos_z = ?, heading = ? WHERE id = ?",
+            { p.x, p.y, p.z, p.heading, row.id })
+    end
+    if h and s.savedHealth ~= h then
+        s.savedHealth = h
+        row.health = h
+        save(row, "здоровье", "UPDATE rp_characters SET health = ? WHERE id = ?", { h, row.id })
+    end
 end
 
 CreateThread(function()

@@ -11,7 +11,7 @@
   - VPN-сеть (Radmin, ZeroTier).
 
   `publicEndpoint` и `publicBaseUrl` в `server.jsonc` должны указывать на этот адрес, и брандмауэр Windows у А должен пропускать оба порта.
-- [ ] **Миграция v5.** Сервер перезапущен через `Start-Logged.cmd`, `rp.status` показывает схему v5.
+- [ ] **Миграция v6.** Сервер перезапущен через `Start-Logged.cmd`, `rp.status` показывает схему v6.
 
 ## 1. Whitelist
 
