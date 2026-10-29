@@ -71,14 +71,21 @@ local function requireCharacter(playerId)
     return name
 end
 
-local function say(playerId, text, radius, verb)
+-- Сообщение для open77_chat. Поле color красит только автора, текст — сегменты
+-- со своим цветом. channel — метка канала в интерфейсе (local, whisper, ooc, global).
+local function message(channel, playerId, author, authorColor, segments)
+    return { type = "player", channel = channel, playerId = tostring(playerId), author = author,
+             color = authorColor, text = " ", segments = segments }
+end
+
+local function say(playerId, text, radius, verb, channel)
     local name = requireCharacter(playerId)
     if not name then return end
     logLine(verb or "say", playerId, text)
     local author = verb and (name .. " " .. verb) or name
     deliver(playerId, radius, function(distance)
-        return { type = "player", author = author, text = text, playerId = tostring(playerId),
-                 color = fade(distance, radius) }
+        local color = fade(distance, radius)
+        return message(channel or "local", playerId, author, color, { { text = text, color = color } })
     end)
 end
 
@@ -116,45 +123,46 @@ command("s", "<текст> — крикнуть", function(playerId, text)
 end)
 
 command("w", "<текст> — шёпот", function(playerId, text)
-    say(playerId, text, ChatTune.whisperRadius, "шепчет")
+    say(playerId, text, ChatTune.whisperRadius, "шепчет", "whisper")
 end)
+
+-- Действие целиком цветом действий; extra — дополнительные сегменты в конце.
+local function action(playerId, kind, text, extra)
+    logLine(kind, playerId, text)
+    local color = ChatConfig.colors.action
+    deliver(playerId, ChatTune.actionRadius, function()
+        local segments = { { text = text, color = color } }
+        for _, segment in ipairs(extra or {}) do segments[#segments + 1] = segment end
+        return message("local", playerId, "*", color, segments)
+    end)
+end
 
 command("me", "<действие> — действие персонажа", function(playerId, text)
     local name = requireCharacter(playerId)
-    if not name then return end
-    logLine("me", playerId, text)
-    deliver(playerId, ChatTune.actionRadius, function()
-        return { type = "system", author = "*", text = name .. " " .. text, color = ChatConfig.colors.action }
-    end)
+    if name then action(playerId, "me", name .. " " .. text) end
 end)
 
 command("do", "<описание> — окружение, состояние", function(playerId, text)
     local name = requireCharacter(playerId)
-    if not name then return end
-    logLine("do", playerId, text)
-    deliver(playerId, ChatTune.actionRadius, function()
-        return { type = "system", author = "*", text = text .. " (( " .. name .. " ))", color = ChatConfig.colors.action }
-    end)
+    if name then action(playerId, "do", text .. " (( " .. name .. " ))") end
 end)
 
 command("try", "<действие> — попытка, удачно или нет (50%)", function(playerId, text)
     local name = requireCharacter(playerId)
     if not name then return end
     local success = math.random() < 0.5
-    logLine("try", playerId, text .. (success and " [удачно]" or " [неудачно]"))
-    deliver(playerId, ChatTune.actionRadius, function()
-        return { type = "system", author = "*",
-                 text = name .. " пытается " .. text .. (success and " — удачно" or " — неудачно"),
-                 color = success and ChatConfig.colors.success or ChatConfig.colors.failure }
-    end)
+    action(playerId, success and "try+" or "try-", name .. " пытается " .. text .. " — ", {
+        { text = success and "удачно" or "неудачно",
+          color = success and ChatConfig.colors.success or ChatConfig.colors.failure, bold = true },
+    })
 end)
 
 command("b", "<текст> — OOC рядом", function(playerId, text)
     local name = characterName(playerId) or accountName(playerId)
     logLine("b", playerId, text)
+    local color = ChatConfig.colors.ooc
     deliver(playerId, ChatTune.sayRadius, function()
-        return { type = "player", author = "(( " .. name .. " [" .. playerId .. "]",
-                 text = text .. " ))", playerId = tostring(playerId), color = ChatConfig.colors.ooc }
+        return message("ooc", playerId, "(( " .. name, color, { { text = text .. " ))", color = color } })
     end)
 end)
 
@@ -165,10 +173,10 @@ command("ooc", "<текст> — общий OOC", function(playerId, text)
         return
     end
     local role, label = core("staff_role", playerId)
-    local author = "[OOC] " .. (role and (label .. " ") or "") .. accountName(playerId) .. " [" .. playerId .. "]"
+    local author = (role and (label .. " ") or "") .. accountName(playerId)
     logLine("ooc", playerId, text)
-    Open77.chat.send(-1, { type = "player", author = author, text = text, playerId = tostring(playerId),
-                           color = ChatConfig.colors.globalOoc })
+    local color = ChatConfig.colors.globalOoc
+    Open77.chat.send(-1, message("global", playerId, author, color, { { text = text, color = color } }))
 end)
 
 -- -- подсказки команд в чате ------------------------------------------------------
