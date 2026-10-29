@@ -34,6 +34,15 @@
   #lootBox.visible { display: block; }
   .lootTitle { color: var(--warn); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; }
   .lootTitle span { color: var(--muted); letter-spacing: 0; text-transform: none; margin-left: 8px; }
+  #lootSearch { margin-left: 12px; padding: 4px 12px; background: var(--warn); border: 0; color: #140406;
+    font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+  #lootSearch[hidden] { display: none; }
+  .item.hidden { cursor: default; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 6px,
+    rgba(255, 255, 255, 0.02) 6px 12px); border-color: rgba(255, 255, 255, 0.18); display: flex;
+    align-items: center; justify-content: center; }
+  .item.hidden .q { font-size: 22px; font-weight: 700; color: rgba(255, 255, 255, 0.35); }
+  .item.hidden.searching { border-color: var(--warn); }
+  .item.hidden .bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--warn); }
   .mineTitle { color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; display: none; }
   #grids.looting .mineTitle { display: block; }
   #grid, #lootGrid { position: relative; background-color: rgba(255, 255, 255, 0.02);
@@ -93,7 +102,7 @@
         <div id="overflow"><div class="title">Не помещается — переложите или выбросьте</div><div id="overflowList"></div></div>
       </div>
       <div id="lootBox">
-        <div class="lootTitle">Обыск<span id="lootName"></span></div>
+        <div class="lootTitle">Обыск<span id="lootName"></span><button id="lootSearch" hidden>Обыскать</button></div>
         <div id="lootGrid"></div>
       </div>
     </div>
@@ -153,6 +162,29 @@
     grid.replaceChildren();
     stacksOf(side).forEach((stack, i) => {
       const index = i + 1; // индексы Lua
+      if (stack.hidden) {
+        // Ещё не обыскано: только место и размер; что внутри — сервер не присылает.
+        if (!stack.x) return;
+        const el = document.createElement("div");
+        el.className = "item hidden";
+        el.innerHTML = `<div class="q">?</div><div class="bar"></div>`;
+        el.style.left = `${(stack.x - 1) * CELL + 1}px`;
+        el.style.top = `${(stack.y - 1) * CELL + 1}px`;
+        el.style.width = `${stack.w * CELL - 1}px`;
+        el.style.height = `${stack.h * CELL - 1}px`;
+        const s = state.loot && state.loot.searching;
+        if (s && s.x === stack.x && s.y === stack.y) {
+          el.classList.add("searching");
+          const bar = el.querySelector(".bar");
+          // Полоска заполняется за оставшееся время.
+          requestAnimationFrame(() => {
+            bar.style.transition = `width ${Math.max(0, s.ms)}ms linear`;
+            bar.style.width = "100%";
+          });
+        }
+        grid.append(el);
+        return;
+      }
       if (stack.x) {
         const [w, h] = size(stack, stack.r);
         const el = tile(stack, index, w, h, side);
@@ -179,7 +211,9 @@
     $("lootBox").classList.toggle("visible", looting);
     $("grids").classList.toggle("looting", looting);
     if (looting) {
-      $("lootName").textContent = `${state.loot.name} [${state.loot.target}] · ${kg(state.loot.weightG || 0)} кг`;
+      const status = state.loot.done ? "обыскано" : state.loot.started ? "идёт обыск…" : "не обыскано";
+      $("lootName").textContent = `${state.loot.name} [${state.loot.target}] · ${status}`;
+      $("lootSearch").hidden = state.loot.started;
       renderGrid("loot", null);
     }
     $("overflow").classList.toggle("visible", overflow.children.length > 0);
@@ -296,6 +330,11 @@
   }
 
   document.addEventListener("pointermove", e => { if (drag) updateGhost(e); });
+
+  $("lootSearch").addEventListener("click", () => {
+    $("lootSearch").hidden = true;
+    emit("inv:lootSearch");
+  });
 
   document.addEventListener("pointerup", e => {
     if (!drag) return;

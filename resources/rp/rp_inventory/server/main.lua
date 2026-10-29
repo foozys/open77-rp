@@ -93,13 +93,20 @@ end
 
 -- Стопки для окна: у щепки — сумма (a), у ключа — номер машины (t). Раскладка в БД их
 -- не хранит, они в open77_transactions.
-local function windowStacks(state)
+-- revealed — для чужой сетки при обыске: { [stack] = true } открытых; закрытая стопка уходит
+-- без содержимого — только место и размер (hidden, w, h): что в ней, клиент не знает.
+local function windowStacks(state, revealed)
     local stacks = {}
     for index, stack in ipairs(state.stacks) do
-        local record = stack.u and state.instances and state.instances[stack.u]
-        stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r,
-                          a = record and tonumber(record.meta.amount) or nil,
-                          t = record and type(record.meta.plate) == "string" and record.meta.plate or nil }
+        if revealed and not revealed[stack] then
+            local w, h = Grid.size(stack)
+            stacks[index] = { hidden = true, x = stack.x, y = stack.y, w = w, h = h }
+        else
+            local record = stack.u and state.instances and state.instances[stack.u]
+            stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r,
+                              a = record and tonumber(record.meta.amount) or nil,
+                              t = record and type(record.meta.plate) == "string" and record.meta.plate or nil }
+        end
     end
     return stacks
 end
@@ -109,13 +116,18 @@ local function push(playerId, withCatalog)
     if not state or not state.open then return end
     local session = loot[playerId]
     local other = session and inv[session.target]
+    local current = session and session.current
     local ok, reason = TriggerClientEvent("rp_inventory:state", playerId, {
         cols = InvConfig.grid.cols, rows = InvConfig.grid.rows,
         capacityG = InvConfig.capacityG, weightG = state.weightG,
         stacks = windowStacks(state), nearby = nearbyPlayers(playerId),
         catalog = withCatalog and catalog() or nil,
-        loot = other and { target = session.target, name = nameOf(session.target),
-                           weightG = other.weightG, stacks = windowStacks(other) } or false,
+        loot = other and { target = session.target, name = nameOf(session.target), weightG = other.weightG,
+                           stacks = windowStacks(other, session.revealed),
+                           started = session.started == true, done = session.done == true,
+                           -- что обыскивается сейчас: клетка и сколько осталось (для полоски)
+                           searching = current and { x = current.stack.x, y = current.stack.y,
+                               ms = math.max(0, current.endsAt - Open77.time.monotonic()) } or false } or false,
     })
     if not ok then log("warn", "окно игроку %d не обновлено: %s", playerId, tostring(reason)) end
 end
@@ -515,7 +527,9 @@ exports("open_loot", function(officer, target, check)
     local other, problemOther = ensure(target)
     if not other then return nil, problemOther end
     refresh(target)
-    loot[officer] = { target = target, caller = caller, check = check }
+    -- revealed — открытые при обыске стопки (слабые ключи: исчезнувшая стопка забывается).
+    loot[officer] = { target = target, caller = caller, check = check,
+                      revealed = setmetatable({}, { __mode = "k" }) }
     mine.open = true
     TriggerClientEvent("rp_inventory:openWindow", officer)
     push(officer, true)
@@ -530,6 +544,55 @@ exports("close_loot", function(officer)
     return true
 end)
 
+local function lootAllowed(officer, session)
+    local ok, allowed = pcall(Open77.exports.callSync, session.caller, session.check, officer, session.target)
+    return ok and allowed == true
+end
+
+-- «Обыскать»: вещи в чужой сетке открываются по одной — сверху вниз, слева направо, по
+-- searchSecondsPerCell на клетку. Сервер присылает закрытые стопки без содержимого,
+-- так что увидеть их раньше времени нельзя. Прерывается, если обыск больше не разрешён.
+RegisterNetEvent("rp_inventory:lootSearch", function()
+    local officer = tonumber(source)
+    local session = officer and loot[officer]
+    if not session or session.started then return end
+    if not lootAllowed(officer, session) then
+        loot[officer] = nil
+        push(officer)
+        return notify(officer, "Обыск закончен.")
+    end
+    session.started = true
+    CreateThread(function()
+        while loot[officer] == session do
+            local other = inv[session.target]
+            local nextStack
+            for _, stack in ipairs(other and other.stacks or {}) do
+                if stack.x and not session.revealed[stack] and (not nextStack or stack.y < nextStack.y
+                    or (stack.y == nextStack.y and stack.x < nextStack.x)) then
+                    nextStack = stack
+                end
+            end
+            if not nextStack then
+                session.current, session.done = nil, true
+                return push(officer)
+            end
+            local w, h = Grid.size(nextStack)
+            local ms = math.floor(math.max(InvConfig.searchMinSeconds, w * h * InvConfig.searchSecondsPerCell) * 1000)
+            session.current = { stack = nextStack, endsAt = Open77.time.monotonic() + ms }
+            push(officer)
+            Wait(ms)
+            if loot[officer] ~= session then return end
+            if not lootAllowed(officer, session) then
+                loot[officer] = nil
+                push(officer)
+                return notify(officer, "Обыск прерван.")
+            end
+            session.revealed[nextStack] = true
+            session.current = nil
+        end
+    end)
+end)
+
 -- Перенос при обыске: стопка index (предмет itemId) из сетки from ("mine" — своя,
 -- "loot" — чужая) в другую сетку, в клетку (x, y), повёрнутая rotated. Целиком: часть
 -- можно отделить заранее («Разделить» в своей сетке).
@@ -538,8 +601,7 @@ RegisterNetEvent("rp_inventory:lootMove", function(from, index, itemId, x, y, ro
     local session = officer and loot[officer]
     if not session or (from ~= "mine" and from ~= "loot") then return end
     local target = session.target
-    local ok, allowed = pcall(Open77.exports.callSync, session.caller, session.check, officer, target)
-    if not ok or allowed ~= true then
+    if not lootAllowed(officer, session) then
         loot[officer] = nil
         push(officer)
         return notify(officer, "Обыск закончен.")
@@ -552,6 +614,10 @@ RegisterNetEvent("rp_inventory:lootMove", function(from, index, itemId, x, y, ro
     index = math.tointeger(tonumber(index))
     local stack = index and src.stacks[index]
     if not stack or stack.i ~= itemId then return push(officer) end
+    if from == "loot" and not session.revealed[stack] then
+        notify(officer, "Сначала обыщите.")
+        return push(officer)
+    end
     if src.busy or dst.busy then return end
     -- Клетка в чужой сетке: куда бросили, а занято — первое свободное место.
     local def = InvConfig.items[stack.i]
@@ -578,7 +644,10 @@ RegisterNetEvent("rp_inventory:lootMove", function(from, index, itemId, x, y, ro
     end
     -- Новая стопка сразу в выбранной клетке: сверка увидит её и не станет раскладывать заново.
     table.remove(src.stacks, index)
-    dst.stacks[#dst.stacks + 1] = { i = stack.i, n = stack.n, u = stack.u, x = x, y = y, r = r or nil }
+    local placed = { i = stack.i, n = stack.n, u = stack.u, x = x, y = y, r = r or nil }
+    dst.stacks[#dst.stacks + 1] = placed
+    -- Возвращённое задержанному офицер видел сам — оно открыто.
+    if dst == other then session.revealed[placed] = true end
     Store.saveLayout(src.characterId, src.stacks)
     Store.saveLayout(dst.characterId, dst.stacks)
     refresh(officer)

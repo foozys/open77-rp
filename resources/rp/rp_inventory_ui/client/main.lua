@@ -59,6 +59,7 @@ AddEventHandler("onClientResourceStart", function(name)
         if type(p) ~= "table" then return end
         TriggerServerEvent("rp_inventory:lootMove", p.from, p.index, p.item, p.a, p.b, p.c)
     end)
+    page:on("inv:lootSearch", function() TriggerServerEvent("rp_inventory:lootSearch") end)
 
     -- Пока окно держит ввод, привязки молчат: закрывает сама страница (I, Esc).
     local ok, why = RegisterKeyMapping("rp_inventory", "Инвентарь", "I", function()
