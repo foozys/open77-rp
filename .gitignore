@@ -5,6 +5,7 @@
 !/CLAUDE.md
 !/server.jsonc
 !/acl.jsonc
+!/Start-Logged.cmd
 
 /resources/*
 !/resources/rp/
