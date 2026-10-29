@@ -300,7 +300,7 @@ RegisterCommand("rp.shop", function(source, args)
             return notify(source, "Использование: rp.shop add <тип>. Типы: %s", table.concat(ids, ", "))
         end
         local id, err = db("insert", "INSERT INTO rp_shops (type, x, y, z, bucket, created_by) VALUES (?, ?, ?, ?, ?, ?)",
-            { shopType, place.x, place.y, place.z, place.bucket, core("account_license", source) or "?" })
+            { shopType, place.x, place.y, place.z + ShopsConfig.pointHeight, place.bucket, core("account_license", source) or "?" })
         if not id then return notify(source, "Ошибка БД: %s", tostring(err)) end
         core("audit", "shop_add", core("account_license", source), tostring(id), { type = shopType })
         notify(source, "Точка #%s (%s) поставлена.", tostring(id), ShopsConfig.types[shopType].label)

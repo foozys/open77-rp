@@ -934,7 +934,7 @@ local function pointCommand(kind, title)
         if not place then return notify(source, "Ваша позиция неизвестна.") end
         if action == "add" then
             local id, err = db("insert", "INSERT INTO rp_vehicle_points (type, x, y, z, bucket, created_by) VALUES (?, ?, ?, ?, ?, ?)",
-                { kind, place.x, place.y, place.z, place.bucket, core("account_license", source) or "?" })
+                { kind, place.x, place.y, place.z + VehiclesConfig.pointHeight, place.bucket, core("account_license", source) or "?" })
             if not id then return notify(source, "Ошибка БД: %s", tostring(err)) end
             notify(source, "%s #%s поставлен.%s", title, tostring(id),
                 kind == "garage" and " Теперь встаньте на место выезда лицом по ходу и введите rp.garage spawn." or "")
@@ -943,7 +943,7 @@ local function pointCommand(kind, title)
             local garage = nearestPoint(place, "garage")
             if not garage then return notify(source, "Рядом (до 8 м) нет гаража.") end
             local _, err = db("update", "UPDATE rp_vehicle_points SET sx = ?, sy = ?, sz = ?, sh = ? WHERE id = ?",
-                { place.x, place.y, place.z, place.heading, garage.id })
+                { place.x, place.y, place.z + VehiclesConfig.pointHeight, place.heading, garage.id })
             if err then return notify(source, "Ошибка БД: %s", err) end
             notify(source, "Место выезда гаража #%d задано.", garage.id)
             loadPoints()
