@@ -10,20 +10,30 @@ local function actorOf(source)
     return account and account.license or ("player:" .. tostring(source))
 end
 
--- "12" → онлайн-игрок, "<32 hex>" → license. Возвращает license, playerId|nil.
+-- "12" → онлайн-игрок, "<32 hex>" → license. Возвращает license, playerId|nil,
+-- или nil, текст ошибки (nil без текста — аргумента нет).
 local function resolveTarget(arg)
     if type(arg) ~= "string" then return nil end
     if #arg <= 5 then
         local playerId = Util.toPlayerId(arg)
         local account = playerId and Accounts.online[playerId]
         if account then return account.license, playerId end
-        return nil
+        return nil, string.format("Игрока с ID %s нет в сети. ID меняется при каждом входе.", arg)
     end
     local license = arg:lower()
     if #license == 32 and license:match(LICENSE_PATTERN) then
         return license, (Accounts.byLicense(license))
     end
-    return nil
+    return nil, "Это не ID игрока и не license (32 символа 0-9a-f)."
+end
+
+-- Для команд просмотра: без аргумента — сам игрок, вызвавший команду.
+local function resolveTargetOrSelf(source, arg)
+    if arg == nil and source and source > 0 then
+        local account = Accounts.online[source]
+        if account then return account.license, source end
+    end
+    return resolveTarget(arg)
 end
 
 -- rp.ban <id|license> <30m|12h|7d|perm> <причина...>
@@ -32,6 +42,7 @@ RegisterCommand("rp.ban", function(source, args)
     local seconds = args[2] and Bans.parseDuration(args[2])
     local reason = table.concat(args, " ", 3)
     if not license or not seconds or reason == "" then
+        if not license and type(playerId) == "string" then Util.reply(source, playerId) end
         Util.reply(source, "Использование: rp.ban <ID игрока|license> <30m|12h|7d|perm> <причина>")
         return
     end
@@ -93,6 +104,7 @@ RegisterCommand("rp.whitelist", function(source, args)
     local action = args[1]
     local license, playerId = resolveTarget(args[2])
     if (action ~= "add" and action ~= "remove") or not license then
+        if not license and type(playerId) == "string" then Util.reply(source, playerId) end
         Util.reply(source, "Использование: rp.whitelist <add|remove> <ID игрока|license>")
         return
     end
@@ -166,9 +178,9 @@ end, true)
 
 -- rp.characters <id|license>
 RegisterCommand("rp.characters", function(source, args)
-    local license = resolveTarget(args[1])
+    local license, problem = resolveTargetOrSelf(source, args[1])
     if not license then
-        Util.reply(source, "Использование: rp.characters <ID игрока|license>")
+        Util.reply(source, problem or "Использование: rp.characters [ID игрока|license]")
         return
     end
     local rows, err = Db.query([[
@@ -192,9 +204,9 @@ end, true)
 
 -- rp.account <id|license>
 RegisterCommand("rp.account", function(source, args)
-    local license, playerId = resolveTarget(args[1])
+    local license, playerId = resolveTargetOrSelf(source, args[1])
     if not license then
-        Util.reply(source, "Использование: rp.account <ID игрока|license>")
+        Util.reply(source, playerId or "Использование: rp.account [ID игрока|license]")
         return
     end
     local row, err = Db.single([[
