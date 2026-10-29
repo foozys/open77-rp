@@ -9,15 +9,49 @@ local function send(event, payload)
     if page and pageReady then page:send(event, payload or {}) end
 end
 
+-- Раненый лежит неподвижно: тело не поворачивается за камерой, Alt (контекстное меню
+-- open77_contextmenu) не открывается и не сбивает позу. Платформа снимает блокировки
+-- управления в момент смерти, поэтому ставим их после и подтверждаем раз в секунду.
+local lockToken = nil
+
+local function contextMenu(enabled)
+    local pending = Open77.exports.call("open77_contextmenu", "setTargetingEnabled", enabled)
+    if pending then pcall(function() pending:await() end) end
+end
+
+local function lock()
+    if lockToken then return end
+    local token = {}
+    lockToken = token
+    contextMenu(false)
+    pcall(function() Open77.exports.call("open77_contextmenu", "close") end)
+    CreateThread(function()
+        while lockToken == token do
+            Open77.players.freezeRotation(true)
+            Open77.players.freezePosition(true)
+            Wait(1000)
+        end
+    end)
+end
+
+local function unlock()
+    if not lockToken then return end
+    lockToken = nil
+    Open77.players.resetControls()
+    contextMenu(true)
+end
+
 RegisterNetEvent("rp_medical:downed", function(payload)
     if type(payload) ~= "table" then return end
     isDowned = true
     send("med:downed", payload)
+    CreateThread(lock)
 end)
 
 RegisterNetEvent("rp_medical:clear", function()
     isDowned = false
     send("med:clear")
+    CreateThread(unlock)
 end)
 
 -- Медику: вызов с меткой и маршрутом.
