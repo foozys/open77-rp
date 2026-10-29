@@ -237,6 +237,14 @@
       { title: "Убрать автосалон", desc: "Ближайший (до 8 м)", perm: "rp.vehicles", cmd: () => ["rp.dealer", "remove"], danger: true },
       { title: "Список автосалонов", desc: "", perm: "rp.vehicles", cmd: () => ["rp.dealer", "list"] },
     ]},
+    { id: "medical", label: "Медицина", actions: [
+      { title: "Вылечить / поднять", desc: "Раненого — поднять на месте", perm: "rp.heal", fields: [F.player()],
+        cmd: v => ["rp.heal", v.id] },
+      { title: "Поставить больницу", desc: "Там, где вы стоите, лицом по ходу", perm: "rp.medical",
+        cmd: () => ["rp.hospital", "add"] },
+      { title: "Убрать больницу", desc: "Ближайшую (до 8 м)", perm: "rp.medical", cmd: () => ["rp.hospital", "remove"], danger: true },
+      { title: "Список больниц", desc: "", perm: "rp.medical", cmd: () => ["rp.hospital", "list"] },
+    ]},
     { id: "shops", label: "Магазины", actions: [
       { title: "Поставить магазин", desc: "Точка там, где вы стоите", perm: "rp.shops",
         fields: [F.select("type", "Тип", "shopTypes")], cmd: v => ["rp.shop", "add", v.type] },
