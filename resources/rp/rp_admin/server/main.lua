@@ -165,12 +165,22 @@ local waypointAsked = {}
 
 RegisterCommand("rp.tpm", function(source)
     if not source or source < 1 or not allowed(source, "rp.teleport") then return end
-    waypointAsked[source] = Open77.time.unix()
+    local asked = Open77.time.unix()
+    waypointAsked[source] = asked
     local ok, why = TriggerClientEvent("rp_admin:askWaypoint", source)
     if not ok then
         waypointAsked[source] = nil
-        notify(source, "Не получилось: %s.", tostring(why))
+        return notify(source, "Не получилось: %s.", tostring(why))
     end
+    -- Клиент не ответил (например, ресурс обновили, а игрок не перезашёл) — сказать, а не молчать.
+    local playerId = source
+    CreateThread(function()
+        Wait(5000)
+        if waypointAsked[playerId] == asked then
+            waypointAsked[playerId] = nil
+            notify(playerId, "Игра не прислала метку. Перезайдите на сервер и попробуйте снова.")
+        end
+    end)
 end, false)
 
 RegisterNetEvent("rp_admin:waypoint", function(position, reason)
