@@ -7,8 +7,8 @@ reload_policy "reconnect"
 -- Подсказки у касс и торговых автоматов.
 dependency "open77_interactions >=0.2.0"
 
--- network.events: связь с rp_shops
-permissions { "network.events" }
+-- network.events: связь с rp_shops; world.query: /rp.classes — классы объектов рядом
+permissions { "network.events", "world.query" }
 
 client_script "client/main.lua"
 web_file "web/index.html"

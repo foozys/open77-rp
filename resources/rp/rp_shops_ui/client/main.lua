@@ -108,6 +108,32 @@ AddEventHandler("onClientResourceStart", function(name)
     TriggerServerEvent("rp_shops:request")
 end)
 
+-- /rp.classes — классы объектов движка в радиусе 3 м, чтобы настроить, на каких
+-- объектах появляется подсказка (ShopsConfig.vending.classes). Только чтение.
+RegisterCommand("rp.classes", function()
+    local rows, reason = Open77.world.nearby(3)
+    local lines = {}
+    if not rows then
+        lines[1] = "Ошибка: " .. tostring(reason)
+    else
+        local seen = {}
+        for _, row in ipairs(rows) do
+            local name = tostring(row.className or "?")
+            if not seen[name] then
+                seen[name] = true
+                lines[#lines + 1] = string.format("%s (%s, %.1f м)", name, tostring(row.kind or row.family or "?"),
+                    tonumber(row.distance) or 0)
+            end
+        end
+        if #lines == 0 then lines[1] = "Рядом ничего нет." end
+    end
+    for _, text in ipairs(lines) do
+        print("[rp.classes] " .. text)
+        pcall(Open77.exports.callSync, "open77_chat", "addMessage",
+            { type = "system", author = "CLASSES", text = text, color = { 94, 246, 255 } })
+    end
+end, false)
+
 -- Escape игра перехватывает раньше страницы: закрываем по паузе.
 AddEventHandler("open77:pauseKey", close)
 
