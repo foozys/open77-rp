@@ -54,6 +54,11 @@ AddEventHandler("onClientResourceStart", function(name)
     forward("inv:use", "rp_inventory:use")
     forward("inv:give", "rp_inventory:give")
     forward("inv:drop", "rp_inventory:drop")
+    -- Обыск: перенос между своей и чужой сеткой; from — "mine" | "loot", a, b — клетка, c — поворот.
+    page:on("inv:loot", function(p)
+        if type(p) ~= "table" then return end
+        TriggerServerEvent("rp_inventory:lootMove", p.from, p.index, p.item, p.a, p.b, p.c)
+    end)
 
     -- Пока окно держит ввод, привязки молчат: закрывает сама страница (I, Esc).
     local ok, why = RegisterKeyMapping("rp_inventory", "Инвентарь", "I", function()
@@ -66,6 +71,14 @@ RegisterNetEvent("rp_inventory:state", function(state)
     if type(state) ~= "table" then return end
     pendingState = state
     if isOpen then send("inv:state", state) end
+end)
+
+-- Сервер сам открыл окно (обыск: rp_police → rp_inventory open_loot).
+RegisterNetEvent("rp_inventory:openWindow", function()
+    if isOpen or not page then return end
+    isOpen = true
+    send("inv:open")
+    page:setFocus(true, true)
 end)
 
 -- Сервер отказал (персонаж не выбран и т.п.): закрыть окно.

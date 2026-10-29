@@ -4,6 +4,10 @@
 
 local SOURCE = InvConfig.source
 local inv = {} -- [playerId] = { characterId, account, stacks, weightG, open, busy }
+-- Обыск: окно игрока с двумя сетками — своя и чужая. Право на него решает ресурс,
+-- который открыл обыск (rp_police): его экспорт check(officer, target) спрашивается
+-- перед каждым переносом.
+local loot = {} -- [officer playerId] = { target, caller, check }
 
 local function log(level, fmt, ...)
     Open77.log[level]("[rp_inventory] " .. string.format(fmt, ...))
@@ -87,11 +91,9 @@ local function catalog()
     return items
 end
 
-local function push(playerId, withCatalog)
-    local state = inv[playerId]
-    if not state or not state.open then return end
-    -- Для окна: у щепки — сумма (a), у ключа — номер машины (t). Раскладка в БД их
-    -- не хранит, они в open77_transactions.
+-- Стопки для окна: у щепки — сумма (a), у ключа — номер машины (t). Раскладка в БД их
+-- не хранит, они в open77_transactions.
+local function windowStacks(state)
     local stacks = {}
     for index, stack in ipairs(state.stacks) do
         local record = stack.u and state.instances and state.instances[stack.u]
@@ -99,11 +101,21 @@ local function push(playerId, withCatalog)
                           a = record and tonumber(record.meta.amount) or nil,
                           t = record and type(record.meta.plate) == "string" and record.meta.plate or nil }
     end
+    return stacks
+end
+
+local function push(playerId, withCatalog)
+    local state = inv[playerId]
+    if not state or not state.open then return end
+    local session = loot[playerId]
+    local other = session and inv[session.target]
     local ok, reason = TriggerClientEvent("rp_inventory:state", playerId, {
         cols = InvConfig.grid.cols, rows = InvConfig.grid.rows,
         capacityG = InvConfig.capacityG, weightG = state.weightG,
-        stacks = stacks, nearby = nearbyPlayers(playerId),
+        stacks = windowStacks(state), nearby = nearbyPlayers(playerId),
         catalog = withCatalog and catalog() or nil,
+        loot = other and { target = session.target, name = nameOf(session.target),
+                           weightG = other.weightG, stacks = windowStacks(other) } or false,
     })
     if not ok then log("warn", "окно игроку %d не обновлено: %s", playerId, tostring(reason)) end
 end
@@ -120,6 +132,10 @@ local function refresh(playerId)
     state.weightG, state.instances = weight, instances
     if Grid.reconcile(state.stacks, items, instances) then Store.saveLayout(state.characterId, state.stacks) end
     push(playerId)
+    -- Кто сейчас обыскивает этого игрока — видит его карманы свежими.
+    for officer, session in pairs(loot) do
+        if session.target == playerId and officer ~= playerId then push(officer) end
+    end
     return true
 end
 
@@ -196,8 +212,10 @@ RegisterNetEvent("rp_inventory:open", function()
 end)
 
 RegisterNetEvent("rp_inventory:close", function()
-    local state = inv[tonumber(source)]
+    local playerId = tonumber(source)
+    local state = playerId and inv[playerId]
     if state then state.open = false end
+    if playerId then loot[playerId] = nil end
 end)
 
 -- Переместить (и повернуть) стопку; target — индекс стопки того же предмета для объединения.
@@ -422,7 +440,15 @@ end)
 
 AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     local playerId = tonumber(playerIdStr)
-    if playerId then inv[playerId] = nil end
+    if not playerId then return end
+    inv[playerId], loot[playerId] = nil, nil
+    -- Обыскиваемый ушёл — у обыскивающих чужая сетка закрывается.
+    for officer, session in pairs(loot) do
+        if session.target == playerId then
+            loot[officer] = nil
+            push(officer)
+        end
+    end
 end)
 
 -- Каталог для других ресурсов (магазины): { [id] = { label, labelEn, w, h, weightG, stack } }.
@@ -476,54 +502,94 @@ exports("give_instance", function(playerId, itemId, meta, price)
     return lines[1].instance
 end)
 
--- Карманы игрока для обыска (только rp_*): { { index, item, label, count, plate?, amount? } },
--- или nil, reason. Свежие: перед ответом сверяются с open77_transactions.
-exports("pockets", function(playerId)
+-- Обыск: открыть officer его окно с двумя сетками — своя и карманы target (только rp_*).
+-- check — имя экспорта вызывающего ресурса: check(officer, target) == true перед каждым
+-- переносом (на смене, держит задержанного, рядом). true, или nil, reason.
+exports("open_loot", function(officer, target, check)
     local caller = GetInvokingResource()
     if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
-    playerId = math.tointeger(tonumber(playerId))
-    local state, problem = playerId and ensure(playerId)
-    if not state then return nil, problem or "invalid_argument" end
-    refresh(playerId)
-    local list = {}
-    for index, stack in ipairs(state.stacks) do
-        local record = stack.u and state.instances and state.instances[stack.u]
-        list[#list + 1] = { index = index, item = stack.i, label = labelOf(stack.i), count = stack.n,
-                            plate = record and type(record.meta.plate) == "string" and record.meta.plate or nil,
-                            amount = record and tonumber(record.meta.amount) or nil }
-    end
-    return list
-end)
-
--- Переложить count штук стопки index (предмет itemId) от одного игрока другому (только rp_*,
--- например изъятие при обыске). Проверки «рядом» и прав — на вызывающем.
--- true, или nil, reason ("stale" — стопка изменилась, "no_space", …).
-exports("seize", function(fromId, toId, index, itemId, count)
-    local caller = GetInvokingResource()
-    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
-    fromId, toId, index = math.tointeger(tonumber(fromId)), math.tointeger(tonumber(toId)), math.tointeger(tonumber(index))
-    local from, problem = fromId and ensure(fromId)
-    if not from then return nil, problem or "invalid_argument" end
-    local to, problemTo = toId and ensure(toId)
-    if not to then return nil, problemTo or "invalid_argument" end
-    local stack = index and from.stacks[index]
-    if not stack or stack.i ~= itemId then return nil, "stale" end
-    if from.busy or to.busy then return nil, "busy" end
-    count = clampCount(count, stack)
-    if not Grid.fits(to.stacks, stack.i, count) then return nil, "no_space" end
-    local opId = Store.newOpId("rpseize")
-    if not opId then return nil, "store_unavailable" end
-    from.busy, to.busy = true, true
-    local receipt, why = Store.transfer({ opId = opId, kind = "rp.seize", reason = caller,
-        lines = { lineFor(stack, count, from.account, to.account) } })
-    from.busy, to.busy = false, false
-    if not receipt then return nil, why or "busy" end
-    takeFrom(from, index, count)
-    refresh(fromId)
-    refresh(toId)
-    log("info", "seize %d -> %d: %s x%d (%s, %s)", fromId, toId, itemId, count, caller, opId)
+    officer, target = math.tointeger(tonumber(officer)), math.tointeger(tonumber(target))
+    if not officer or not target or type(check) ~= "string" then return nil, "invalid_argument" end
+    local mine, problem = ensure(officer)
+    if not mine then return nil, problem end
+    local other, problemOther = ensure(target)
+    if not other then return nil, problemOther end
+    refresh(target)
+    loot[officer] = { target = target, caller = caller, check = check }
+    mine.open = true
+    TriggerClientEvent("rp_inventory:openWindow", officer)
+    push(officer, true)
     return true
 end)
+
+exports("close_loot", function(officer)
+    officer = math.tointeger(tonumber(officer))
+    if not officer or not loot[officer] then return false end
+    loot[officer] = nil
+    push(officer)
+    return true
+end)
+
+-- Перенос при обыске: стопка index (предмет itemId) из сетки from ("mine" — своя,
+-- "loot" — чужая) в другую сетку, в клетку (x, y), повёрнутая rotated. Целиком: часть
+-- можно отделить заранее («Разделить» в своей сетке).
+RegisterNetEvent("rp_inventory:lootMove", function(from, index, itemId, x, y, rotated)
+    local officer = tonumber(source)
+    local session = officer and loot[officer]
+    if not session or (from ~= "mine" and from ~= "loot") then return end
+    local target = session.target
+    local ok, allowed = pcall(Open77.exports.callSync, session.caller, session.check, officer, target)
+    if not ok or allowed ~= true then
+        loot[officer] = nil
+        push(officer)
+        return notify(officer, "Обыск закончен.")
+    end
+    if target == officer then return notify(officer, "Тест: перенос у себя невозможен.") end
+    local mine, other = ensure(officer), ensure(target)
+    if not mine or not other then return end
+    local src, dst = mine, other
+    if from == "loot" then src, dst = other, mine end
+    index = math.tointeger(tonumber(index))
+    local stack = index and src.stacks[index]
+    if not stack or stack.i ~= itemId then return push(officer) end
+    if src.busy or dst.busy then return end
+    -- Клетка в чужой сетке: куда бросили, а занято — первое свободное место.
+    local def = InvConfig.items[stack.i]
+    local r = rotated == true and def and def.w ~= def.h
+    local w, h = def.w, def.h
+    if r then w, h = h, w end
+    x, y = math.tointeger(tonumber(x)), math.tointeger(tonumber(y))
+    if not (x and y and Grid.free(dst.stacks, x, y, w, h)) then
+        x, y, r = Grid.findSpot(dst.stacks, stack.i)
+        if not x then
+            notify(officer, "Нет места для: %s.", labelOf(stack.i))
+            return push(officer)
+        end
+    end
+    local opId = Store.newOpId("rploot")
+    if not opId then return end
+    src.busy, dst.busy = true, true
+    local receipt, why = Store.transfer({ opId = opId, kind = "rp.loot", reason = session.caller,
+        lines = { lineFor(stack, stack.n, src.account, dst.account) } })
+    src.busy, dst.busy = false, false
+    if not receipt then
+        notify(officer, "Не получилось: %s.", explain(why or "busy"))
+        return push(officer)
+    end
+    -- Новая стопка сразу в выбранной клетке: сверка увидит её и не станет раскладывать заново.
+    table.remove(src.stacks, index)
+    dst.stacks[#dst.stacks + 1] = { i = stack.i, n = stack.n, u = stack.u, x = x, y = y, r = r or nil }
+    Store.saveLayout(src.characterId, src.stacks)
+    Store.saveLayout(dst.characterId, dst.stacks)
+    refresh(officer)
+    refresh(target)
+    local taken = from == "loot"
+    notify(target, taken and "При обыске у вас забрали: %s ×%d." or "Вам вернули при обыске: %s ×%d.",
+        labelOf(stack.i), stack.n)
+    log("info", "обыск %d %s %d: %s x%d (%s)", officer, taken and "<-" or "->", target, stack.i, stack.n, opId)
+    TriggerEvent("rp_inventory:looted", officer, target, stack.i, stack.n, taken)
+end)
+
 
 -- Предметы живут в памяти координатора: объявлять на каждом его ready.
 CreateThread(function() Store.define() end)

@@ -259,24 +259,38 @@ local function cmdEscort(source, args)
 end
 RegisterCommand("escort", cmdEscort, false)
 
--- -- обыск и изъятие ------------------------------------------------------------------
+-- -- обыск ------------------------------------------------------------------------------
+-- Обыск открывает офицеру его инвентарь с двумя сетками — своя и карманы задержанного
+-- (rp_inventory, экспорт open_loot); предметы перетаскиваются между ними. Перед каждым
+-- переносом rp_inventory спрашивает loot_allowed.
 
-local function sendPockets(officer, id)
-    local list, why = await("rp_inventory", "pockets", id)
-    if not list then return notify(officer, "Карманы недоступны: %s.", tostring(why)) end
-    send(officer, "rp_police:search", { target = id, name = nameOf(id), items = list })
+local function openLoot(officer, id)
+    local ok, why = await("rp_inventory", "open_loot", officer, id, "loot_allowed")
+    if not ok then notify(officer, "Карманы недоступны: %s.", tostring(why)) end
 end
 
--- /search <ID> — обыскать задержанного (руки вверх на пару секунд), затем окно с карманами.
+-- Можно ли officer сейчас перекладывать вещи задержанного id.
+exports("loot_allowed", function(officerArg, targetArg)
+    local officer, id = tonumber(officerArg), tonumber(targetArg)
+    local session = officer and searches[officer]
+    if not session or session.target ~= id or Open77.time.unix() - session.at > 600 then return false end
+    if not onDuty(officer, PoliceConfig.arrestPermission) then return false end
+    if selfTest(officer, id) then return true end
+    if not holding(officer, id) then return false end
+    local d = between(officer, id)
+    return d ~= nil and d <= PoliceConfig.actionDistance + 2
+end)
+
+-- /search <ID> — обыскать задержанного (руки вверх на пару секунд), затем две сетки.
 local function cmdSearch(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
     local id = target(source, args[1])
     if not id then return end
     if selfTest(source, id) then
-        -- Тест: без наручников и анимации обыска — сразу окно со своими карманами.
+        -- Тест: без наручников и анимации — сразу окно; перенос у себя невозможен.
         searches[source] = { target = id, at = Open77.time.unix() }
         notify(source, "Тест: обыск себя.")
-        return CreateThread(function() sendPockets(source, id) end)
+        return CreateThread(function() openLoot(source, id) end)
     end
     if not holding(source, id) then return notify(source, "Обыскать можно задержанного вами: сначала /cuff %d.", id) end
     local ticket, why = sync(KIT, "search", source, id)
@@ -292,45 +306,17 @@ AddEventHandler("open77_rp_basics:searched", function(officerArg, targetArg, tic
     local session = officer and searches[officer]
     if not session or session.ticket ~= ticket or session.target ~= id then return end
     session.ticket = nil
-    CreateThread(function() sendPockets(officer, id) end)
+    CreateThread(function() openLoot(officer, id) end)
 end)
 
-RegisterNetEvent("rp_police:seize", function(targetArg, index, itemId, count)
-    local officer = tonumber(source)
-    local id = math.tointeger(tonumber(targetArg))
-    local session = officer and searches[officer]
-    if not session or session.target ~= id or Open77.time.unix() - session.at > 300 then
-        return notify(officer, "Обыск закончен — обыщите снова.")
-    end
-    if selfTest(officer, id) then
-        -- Изъять у себя себе — нечего переносить: только проверка кнопки и окна.
-        notify(officer, "Тест: изъятие у себя пропущено (предмет остался на месте).")
-        return sendPockets(officer, id)
-    end
-    if not onDuty(officer, PoliceConfig.arrestPermission) or not holding(officer, id) then
-        return notify(officer, "Изымать можно у задержанного вами, на смене.")
-    end
-    local d = between(officer, id)
-    if not d or d > PoliceConfig.actionDistance + 2 then return notify(officer, "Подойдите ближе.") end
-    if type(itemId) ~= "string" then return end
-    local ok, why = await("rp_inventory", "seize", id, officer, index, itemId, count)
-    if not ok then
-        notify(officer, why == "no_space" and "У вас нет места." or ("Не получилось: " .. tostring(why) .. "."))
-    else
-        local catalog = sync("rp_inventory", "catalog")
-        local label = type(catalog) == "table" and catalog[itemId] and catalog[itemId].label or itemId
-        notify(officer, "Изъято у %s: %s ×%s.", nameOf(id), label, tostring(count))
-        notify(id, "Офицер %s изъял у вас: %s ×%s.", nameOf(officer), label, tostring(count))
-        core("audit", "police_seize", core("account_license", officer), core("account_license", id),
-            { item = itemId, count = tonumber(count) or 1 })
-    end
-    sendPockets(officer, id)
+-- Что забрали при обыске — в аудит.
+AddEventHandler("rp_inventory:looted", function(officerArg, targetArg, itemId, count, taken)
+    local officer, id = tonumber(officerArg), tonumber(targetArg)
+    if not officer or not id or not searches[officer] then return end
+    core("audit", taken and "police_seize" or "police_return", core("account_license", officer),
+        core("account_license", id), { item = itemId, count = count })
 end)
 
-RegisterNetEvent("rp_police:searchClosed", function()
-    local officer = tonumber(source)
-    if officer then searches[officer] = nil end
-end)
 
 -- -- штрафы ----------------------------------------------------------------------------
 

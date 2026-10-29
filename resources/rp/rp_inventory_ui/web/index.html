@@ -29,7 +29,14 @@
   #weightBar { height: 4px; margin-top: 4px; background: rgba(255, 255, 255, 0.08); }
   #weightFill { height: 100%; background: var(--accent); width: 0; }
 
-  #grid { position: relative; background-color: rgba(255, 255, 255, 0.02);
+  #grids { display: flex; gap: 28px; align-items: flex-start; }
+  #lootBox { display: none; }
+  #lootBox.visible { display: block; }
+  .lootTitle { color: var(--warn); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; }
+  .lootTitle span { color: var(--muted); letter-spacing: 0; text-transform: none; margin-left: 8px; }
+  .mineTitle { color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; display: none; }
+  #grids.looting .mineTitle { display: block; }
+  #grid, #lootGrid { position: relative; background-color: rgba(255, 255, 255, 0.02);
     background-image: linear-gradient(var(--line) 1px, transparent 1px),
       linear-gradient(90deg, var(--line) 1px, transparent 1px);
     background-size: var(--cell) var(--cell); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
@@ -75,12 +82,21 @@
     <header>
       <div>
         <h1>Инвентарь</h1>
-        <div class="hint">Перетащите мышью · R — повернуть · ПКМ — действия · I / Esc — закрыть</div>
+        <div class="hint">Перетащите мышью · R — повернуть · ПКМ — действия · I / Esc — закрыть · при обыске — тащите между сетками</div>
       </div>
       <div id="weight"><div id="weightText"></div><div id="weightBar"><div id="weightFill"></div></div></div>
     </header>
-    <div id="grid"></div>
-    <div id="overflow"><div class="title">Не помещается — переложите или выбросьте</div><div id="overflowList"></div></div>
+    <div id="grids">
+      <div>
+        <div class="mineTitle">Ваш инвентарь</div>
+        <div id="grid"></div>
+        <div id="overflow"><div class="title">Не помещается — переложите или выбросьте</div><div id="overflowList"></div></div>
+      </div>
+      <div id="lootBox">
+        <div class="lootTitle">Обыск<span id="lootName"></span></div>
+        <div id="lootGrid"></div>
+      </div>
+    </div>
   </div>
   <div id="ghost"><div class="name"></div></div>
   <div id="tooltip"></div>
@@ -106,7 +122,11 @@
 
   // -- отрисовка -------------------------------------------------------------------
 
-  function tile(stack, index, w, h) {
+  // Две сетки: "mine" — своя, "loot" — карманы обыскиваемого (state.loot).
+  const gridEl = side => $(side === "loot" ? "lootGrid" : "grid");
+  const stacksOf = side => side === "loot" ? (state.loot ? state.loot.stacks : []) : state.stacks;
+
+  function tile(stack, index, w, h, side) {
     const d = def(stack);
     const el = document.createElement("div");
     el.className = "item";
@@ -117,39 +137,51 @@
     el.innerHTML = `<div class="name"></div>${badge ? `<div class="count"></div>` : ""}`;
     el.querySelector(".name").textContent = d.label;
     if (badge) el.querySelector(".count").textContent = badge;
-    el.addEventListener("pointerdown", e => startDrag(e, index, stack, el));
-    el.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(e, index, stack); });
+    el.addEventListener("pointerdown", e => startDrag(e, index, stack, el, side));
+    // Действия (использовать, передать…) — только со своими вещами.
+    if (side === "mine") el.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(e, index, stack); });
     el.addEventListener("mouseenter", e => showTooltip(e, stack));
     el.addEventListener("mousemove", moveTooltip);
     el.addEventListener("mouseleave", hideTooltip);
     return el;
   }
 
-  function render() {
-    if (!state) return;
-    const grid = $("grid");
+  function renderGrid(side, overflow) {
+    const grid = gridEl(side);
     grid.style.width = `${state.cols * CELL + 1}px`;
     grid.style.height = `${state.rows * CELL + 1}px`;
     grid.replaceChildren();
-    const overflow = $("overflowList");
-    overflow.replaceChildren();
-    state.stacks.forEach((stack, i) => {
+    stacksOf(side).forEach((stack, i) => {
       const index = i + 1; // индексы Lua
       if (stack.x) {
         const [w, h] = size(stack, stack.r);
-        const el = tile(stack, index, w, h);
+        const el = tile(stack, index, w, h, side);
         el.style.left = `${(stack.x - 1) * CELL + 1}px`;
         el.style.top = `${(stack.y - 1) * CELL + 1}px`;
         el.style.width = `${w * CELL - 1}px`;
         el.style.height = `${h * CELL - 1}px`;
         grid.append(el);
-      } else {
-        const el = tile(stack, index, 1, 1);
+      } else if (overflow) {
+        const el = tile(stack, index, 1, 1, side);
         el.style.width = "auto";
         el.style.height = "34px";
         overflow.append(el);
       }
     });
+  }
+
+  function render() {
+    if (!state) return;
+    const overflow = $("overflowList");
+    overflow.replaceChildren();
+    renderGrid("mine", overflow);
+    const looting = !!state.loot;
+    $("lootBox").classList.toggle("visible", looting);
+    $("grids").classList.toggle("looting", looting);
+    if (looting) {
+      $("lootName").textContent = `${state.loot.name} [${state.loot.target}] · ${kg(state.loot.weightG || 0)} кг`;
+      renderGrid("loot", null);
+    }
     $("overflow").classList.toggle("visible", overflow.children.length > 0);
     const ratio = state.capacityG ? Math.min(1, state.weightG / state.capacityG) : 0;
     $("weightText").textContent = `${kg(state.weightG)} / ${kg(state.capacityG)} кг`;
@@ -180,12 +212,12 @@
 
   // -- перетаскивание --------------------------------------------------------------
 
-  function startDrag(e, index, stack, el) {
+  function startDrag(e, index, stack, el, side) {
     if (e.button !== 0) return;
     closeMenu();
     hideTooltip();
     const rect = el.getBoundingClientRect();
-    drag = { index, stack, rotated: !!stack.r, el,
+    drag = { index, stack, side, rotated: !!stack.r, el,
              grabX: Math.floor((e.clientX - rect.left) / CELL), grabY: Math.floor((e.clientY - rect.top) / CELL) };
     el.classList.add("dragging");
     const ghost = $("ghost");
@@ -195,9 +227,19 @@
     updateGhost(e);
   }
 
-  // Клетка сетки, куда ляжет левый верхний угол предмета (1..), и можно ли туда.
-  function target(e) {
-    const grid = $("grid").getBoundingClientRect();
+  // Над какой сеткой курсор: при обыске — та, над которой он; иначе — своя.
+  function dropSide(e) {
+    if (state.loot) {
+      const r = $("lootGrid").getBoundingClientRect();
+      if (e.clientX >= r.left - CELL / 2 && e.clientX <= r.right + CELL / 2 && e.clientY >= r.top - CELL / 2 &&
+          e.clientY <= r.bottom + CELL / 2) return "loot";
+    }
+    return "mine";
+  }
+
+  // Клетка сетки side, куда ляжет левый верхний угол предмета (1..).
+  function target(e, side) {
+    const grid = gridEl(side).getBoundingClientRect();
     const [w, h] = size(drag.stack, drag.rotated);
     const gx = Math.min(drag.grabX, w - 1), gy = Math.min(drag.grabY, h - 1);
     const x = Math.floor((e.clientX - grid.left) / CELL) - gx + 1;
@@ -205,22 +247,25 @@
     return { x, y, w, h, gx, gy };
   }
 
-  function overlaps(x, y, w, h) {
+  // Своя стопка не мешает себе только в своей же сетке.
+  const skip = (side, i) => side === drag.side && i + 1 === drag.index;
+
+  function overlaps(side, x, y, w, h) {
     let hit = null;
-    state.stacks.forEach((other, i) => {
-      if (i + 1 === drag.index || !other.x) return;
+    stacksOf(side).forEach((other, i) => {
+      if (skip(side, i) || !other.x) return;
       const [ow, oh] = size(other, other.r);
       if (x < other.x + ow && other.x < x + w && y < other.y + oh && other.y < y + h) hit = hit === null ? i + 1 : -1;
     });
     return hit; // null — свободно, индекс — одна стопка, -1 — несколько
   }
 
-  function stackUnderCursor(e) {
-    const grid = $("grid").getBoundingClientRect();
+  function stackUnderCursor(e, side) {
+    const grid = gridEl(side).getBoundingClientRect();
     const cx = Math.floor((e.clientX - grid.left) / CELL) + 1, cy = Math.floor((e.clientY - grid.top) / CELL) + 1;
     let found = null;
-    state.stacks.forEach((other, i) => {
-      if (i + 1 === drag.index || !other.x) return;
+    stacksOf(side).forEach((other, i) => {
+      if (skip(side, i) || !other.x) return;
       const [ow, oh] = size(other, other.r);
       if (cx >= other.x && cx < other.x + ow && cy >= other.y && cy < other.y + oh) found = i + 1;
     });
@@ -228,30 +273,49 @@
   }
 
   function updateGhost(e) {
-    const t = target(e);
+    const side = dropSide(e);
+    const t = target(e, side);
     const ghost = $("ghost");
     ghost.style.width = `${t.w * CELL}px`;
     ghost.style.height = `${t.h * CELL}px`;
     ghost.style.left = `${e.clientX - t.gx * CELL - CELL / 2}px`;
     ghost.style.top = `${e.clientY - t.gy * CELL - CELL / 2}px`;
     const inside = t.x >= 1 && t.y >= 1 && t.x + t.w - 1 <= state.cols && t.y + t.h - 1 <= state.rows;
-    const under = stackUnderCursor(e);
-    const merge = under && state.stacks[under - 1].i === drag.stack.i && def(drag.stack).stack > 1;
-    ghost.classList.toggle("bad", !merge && (!inside || overlaps(t.x, t.y, t.w, t.h) !== null));
+    let bad;
+    if (side !== drag.side) {
+      // В другую сетку: сервер положит сюда, а занято — на первое свободное место.
+      bad = false;
+    } else if (side === "loot") {
+      bad = true; // раскладывать чужие вещи нельзя
+    } else {
+      const under = stackUnderCursor(e, side);
+      const merge = under && state.stacks[under - 1].i === drag.stack.i && def(drag.stack).stack > 1;
+      bad = !merge && (!inside || overlaps(side, t.x, t.y, t.w, t.h) !== null);
+    }
+    ghost.classList.toggle("bad", bad);
   }
 
   document.addEventListener("pointermove", e => { if (drag) updateGhost(e); });
 
   document.addEventListener("pointerup", e => {
     if (!drag) return;
-    const t = target(e);
-    const under = stackUnderCursor(e);
-    const payload = { index: drag.index, item: drag.stack.i, a: t.x, b: t.y, c: drag.rotated };
-    if (under && state.stacks[under - 1].i === drag.stack.i) payload.d = under;
-    const moved = payload.d || t.x !== drag.stack.x || t.y !== drag.stack.y || drag.rotated !== !!drag.stack.r;
-    drag.el.classList.remove("dragging");
+    const side = dropSide(e);
+    const t = target(e, side);
+    const d = drag;
+    d.el.classList.remove("dragging");
     $("ghost").style.display = "none";
     drag = null;
+    if (side !== d.side) {
+      emit("inv:loot", { from: d.side, index: d.index, item: d.stack.i, a: t.x, b: t.y, c: d.rotated });
+      return;
+    }
+    if (side === "loot") return;
+    drag = d; // stackUnderCursor смотрит на drag
+    const under = stackUnderCursor(e, side);
+    drag = null;
+    const payload = { index: d.index, item: d.stack.i, a: t.x, b: t.y, c: d.rotated };
+    if (under && state.stacks[under - 1].i === d.stack.i) payload.d = under;
+    const moved = payload.d || t.x !== d.stack.x || t.y !== d.stack.y || d.rotated !== !!d.stack.r;
     if (moved) emit("inv:move", payload);
   });
 
@@ -365,6 +429,8 @@
     // Пустая Lua-таблица приходит как {}, а не [].
     s.stacks = Array.isArray(s.stacks) ? s.stacks : [];
     s.nearby = Array.isArray(s.nearby) ? s.nearby : [];
+    if (s.loot) s.loot.stacks = Array.isArray(s.loot.stacks) ? s.loot.stacks : [];
+    else s.loot = null;
     state = s;
     if (!drag) render();
   });

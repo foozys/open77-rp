@@ -1,26 +1,12 @@
--- Окно обыска, таймер КПЗ и метки вызовов 911. Всё решает сервер (rp_police).
+-- Таймер КПЗ, метки вызовов 911, пункты NCPD в контекстном меню и окно штрафа/КПЗ.
+-- Обыск — окно инвентаря с двумя сетками (rp_inventory_ui). Всё решает сервер (rp_police).
 
-local page, pageReady, searchOpen = nil, false, false
+local page, pageReady = nil, false
 local callBlips = {} -- [id вызова] = blip
 
 local function send(event, payload)
     if page and pageReady then page:send(event, payload or {}) end
 end
-
-local function closeSearch()
-    if not searchOpen then return end
-    searchOpen = false
-    send("pol:closeSearch")
-    if page then page:setFocus(false, false) end
-    TriggerServerEvent("rp_police:searchClosed")
-end
-
-RegisterNetEvent("rp_police:search", function(payload)
-    if type(payload) ~= "table" or not page then return end
-    searchOpen = true
-    send("pol:search", payload)
-    page:setFocus(true, true)
-end)
 
 RegisterNetEvent("rp_police:jail", function(payload)
     if type(payload) == "table" then send("pol:jail", payload) end
@@ -95,7 +81,7 @@ local function closeForm()
     if not formOpen then return end
     formOpen = false
     send("pol:closeForm")
-    if not searchOpen and page then page:setFocus(false, false) end
+    if page then page:setFocus(false, false) end
 end
 
 local MENU = {
@@ -138,24 +124,16 @@ AddEventHandler("onClientResourceStart", function(name)
     end
     page = created
     page:on("ui:ready", function() pageReady = true end)
-    page:on("pol:close", closeSearch)
     page:on("pol:formClose", closeForm)
     page:on("pol:formSubmit", function(p)
         if type(p) ~= "table" or (p.kind ~= "fine" and p.kind ~= "jail") then return end
         TriggerServerEvent("rp_police:menu", p.kind, tonumber(p.target), tonumber(p.number), tostring(p.reason or ""))
         closeForm()
     end)
-    page:on("pol:seize", function(p)
-        if type(p) ~= "table" then return end
-        TriggerServerEvent("rp_police:seize", tonumber(p.target), tonumber(p.index), tostring(p.item), tonumber(p.count))
-    end)
 end)
 
 -- Escape игра перехватывает раньше страницы: закрываем по паузе.
-AddEventHandler("open77:pauseKey", function()
-    closeForm()
-    closeSearch()
-end)
+AddEventHandler("open77:pauseKey", closeForm)
 
 AddEventHandler("onClientResourceStop", function(name)
     if name == GetCurrentResourceName() and page then page:setFocus(false, false) end

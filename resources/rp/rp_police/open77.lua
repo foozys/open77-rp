@@ -6,7 +6,7 @@ dependency "open77_transactions >=0.1.0"
 dependency "rp_core"
 -- смены и права NCPD (ncpd.basic, ncpd.arrest, ncpd.fine)
 dependency "rp_jobs"
--- карманы задержанного и изъятие (экспорты pockets, seize)
+-- обыск: две сетки — своя и задержанного (экспорт open_loot, проверка loot_allowed)
 dependency "rp_inventory"
 -- наручники, сопровождение, обыск
 dependency "open77_rp_basics"
