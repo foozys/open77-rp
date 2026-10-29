@@ -2,5 +2,12 @@
   // Managed from the Warden panel (Players -> Rights, and the Access tab).
   // Hand edits are still honoured; the server reloads this file on acl.reload.
   "version": 1,
-  "principals": []
+  "principals": [
+    {
+      "name": "owner",
+      "userId": "22973c5a-41d5-4d23-841b-20325ea12525",
+      "publicKey": "zpkSdOoSbHDeRCsXxhKsCLCCw4aYZ3psKrR/VmxbpLdyj4hf01nZc14FQW/CNFeAnK/ojWbvlZtEJHpmJlcDIQ==",
+      "permissions": ["*"]
+    }
+  ]
 }
