@@ -7,8 +7,9 @@ reload_policy "reconnect"
 -- Подсказки у автосалонов и гаражей.
 dependency "open77_interactions >=0.2.0"
 
--- network.events: связь с rp_vehicles; input.actions: клавиша замка (L)
-permissions { "network.events", "input.actions" }
+-- network.events: связь с rp_vehicles; input.actions: клавиша замка (L);
+-- ui.vanilla.map: метки своих гаражей на карте
+permissions { "network.events", "input.actions", "ui.vanilla.map" }
 
 client_script "client/main.lua"
 web_file "web/index.html"

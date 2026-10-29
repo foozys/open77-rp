@@ -1,4 +1,5 @@
--- Подсказки у автосалонов и гаражей, окно покупки и гаража, клавиша замка.
+-- Подсказки у автосалонов и гаражей, загон машины на месте выезда, метки своих
+-- гаражей на карте, окно покупки и гаража, клавиша замка.
 -- Всё решает сервер (rp_vehicles): клиент показывает и передаёт выбор.
 
 local page, pageReady, isOpen = nil, false, false
@@ -42,13 +43,66 @@ RegisterNetEvent("rp_vehicles:points", function(list)
                 print("[rp_vehicles_ui] точка #" .. tostring(point.id) .. ": " ..
                     tostring(type(result) == "table" and result.error or result))
             end
+            -- Место выезда гаража: подъехать за рулём и загнать машину на E.
+            if garage and type(point.spawn) == "table" then
+                local driveIn = call("create", {
+                    id = "rp_vehicle_drivein_" .. point.id,
+                    position = { x = point.spawn.x, y = point.spawn.y, z = point.spawn.z },
+                    distance = 6, markerDistance = 30, marker = "vehicle",
+                    label = "Park in garage", key = "E", icon = "GARAGE",
+                    color = "#5EF6FF", event = "rp_vehicles:driveInPoint", data = { pointId = point.id },
+                })
+                if type(driveIn) == "table" and driveIn.ok then handles[#handles + 1] = driveIn.handle end
+            end
         end
     end)
 end)
 
-AddEventHandler("rp_vehicles:point", function(context)
+local function pointIdOf(context)
     local data = type(context) == "table" and (context.data or context.interactionData) or nil
-    if type(data) == "table" and data.pointId then TriggerServerEvent("rp_vehicles:open", data.pointId) end
+    return type(data) == "table" and data.pointId or nil
+end
+
+AddEventHandler("rp_vehicles:point", function(context)
+    local pointId = pointIdOf(context)
+    if pointId then TriggerServerEvent("rp_vehicles:open", pointId) end
+end)
+
+AddEventHandler("rp_vehicles:driveInPoint", function(context)
+    local pointId = pointIdOf(context)
+    if pointId then TriggerServerEvent("rp_vehicles:driveIn", pointId) end
+end)
+
+-- Метки «моих» гаражей на карте. Список приходит с сервера; до готовности мира
+-- метки не создаются, поэтому последний список повторяем на open77:worldReady.
+local garageBlips, myGarages = {}, {}
+
+local function drawGarageBlips()
+    for _, blip in ipairs(garageBlips) do Open77.blips.remove(blip) end
+    garageBlips = {}
+    for _, garage in ipairs(myGarages) do
+        local blip, why = Open77.blips.create({
+            position = { x = garage.x, y = garage.y, z = garage.z },
+            sprite = "VehicleVariant",
+            title = "Гараж #" .. tostring(garage.id),
+            description = "Здесь стоят ваши машины.",
+        })
+        if blip then
+            garageBlips[#garageBlips + 1] = blip
+        else
+            print("[rp_vehicles_ui] метка гаража #" .. tostring(garage.id) .. ": " .. tostring(why))
+        end
+    end
+end
+
+RegisterNetEvent("rp_vehicles:myGarages", function(list)
+    if type(list) ~= "table" then return end
+    myGarages = list
+    drawGarageBlips()
+end)
+
+AddEventHandler("open77:worldReady", function()
+    if #myGarages > 0 and #garageBlips < #myGarages then drawGarageBlips() end
 end)
 
 RegisterNetEvent("rp_vehicles:show", function(payload)

@@ -130,11 +130,19 @@ end
 local function sendPoints(target)
     local list = {}
     for _, point in pairs(points) do
-        list[#list + 1] = { id = point.id, type = point.type, x = point.x, y = point.y, z = point.z }
+        local entry = { id = point.id, type = point.type, x = point.x, y = point.y, z = point.z }
+        if point.type == "garage" then
+            -- Место выезда: там же подсказка «загнать», когда игрок за рулём.
+            local spot = point.spawn or { x = point.x + 3, y = point.y, z = point.z }
+            entry.spawn = { x = spot.x, y = spot.y, z = spot.z }
+        end
+        list[#list + 1] = entry
     end
     local ok, reason = TriggerClientEvent("rp_vehicles:points", target, list)
     if not ok then log("warn", "точки не отправлены: %s", tostring(reason)) end
 end
+
+local sendMyGarages -- метки гаражей на карте (ниже)
 
 local function loadPoints()
     local rows, err = db("query", "SELECT * FROM rp_vehicle_points")
@@ -153,6 +161,7 @@ local function loadPoints()
         }
     end
     sendPoints(-1)
+    for _, id in ipairs(onlinePlayers()) do sendMyGarages(id) end
 end
 
 local function newPlate()
@@ -472,6 +481,22 @@ local function garageList(playerId, garage)
     return list
 end
 
+-- Метки на карте: гаражи, к которым приписаны машины игрока (свои и по ключу).
+function sendMyGarages(playerId)
+    local character = characterOf(playerId)
+    if not character or not dbReady then return end
+    local seen, list = {}, {}
+    for _, row in ipairs(accessibleRows(playerId, character)) do
+        local id = math.tointeger(tonumber(row.garage_id))
+        local garage = id and points[id]
+        if garage and not seen[id] then
+            seen[id] = true
+            list[#list + 1] = { id = id, x = garage.x, y = garage.y, z = garage.z }
+        end
+    end
+    TriggerClientEvent("rp_vehicles:myGarages", playerId, list)
+end
+
 local function showGarage(playerId, garage)
     local list = garageList(playerId, garage)
     if not list then return notify(playerId, "Сначала выберите персонажа.") end
@@ -559,6 +584,7 @@ RegisterNetEvent("rp_vehicles:buy", function(model)
         { model = model, price = def.price, plate = plate, id = id })
     log("info", "покупка: персонаж #%d, %s (%s) за %d", character.id, model, plate, def.price)
     result(playerId, true, string.format("Куплено: %s, номер %s. Машина ждёт в гараже #%d.", def.label, plate, home.id))
+    sendMyGarages(playerId)
 end)
 
 local function ownerPlayer(characterId)
@@ -631,6 +657,68 @@ garageAction("rp_vehicles:park", false, true, function(playerId, car)
     park(car.id, car.garage.id)
     result(playerId, true, moved and string.format("Машина в гараже. Теперь она приписана к гаражу #%d.", car.garage.id)
         or "Машина в гараже.", true)
+    if moved then sendMyGarages(playerId) end
+end)
+
+-- Загнать с ходу: водитель на месте выезда гаража жмёт E. Все выходят, машина — в гараж.
+-- Права те же, что у «Поставить»: держатель ключа — только в домашний гараж,
+-- хозяин — в любой (тогда гараж станет домашним).
+local drivingIn = {}
+
+RegisterNetEvent("rp_vehicles:driveIn", function(pointId)
+    local playerId = tonumber(source)
+    local garage = points[math.tointeger(tonumber(pointId)) or 0]
+    if not playerId or not garage or garage.type ~= "garage" or drivingIn[playerId] then return end
+    local character = characterOf(playerId)
+    if not character then return end
+    local seat = Open77.vehicles.getPlayerSeat(playerId)
+    if not seat then return notify(playerId, "Чтобы загнать машину, сядьте за руль.") end
+    if seat.seat ~= "seat_front_left" then return notify(playerId, "Загнать машину может только водитель.") end
+    local vehicleId = math.tointeger(tonumber(seat.vehicleId))
+    local rpId = vehicleId and byVehicle[vehicleId]
+    if not rpId then return notify(playerId, "Эту машину в гараж не поставить: она не личная.") end
+    local place, spot = placeOfVehicle(vehicleId), garageSpot(garage)
+    if not place or place.bucket ~= spot.bucket or distance(place, spot) > VehiclesConfig.parkDistance then
+        return notify(playerId, "Подъедьте ближе к въезду в гараж.")
+    end
+    local row
+    for _, candidate in ipairs(accessibleRows(playerId, character)) do
+        if math.tointeger(tonumber(candidate.id)) == rpId then row = candidate end
+    end
+    if not row then return notify(playerId, "Это не ваша машина, и ключа от неё у вас нет.") end
+    if not isHome(row, garage) and not row.owner then
+        return notify(playerId, "Эта машина приписана к другому гаражу.")
+    end
+
+    drivingIn[playerId] = true
+    local ok, err = pcall(function()
+        -- Всех из машины; ждём, пока игра подтвердит выход (до 6 с).
+        for _, name in ipairs(SEATS) do
+            local who = Open77.vehicles.occupantInSeat(vehicleId, name)
+            if who then
+                local out, why = Open77.vehicles.forcePlayerOutOfVehicle(who, vehicleId)
+                if not out then log("warn", "загнать #%d: игрок %s не высажен: %s", rpId, tostring(who), tostring(why)) end
+            end
+        end
+        local waited = 0
+        while occupied(vehicleId) and waited < 6000 do
+            Wait(250)
+            waited = waited + 250
+        end
+        if not alive(rpId) then return end
+        if occupied(vehicleId) then return notify(playerId, "Не получилось: из машины не все вышли.") end
+        local moved = not isHome(row, garage)
+        park(rpId, garage.id)
+        log("info", "загнал: машина #%d (%s) в гараж #%d, игрок %d", rpId, row.plate, garage.id, playerId)
+        notify(playerId, moved and "Машина %s в гараже. Теперь она приписана к гаражу #%d." or "Машина %s в гараже.",
+            row.plate, garage.id)
+        if moved then sendMyGarages(playerId) end
+    end)
+    drivingIn[playerId] = nil
+    if not ok then
+        log("error", "rp_vehicles:driveIn: %s", tostring(err))
+        notify(playerId, "Ошибка.")
+    end
 end)
 
 garageAction("rp_vehicles:tow", false, false, function(playerId, car)
@@ -779,6 +867,7 @@ AddEventHandler("rp_core:characterLoaded", function(playerIdArg)
     CreateThread(function()
         sweep()
         spawnFor(playerId)
+        sendMyGarages(playerId)
     end)
 end)
 
@@ -801,7 +890,9 @@ end)
 
 RegisterNetEvent("rp_vehicles:request", function()
     local playerId = tonumber(source)
-    if playerId then sendPoints(playerId) end
+    if not playerId then return end
+    sendPoints(playerId)
+    sendMyGarages(playerId)
 end)
 
 -- -- админ ----------------------------------------------------------------------------------
