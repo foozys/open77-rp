@@ -54,9 +54,12 @@ RegisterNetEvent("rp_police:officer", function(payload)
     if type(payload) == "table" then officer = payload end
 end)
 
+-- Цель меню — другой игрок; в тестовом режиме (selfTest у владельца) — и сам себя.
 local function otherPlayer(ctx)
     local t = type(ctx) == "table" and ctx.target
-    return type(t) == "table" and t.playerId ~= nil and t.isLocalPlayer ~= true and math.tointeger(tonumber(t.playerId)) or nil
+    if type(t) ~= "table" or t.playerId == nil then return nil end
+    if t.isLocalPlayer == true and officer.selfTest ~= true then return nil end
+    return math.tointeger(tonumber(t.playerId))
 end
 
 exports("polCanArrest", function(ctx) return officer.arrest == true and otherPlayer(ctx) ~= nil end)
@@ -109,7 +112,8 @@ local MENU = {
 }
 
 local function registerMenu()
-    for _, def in ipairs(MENU) do def.group, def.distance, def.networked = "NCPD", 3.0, true end
+    -- allowSelf: своё тело (F7) тоже цель; показывать ли — решает canInteract (только selfTest).
+    for _, def in ipairs(MENU) do def.group, def.distance, def.networked, def.allowSelf = "NCPD", 3.0, true, true end
     local pending, why = Open77.exports.call("open77_contextmenu", "registerPlayers", MENU)
     if not pending then return print("[rp_police_ui] контекстное меню: " .. tostring(why)) end
     local tokens, err = pending:await()

@@ -616,6 +616,8 @@ towPrice = 500,     -- эвакуировать машину в гараж
 
 `arrestPermission` (`ncpd.arrest`), `finePermission` (`ncpd.fine`), `callPermission` (кому приходят 911, `ncpd.basic`), `actionDistance` (3), `fineMax` (50000), `fineAccount` (`soc:ncpd`), `jailMaxMinutes` (30), `jailCellDistance` (15), `jailRadius` (12), `callCooldownSeconds` (60), `callBlipSeconds` (300).
 
+`selfTest` — тест в одиночку: владелец сервера (ACL `rp.owner`) может применять к себе штраф, КПЗ и обыск (командой со своим ID или Alt по своему телу в F7). Наручники и сопровождение на себе не работают — их не даёт `open77_rp_basics`. **На живом сервере — `false`.**
+
 Наручники, сопровождение и обыск делает платформенный `open77_rp_basics` (лежит в `resources/system/`, вне нашего git — после обновления сервера поставить заново из open77-resources). Он пускает по ACL `rp.cuff`, `rp.escort`, `rp.search`: `rp_police` выдаёт их сотруднику NCPD на смене и забирает со смены (файл `acl.runtime.jsonc` рядом с `acl.jsonc` пишет сервер сам).
 
 ### 6.5 Админ-роли — `resources/rp/rp_core/server/config.lua`, `staffRoles`

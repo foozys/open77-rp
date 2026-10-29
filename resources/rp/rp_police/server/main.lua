@@ -95,6 +95,17 @@ local function onDuty(playerId, permission)
     return sync("rp_jobs", "can", playerId, permission, true) == true
 end
 
+-- Тест в одиночку (PoliceConfig.selfTest): владельцу сервера можно применять к себе
+-- штраф, КПЗ и обыск. Наручники и сопровождение open77_rp_basics на себя не даёт.
+local function selfTester(playerId)
+    return PoliceConfig.selfTest == true and core("can", playerId, "rp.owner") == true
+end
+
+-- Цель — сам офицер в тестовом режиме.
+local function selfTest(source, id)
+    return id == source and selfTester(source)
+end
+
 -- Игрок в сети с персонажем: id, или nil (и сообщение тому, кто спрашивал).
 local function target(source, arg)
     local id = math.tointeger(tonumber(arg))
@@ -102,7 +113,7 @@ local function target(source, arg)
         notify(source, "Игрока с ID %s нет в сети.", tostring(arg))
         return nil
     end
-    if id == source then
+    if id == source and not selfTester(source) then
         notify(source, "Нельзя применить к себе.")
         return nil
     end
@@ -144,6 +155,7 @@ local function pushOfficer(playerId)
         arrest = onDuty(playerId, PoliceConfig.arrestPermission),
         fine = onDuty(playerId, PoliceConfig.finePermission),
         maxFine = PoliceConfig.fineMax, maxJail = PoliceConfig.jailMaxMinutes,
+        selfTest = selfTester(playerId),
     })
 end
 
@@ -196,6 +208,9 @@ local function cmdCuff(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
     local id = target(source, args[1])
     if not id then return end
+    if selfTest(source, id) then
+        return notify(source, "Тест: наручники и сопровождение на себе не проверить — open77_rp_basics этого не даёт.")
+    end
     if holding(source, id) then
         local ok, why = sync(KIT, "release", id, source)
         if not ok then return notify(source, "Не получилось: %s.", explain(why)) end
@@ -225,6 +240,9 @@ local function cmdEscort(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
     local id = target(source, args[1])
     if not id then return end
+    if selfTest(source, id) then
+        return notify(source, "Тест: наручники и сопровождение на себе не проверить — open77_rp_basics этого не даёт.")
+    end
     local record = kitState(id)
     if not record or record.officer ~= source then
         return notify(source, "Сначала наденьте наручники: /cuff %d.", id)
@@ -254,6 +272,12 @@ local function cmdSearch(source, args)
     if not officerOnly(source, PoliceConfig.arrestPermission) then return end
     local id = target(source, args[1])
     if not id then return end
+    if selfTest(source, id) then
+        -- Тест: без наручников и анимации обыска — сразу окно со своими карманами.
+        searches[source] = { target = id, at = Open77.time.unix() }
+        notify(source, "Тест: обыск себя.")
+        return CreateThread(function() sendPockets(source, id) end)
+    end
     if not holding(source, id) then return notify(source, "Обыскать можно задержанного вами: сначала /cuff %d.", id) end
     local ticket, why = sync(KIT, "search", source, id)
     if type(ticket) ~= "string" then return notify(source, "Не получилось: %s.", explain(why)) end
@@ -277,6 +301,11 @@ RegisterNetEvent("rp_police:seize", function(targetArg, index, itemId, count)
     local session = officer and searches[officer]
     if not session or session.target ~= id or Open77.time.unix() - session.at > 300 then
         return notify(officer, "Обыск закончен — обыщите снова.")
+    end
+    if selfTest(officer, id) then
+        -- Изъять у себя себе — нечего переносить: только проверка кнопки и окна.
+        notify(officer, "Тест: изъятие у себя пропущено (предмет остался на месте).")
+        return sendPockets(officer, id)
     end
     if not onDuty(officer, PoliceConfig.arrestPermission) or not holding(officer, id) then
         return notify(officer, "Изымать можно у задержанного вами, на смене.")
@@ -420,7 +449,9 @@ local function cmdJail(source, args)
     if not minutes or minutes < 1 or minutes > PoliceConfig.jailMaxMinutes or reason == "" then
         return notify(source, "Использование: /jail <ID> <минуты 1–%d> <причина>", PoliceConfig.jailMaxMinutes)
     end
-    if not holding(source, id) then return notify(source, "Сначала наденьте наручники: /cuff %d.", id) end
+    if not holding(source, id) and not selfTest(source, id) then
+        return notify(source, "Сначала наденьте наручники: /cuff %d.", id)
+    end
     local cell = nearestPoint(placeOf(source), "cell", PoliceConfig.jailCellDistance)
     if not cell then return notify(source, "Рядом нет камеры КПЗ (до %d м).", PoliceConfig.jailCellDistance) end
     local character = characterOf(id)
