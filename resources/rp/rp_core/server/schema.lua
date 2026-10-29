@@ -68,3 +68,36 @@ Migrations.add(3, "account_whitelist", {
             ADD COLUMN IF NOT EXISTS whitelisted_by VARCHAR(64) NULL
     ]],
 })
+
+-- Персонажи. Ключ внешности в open77_appearance — "rp-<id>". slot = NULL у
+-- удалённых, чтобы слот освобождался. look — снимок тела и одежды для
+-- манекена на экране выбора. next_character_id — кого загрузить при следующем
+-- входе (создание нового персонажа требует перезахода).
+Migrations.add(4, "characters", {
+    [[
+        CREATE TABLE IF NOT EXISTS rp_characters (
+            id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            license        VARCHAR(64)     NOT NULL,
+            slot           TINYINT UNSIGNED NULL,
+            status         ENUM('creating', 'active', 'deleted') NOT NULL DEFAULT 'creating',
+            first_name     VARCHAR(32)     NOT NULL DEFAULT '',
+            last_name      VARCHAR(32)     NOT NULL DEFAULT '',
+            birth_date     DATE            NULL,
+            look           MEDIUMTEXT      NULL,
+            pos_x          DOUBLE          NULL,
+            pos_y          DOUBLE          NULL,
+            pos_z          DOUBLE          NULL,
+            heading        DOUBLE          NULL,
+            created_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_played_at DATETIME        NULL,
+            deleted_at     DATETIME        NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_characters_slot (license, slot),
+            KEY idx_characters_license (license, status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ]],
+    [[
+        ALTER TABLE rp_accounts
+            ADD COLUMN IF NOT EXISTS next_character_id BIGINT UNSIGNED NULL
+    ]],
+})

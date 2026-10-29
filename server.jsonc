@@ -117,7 +117,8 @@
       "open77_interactions",
       "open77_worldui",
       "open77_zones",
-      "rp/rp_core"
+      "rp/rp_core",
+      "rp/rp_charselect"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,

@@ -128,6 +128,32 @@ RegisterCommand("rp.whitelist", function(source, args)
     end
 end, true)
 
+-- rp.characters <id|license>
+RegisterCommand("rp.characters", function(source, args)
+    local license = resolveTarget(args[1])
+    if not license then
+        Util.reply(source, "Использование: rp.characters <ID игрока|license>")
+        return
+    end
+    local rows, err = Db.query([[
+        SELECT id, slot, status, first_name, last_name, DATE_FORMAT(birth_date, '%d.%m.%Y') AS birth_text,
+               DATE_FORMAT(last_played_at, '%d.%m.%Y %H:%i') AS played
+        FROM rp_characters WHERE license = ? ORDER BY status = 'deleted', slot, id
+    ]], { license })
+    if not rows then
+        Util.reply(source, "Ошибка БД, см. лог сервера.")
+        return
+    end
+    if #rows == 0 then
+        Util.reply(source, "У %s нет персонажей.", license)
+        return
+    end
+    for _, row in ipairs(rows) do
+        Util.reply(source, "#%s слот %s [%s] %s %s, р. %s, играл %s", tostring(row.id), tostring(row.slot or "-"),
+            row.status, row.first_name, row.last_name, row.birth_text or "-", row.played or "никогда")
+    end
+end, true)
+
 -- rp.account <id|license>
 RegisterCommand("rp.account", function(source, args)
     local license, playerId = resolveTarget(args[1])

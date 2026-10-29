@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Персонаж</title>
+<style>
+  :root {
+    --bg: rgba(8, 10, 16, 0.86);
+    --line: rgba(94, 246, 255, 0.35);
+    --accent: #5ef6ff;
+    --warn: #ff5e6c;
+    --text: #e8f1f2;
+    --muted: #8fa3a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; color: var(--text);
+    font: 22px/1.4 "Segoe UI", Arial, sans-serif; overflow: hidden; }
+  #app { display: none; position: absolute; left: 80px; top: 50%; transform: translateY(-50%);
+    width: 560px; padding: 36px; background: var(--bg); border: 1px solid var(--line);
+    border-left: 4px solid var(--accent); }
+  #app.visible { display: block; }
+  h1 { margin: 0 0 6px; font-size: 34px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+  .hint { margin: 0 0 24px; color: var(--muted); font-size: 18px; }
+  .slot { display: block; width: 100%; margin: 0 0 10px; padding: 14px 18px; text-align: left;
+    background: transparent; border: 1px solid var(--line); color: var(--text); font: inherit; cursor: pointer; }
+  .slot:hover { border-color: var(--accent); }
+  .slot.selected { border-color: var(--accent); background: rgba(94, 246, 255, 0.12); }
+  .slot small { display: block; color: var(--muted); font-size: 16px; }
+  .slot.empty { color: var(--muted); border-style: dashed; }
+  label { display: block; margin: 0 0 14px; color: var(--muted); font-size: 18px; }
+  input { display: block; width: 100%; margin-top: 4px; padding: 10px 12px; background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--line); color: var(--text); font: inherit; }
+  input:focus { outline: none; border-color: var(--accent); }
+  .actions { display: flex; gap: 12px; margin-top: 22px; }
+  button.main, button.danger, button.ghost { flex: 1; padding: 12px; font: inherit; cursor: pointer;
+    text-transform: uppercase; letter-spacing: 1px; }
+  button.main { background: var(--accent); border: 0; color: #041014; font-weight: 600; }
+  button.danger { background: transparent; border: 1px solid var(--warn); color: var(--warn); }
+  button.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  #error { min-height: 26px; margin-top: 16px; color: var(--warn); font-size: 18px; }
+  #confirm { display: none; margin-top: 18px; }
+  #confirm.visible { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="select" hidden>
+    <h1>Персонажи</h1>
+    <p class="hint">Выберите, за кого играть.</p>
+    <div id="slots"></div>
+    <div class="actions">
+      <button class="main" id="play">Играть</button>
+      <button class="danger" id="delete">Удалить</button>
+    </div>
+    <div id="confirm">
+      <label>Чтобы удалить навсегда, введите имя и фамилию: <b id="confirmName"></b>
+        <input id="confirmInput" maxlength="49" autocomplete="off">
+      </label>
+      <div class="actions">
+        <button class="danger" id="confirmYes">Удалить навсегда</button>
+        <button class="ghost" id="confirmNo">Отмена</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="profile" hidden>
+    <h1>Новый персонаж</h1>
+    <p class="hint">Данные из документов персонажа. Изменить их потом может только администрация.</p>
+    <label>Имя <input id="firstName" maxlength="24" autocomplete="off"></label>
+    <label>Фамилия <input id="lastName" maxlength="24" autocomplete="off"></label>
+    <label>Дата рождения (ДД.ММ.ГГГГ) <input id="birthDate" maxlength="10" placeholder="15.03.2049" autocomplete="off"></label>
+    <div class="actions">
+      <button class="main" id="submit">Готово</button>
+    </div>
+  </section>
+
+  <div id="error"></div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let state = null;
+  let selected = null; // { kind: "character", character } | { kind: "empty" }
+
+  function setBusy(busy) {
+    document.querySelectorAll("button").forEach(b => { b.disabled = busy; });
+    if (!busy) updateButtons();
+  }
+
+  function showError(text) {
+    $("error").textContent = text || "";
+  }
+
+  function nameOf(c) {
+    return c.status === "creating" || !c.firstName ? "Не создан" : `${c.firstName} ${c.lastName}`;
+  }
+
+  function choose(entry) {
+    selected = entry;
+    $("confirm").classList.remove("visible");
+    document.querySelectorAll(".slot").forEach(el => {
+      el.classList.toggle("selected", el._entry === entry);
+    });
+    Open77.emit("select", { id: entry.kind === "character" ? entry.character.id : null });
+    updateButtons();
+  }
+
+  function updateButtons() {
+    const isCharacter = selected && selected.kind === "character";
+    $("play").textContent = isCharacter ? "Играть" : "Создать";
+    $("play").disabled = !selected;
+    $("delete").disabled = !isCharacter;
+  }
+
+  function renderSelect() {
+    const list = $("slots");
+    list.innerHTML = "";
+    const entries = state.characters.map(character => ({ kind: "character", character }));
+    if (state.characters.length < state.maxCharacters) entries.push({ kind: "empty" });
+    let initial = null;
+    for (const entry of entries) {
+      const el = document.createElement("button");
+      el.className = "slot" + (entry.kind === "empty" ? " empty" : "");
+      el._entry = entry;
+      if (entry.kind === "empty") {
+        el.textContent = "+ Новый персонаж";
+      } else {
+        const c = entry.character;
+        el.textContent = nameOf(c);
+        const small = document.createElement("small");
+        small.textContent = c.status === "creating" ? "Внешность или анкета не закончены" : `Дата рождения: ${c.birthDate}`;
+        el.appendChild(small);
+        if (c.id === state.currentId) initial = entry;
+      }
+      el.addEventListener("click", () => choose(entry));
+      list.appendChild(el);
+    }
+    choose(initial || (selected && entries.find(e => e.kind === selected.kind
+      && (e.kind === "empty" || e.character.id === selected.character.id))) || entries[0]);
+  }
+
+  function render() {
+    $("app").classList.add("visible");
+    $("select").hidden = state.mode !== "select";
+    $("profile").hidden = state.mode !== "profile";
+    showError("");
+    setBusy(false);
+    if (state.mode === "select") renderSelect();
+    else $("firstName").focus();
+  }
+
+  $("play").addEventListener("click", () => {
+    if (!selected) return;
+    setBusy(true);
+    if (selected.kind === "character") Open77.emit("play", { id: selected.character.id });
+    else Open77.emit("create", {});
+  });
+
+  $("delete").addEventListener("click", () => {
+    if (!selected || selected.kind !== "character") return;
+    const c = selected.character;
+    if (c.status === "creating") {
+      setBusy(true);
+      Open77.emit("delete", { id: c.id, confirm: "" });
+      return;
+    }
+    $("confirmName").textContent = nameOf(c);
+    $("confirmInput").value = "";
+    $("confirm").classList.add("visible");
+    $("confirmInput").focus();
+  });
+
+  $("confirmNo").addEventListener("click", () => $("confirm").classList.remove("visible"));
+
+  $("confirmYes").addEventListener("click", () => {
+    if (!selected || selected.kind !== "character") return;
+    setBusy(true);
+    Open77.emit("delete", { id: selected.character.id, confirm: $("confirmInput").value.trim() });
+  });
+
+  // Набор даты: точки подставляются сами.
+  $("birthDate").addEventListener("input", e => {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+    let out = digits.slice(0, 2);
+    if (digits.length > 2) out += "." + digits.slice(2, 4);
+    if (digits.length > 4) out += "." + digits.slice(4);
+    e.target.value = out;
+  });
+
+  $("submit").addEventListener("click", () => {
+    setBusy(true);
+    showError("");
+    Open77.emit("profile", {
+      firstName: $("firstName").value.trim(),
+      lastName: $("lastName").value.trim(),
+      birthDate: $("birthDate").value.trim(),
+    });
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" || !state) return;
+    if (state.mode === "profile" && !$("submit").disabled) $("submit").click();
+  });
+
+  Open77.on("state", data => {
+    state = data;
+    render();
+  });
+
+  Open77.on("error", data => {
+    showError(data && data.text);
+    setBusy(false);
+  });
+
+  Open77.ready();
+</script>
+</body>
+</html>

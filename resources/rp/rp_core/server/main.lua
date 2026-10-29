@@ -41,6 +41,18 @@ exports("account_license", function(playerId)
     return account.license
 end)
 
+-- Персонаж, за которого игрок сейчас играет; nil на экране выбора и до него.
+exports("character", function(playerId)
+    local id = Util.toPlayerId(playerId)
+    local s = id and Characters.sessions[id]
+    if not s or s.phase ~= "playing" or not s.current then return nil end
+    local row = s.current
+    return {
+        id = row.id, slot = row.slot,
+        firstName = row.first_name, lastName = row.last_name, birthDate = row.birth_text,
+    }
+end)
+
 exports("audit", function(action, actor, target, details)
     local caller = GetInvokingResource()
     if type(caller) ~= "string" or caller:sub(1, #RpConfig.trustedResourcePrefix) ~= RpConfig.trustedResourcePrefix then
