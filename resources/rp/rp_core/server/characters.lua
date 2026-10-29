@@ -642,6 +642,48 @@ RegisterNetEvent("open77:appearance:body", function(body, characterKey)
     if queued == false then log.error("look #%d: %s", row.id, tostring(reason)) end
 end)
 
+-- -- субъект open77_transactions ------------------------------------------------------
+-- Деньги и предметы принадлежат персонажу, а не аккаунту: account(playerId, "cash")
+-- у open77_transactions спрашивает нас и получает "cash:rpc-<id персонажа>".
+-- Без выбранного персонажа (экран выбора, анкета) кошелька нет.
+
+local SUBJECT_PREFIX = "rpc-"
+
+function Characters.subjectOf(who)
+    local playerId = math.tointeger(tonumber(who))
+    if playerId == nil then
+        -- Уже готовый ключ персонажа (например, для офлайн-операций): отдаём как есть.
+        if type(who) == "string" and who:match("^rpc%-%d+$") then return who end
+        return nil, "invalid_subject"
+    end
+    local s = Characters.sessions[playerId]
+    if not s or not s.current or (s.phase ~= "playing" and s.phase ~= "spawning") then
+        return nil, "no_character"
+    end
+    return SUBJECT_PREFIX .. s.current.id
+end
+
+function Characters.subjectForId(characterId)
+    return SUBJECT_PREFIX .. tostring(characterId)
+end
+
+local function registerTxProvider()
+    local ok, registered, reason = pcall(Open77.exports.callSync, "open77_transactions",
+        "registerSubjectProvider", "tx_subject")
+    if ok and registered then
+        log.info("open77_transactions: кошельки привязаны к персонажам")
+    elseif ok then
+        log.error("open77_transactions не принял поставщика субъекта: %s", tostring(reason))
+    else
+        log.debug("open77_transactions недоступен: %s", tostring(registered))
+    end
+end
+
+AddEventHandler("onResourceStart", function(name)
+    if name == "open77_transactions" or name == GetCurrentResourceName() then registerTxProvider() end
+end)
+AddEventHandler("open77_transactions:ready", registerTxProvider)
+
 -- -- место выхода ----------------------------------------------------------------
 
 local function readPosition(playerId, s)

@@ -53,6 +53,18 @@ exports("character", function(playerId)
     }
 end)
 
+-- Поставщик субъекта для open77_transactions (см. Characters.subjectOf). Не ждёт.
+exports("tx_subject", function(who)
+    return Characters.subjectOf(who)
+end)
+
+-- Ключ субъекта персонажа по его id, для операций с офлайн-персонажем.
+exports("character_subject", function(characterId)
+    local id = math.tointeger(tonumber(characterId))
+    if not id or id < 1 then return nil, "invalid_character" end
+    return Characters.subjectForId(id)
+end)
+
 exports("audit", function(action, actor, target, details)
     local caller = GetInvokingResource()
     if type(caller) ~= "string" or caller:sub(1, #RpConfig.trustedResourcePrefix) ~= RpConfig.trustedResourcePrefix then

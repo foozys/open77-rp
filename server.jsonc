@@ -117,9 +117,11 @@
       "open77_interactions",
       "open77_worldui",
       "open77_zones",
+      "open77_transactions",
       "rp/rp_core",
       "rp/rp_charselect",
-      "rp/rp_chat"
+      "rp/rp_chat",
+      "rp/rp_money"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,
