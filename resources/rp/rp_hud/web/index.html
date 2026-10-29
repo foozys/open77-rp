@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>HUD</title>
+<style>
+  :root {
+    --cash: #f3e600;
+    --bank: #5ef6ff;
+    --up: #78dc8c;
+    --down: #eb6e6e;
+    --shadow: 0 0 6px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.9);
+  }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+    font-family: "Segoe UI", Arial, sans-serif; }
+
+  /* Справа под мини-картой. */
+  #money { position: absolute; top: 312px; right: 64px; text-align: right;
+    opacity: 0; transition: opacity 0.4s; }
+  #money.visible { opacity: 1; }
+  .row { display: flex; justify-content: flex-end; align-items: baseline; gap: 10px;
+    text-shadow: var(--shadow); white-space: nowrap; }
+  .label { font-size: 14px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.75; }
+  #cash { color: var(--cash); font-size: 30px; font-weight: 700; letter-spacing: 1px; }
+  .bank { color: var(--bank); margin-top: 2px; }
+  #bank { font-size: 20px; font-weight: 600; }
+  .delta { position: absolute; right: 0; font-size: 18px; font-weight: 700; text-shadow: var(--shadow);
+    animation: rise 2.4s ease-out forwards; pointer-events: none; }
+  .delta.up { color: var(--up); }
+  .delta.down { color: var(--down); }
+  @keyframes rise {
+    0% { opacity: 0; transform: translateY(0); }
+    10% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-26px); }
+  }
+</style>
+</head>
+<body>
+<div id="money">
+  <div class="row"><span id="cash"></span></div>
+  <div class="row bank"><span class="label">Счёт</span><span id="bank"></span></div>
+</div>
+
+<script>
+  const CURRENCY = "€$";
+  const $ = id => document.getElementById(id);
+  let last = null;
+
+  function format(amount) {
+    const sign = amount < 0 ? "-" : "";
+    const digits = String(Math.abs(Math.trunc(amount))).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return `${sign}${digits} ${CURRENCY}`;
+  }
+
+  // Всплывающее +/- рядом со строкой, чьё значение изменилось.
+  function flash(anchor, delta) {
+    if (!delta) return;
+    const node = document.createElement("div");
+    node.className = `delta ${delta > 0 ? "up" : "down"}`;
+    node.textContent = (delta > 0 ? "+" : "") + format(delta);
+    node.style.top = `${anchor.offsetTop + anchor.offsetHeight}px`;
+    $("money").append(node);
+    setTimeout(() => node.remove(), 2500);
+  }
+
+  function renderMoney(money) {
+    const box = $("money");
+    if (!money) {
+      box.classList.remove("visible");
+      last = null;
+      return;
+    }
+    $("cash").textContent = format(money.cash);
+    $("bank").textContent = format(money.bank);
+    box.classList.add("visible");
+    if (last) {
+      flash($("cash").parentElement, money.cash - last.cash);
+      flash($("bank").parentElement, money.bank - last.bank);
+    }
+    last = { cash: money.cash, bank: money.bank };
+  }
+
+  Open77.on("hud:state", state => renderMoney(state && state.money));
+  Open77.ready();
+</script>
+</body>
+</html>

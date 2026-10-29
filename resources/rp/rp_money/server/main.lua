@@ -315,6 +315,72 @@ RegisterCommand("rp.givemoney", function(source, args)
         kind == "cash" and "наличными" or "на счёт")
 end, false)
 
+-- -- HUD ----------------------------------------------------------------------------
+-- После каждой операции open77_transactions называет затронутые кошельки. Кошелёк
+-- персонажа "cash:rpc-<id>" / "bank:rpc-<id>" → игрок, который за него играет →
+-- свежий баланс в rp_hud. Без персонажа (экран выбора) HUD денег скрыт.
+
+local hudPending = {} -- [playerId] = true, пока обновление в пути
+
+local function pushHud(playerId)
+    if hudPending[playerId] then return end
+    hudPending[playerId] = true
+    CreateThread(function()
+        Wait(250) -- несколько операций подряд — одно обновление
+        hudPending[playerId] = nil
+        local cash, bank = Ledger.accounts(playerId)
+        local c, b
+        if cash then
+            c, b = Ledger.balance(cash), Ledger.balance(bank)
+        end
+        local ok, reason = TriggerClientEvent("rp_hud:money", playerId, c or false, b or false)
+        if not ok then log("warn", "HUD игроку %d не отправлен: %s", playerId, tostring(reason)) end
+    end)
+end
+
+local function playerOfCharacter(characterId)
+    for _, value in ipairs(Open77.players.all()) do
+        local playerId = tonumber(value)
+        local character = playerId and characterOf(playerId)
+        if character and character.id == characterId then return playerId end
+    end
+end
+
+AddEventHandler("open77_transactions:committed", function(_, _, accounts)
+    if type(accounts) ~= "table" then return end
+    for _, account in ipairs(accounts) do
+        local namespace, characterId
+        if type(account) == "string" then namespace, characterId = account:match("^(%a+):rpc%-(%d+)$") end
+        local playerId = (namespace == "cash" or namespace == "bank")
+            and playerOfCharacter(math.tointeger(tonumber(characterId)))
+        if playerId then pushHud(playerId) end
+    end
+end)
+
+AddEventHandler("rp_core:characterLoaded", function(playerIdArg)
+    local playerId = tonumber(playerIdArg)
+    if playerId then pushHud(playerId) end
+end)
+
+-- Клиент HUD (пере)запустился и просит текущее состояние.
+RegisterNetEvent("rp_hud:request", function()
+    local playerId = tonumber(source)
+    if playerId then pushHud(playerId) end
+end)
+
+AddEventHandler("onResourceStart", function(name)
+    if name ~= GetCurrentResourceName() then return end
+    for _, value in ipairs(Open77.players.all()) do
+        local playerId = tonumber(value)
+        if playerId and characterOf(playerId) then pushHud(playerId) end
+    end
+end)
+
+AddEventHandler("onPlayerDisconnected", function(playerIdStr)
+    local playerId = tonumber(playerIdStr)
+    if playerId then hudPending[playerId] = nil end
+end)
+
 -- -- подсказки в чате ---------------------------------------------------------------
 
 local SUGGESTIONS = {

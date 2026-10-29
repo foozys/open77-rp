@@ -121,7 +121,8 @@
       "rp/rp_core",
       "rp/rp_charselect",
       "rp/rp_chat",
-      "rp/rp_money"
+      "rp/rp_money",
+      "rp/rp_hud"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,
