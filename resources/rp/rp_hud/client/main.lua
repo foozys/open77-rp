@@ -1,8 +1,8 @@
 -- Постоянный HUD сервера. Значения присылают серверные ресурсы, клиент только
--- рисует. Сейчас: деньги (rp_money), работа и смена (rp_jobs).
+-- рисует. Сейчас: деньги (rp_money), работа и смена (rp_jobs), голод и жажда (rp_needs).
 
 local page, pageReady = nil, false
-local state = { money = false, job = false } -- последнее состояние, чтобы отдать странице после её загрузки
+local state = { money = false, job = false, needs = false } -- последнее состояние, для страницы после загрузки
 
 local function push()
     if page and pageReady then page:send("hud:state", state) end
@@ -40,6 +40,16 @@ RegisterNetEvent("rp_hud:job", function(job)
         state.job = { label = tostring(job.label or ""), rank = tostring(job.rank or ""), duty = job.duty == true }
     else
         state.job = false
+    end
+    push()
+end)
+
+-- { hunger, thirst } 0–100, или false: персонаж не выбран.
+RegisterNetEvent("rp_hud:needs", function(values)
+    if type(values) == "table" then
+        state.needs = { hunger = tonumber(values.hunger) or 0, thirst = tonumber(values.thirst) or 0 }
+    else
+        state.needs = false
     end
     push()
 end)
