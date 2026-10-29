@@ -322,3 +322,11 @@ RegisterCommand("rp.shop", function(source, args)
         notify(source, "Использование: rp.shop add <тип> | rp.shop remove | rp.shop list | rp.shop purge")
     end
 end, false)
+
+-- Типы точек для админ-панели: { { id, label } }.
+exports("shop_types", function()
+    local list = {}
+    for id, def in pairs(ShopsConfig.types) do list[#list + 1] = { id = id, label = def.label } end
+    table.sort(list, function(a, b) return a.label < b.label end)
+    return list
+end)

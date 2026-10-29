@@ -1025,3 +1025,11 @@ RegisterNetEvent("chat:ready", function() Open77.chat.addSuggestions(source, SUG
 AddEventHandler("onResourceStart", function(name)
     if name == GetCurrentResourceName() then Open77.chat.addSuggestions(-1, SUGGESTIONS) end
 end)
+
+-- Модели для админ-панели (rp.givecar): { { id, label, price } } по цене.
+exports("models", function()
+    local list = {}
+    for id, def in pairs(VehiclesConfig.catalog) do list[#list + 1] = { id = id, label = def.label, price = def.price } end
+    table.sort(list, function(a, b) return a.price < b.price end)
+    return list
+end)

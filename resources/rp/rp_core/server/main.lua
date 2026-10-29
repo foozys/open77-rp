@@ -123,6 +123,13 @@ exports("staff_role", function(playerId)
     return role.id, role.label
 end)
 
+-- Лестница админ-ролей для админ-панели: { { id, label } } от младшей к старшей.
+exports("staff_roles", function()
+    local list = {}
+    for index, def in ipairs(RpConfig.staffRoles) do list[index] = { id = def.id, label = def.label } end
+    return list
+end)
+
 -- Есть ли у игрока право (админ-роль или acl.jsonc). Только чтение.
 exports("can", function(playerId, permission)
     local id = Util.toPlayerId(playerId)

@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Админ-панель</title>
+<style>
+  :root {
+    --bg: rgba(10, 12, 18, 0.96);
+    --panel: rgba(255, 255, 255, 0.03);
+    --line: rgba(255, 94, 108, 0.35);
+    --accent: #ff5e6c;
+    --cyan: #5ef6ff;
+    --ok: #78dc8c;
+    --text: #e8f1f2;
+    --muted: #8fa3a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 15px/1.35 "Segoe UI", Arial, sans-serif; user-select: none; }
+  #root { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
+  #root.open { display: block; }
+  #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 1280px; height: 780px;
+    display: grid; grid-template-columns: 200px 1fr 300px; grid-template-rows: auto 1fr 170px;
+    background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  header { grid-column: 1 / 4; display: flex; align-items: center; gap: 16px; padding: 14px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+  h1 { margin: 0; font-size: 20px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+  #role { color: var(--muted); font-size: 13px; flex: 1; }
+  .btn { padding: 7px 14px; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    font: inherit; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+  .btn:hover { background: rgba(255, 94, 108, 0.12); }
+  .btn.cyan { border-color: var(--cyan); color: var(--cyan); }
+  .btn.cyan:hover { background: rgba(94, 246, 255, 0.1); }
+  .btn.ghost { border-color: rgba(255, 255, 255, 0.2); color: var(--muted); }
+
+  #tabs { border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 10px 0; overflow-y: auto; }
+  .tab { padding: 10px 18px; cursor: pointer; color: var(--muted); border-left: 3px solid transparent; }
+  .tab:hover { color: var(--text); background: var(--panel); }
+  .tab.active { color: var(--text); border-left-color: var(--accent); background: rgba(255, 94, 108, 0.07); }
+
+  #actions { padding: 16px 20px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; align-content: start; }
+  .action { padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.1); background: var(--panel); cursor: pointer; }
+  .action:hover { border-color: var(--accent); }
+  .action b { display: block; font-weight: 600; margin-bottom: 3px; }
+  .action small { color: var(--muted); font-size: 12px; }
+  .action code { color: var(--cyan); font-size: 11px; display: block; margin-top: 6px; opacity: 0.8; }
+  .empty { color: var(--muted); grid-column: 1 / 4; }
+
+  #players { border-left: 1px solid rgba(255, 255, 255, 0.08); display: flex; flex-direction: column; min-height: 0; }
+  #players h2, #log h2 { margin: 0; padding: 12px 16px 8px; font-size: 12px; letter-spacing: 2px; color: var(--muted);
+    text-transform: uppercase; font-weight: 600; }
+  #playerList { overflow-y: auto; flex: 1; padding: 0 10px 10px; }
+  .player { padding: 8px 10px; cursor: pointer; border: 1px solid transparent; display: flex; gap: 10px; align-items: baseline; }
+  .player:hover { background: var(--panel); }
+  .player.selected { border-color: var(--cyan); background: rgba(94, 246, 255, 0.06); }
+  .player .id { color: var(--cyan); font-weight: 700; min-width: 34px; }
+  .player small { display: block; color: var(--muted); font-size: 12px; }
+  #selectedHint { padding: 8px 16px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid rgba(255, 255, 255, 0.08); }
+
+  #log { grid-column: 1 / 4; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; flex-direction: column; min-height: 0; }
+  #logLines { overflow-y: auto; padding: 0 16px 10px; font-size: 13px; flex: 1; user-select: text; }
+  #logLines div { padding: 2px 0; }
+  #logLines .sent { color: var(--cyan); }
+  #logLines .err { color: var(--accent); }
+  #logLines .author { color: var(--muted); margin-right: 6px; }
+
+  #modalBack { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); }
+  #modalBack.open { display: block; }
+  #modal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 520px; padding: 22px 24px;
+    background: #0d1017; border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  #modal h3 { margin: 0 0 4px; font-size: 18px; }
+  #modal .desc { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .field input, .field select { width: 100%; padding: 8px 10px; background: rgba(255, 255, 255, 0.05); color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; outline: none; user-select: text; }
+  .field input:focus, .field select:focus { border-color: var(--cyan); }
+  .field select option { background: #0d1017; }
+  .field .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .row2 { display: flex; gap: 8px; }
+  .row2 > * { flex: 1; }
+  #modal .buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  #modalError { color: var(--accent); font-size: 13px; min-height: 18px; }
+  #preview { font-family: Consolas, monospace; font-size: 12px; color: var(--cyan); margin-top: 6px; word-break: break-all; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="panel">
+    <header>
+      <h1>Админ-панель</h1>
+      <div id="role"></div>
+      <button class="btn ghost" id="refresh">Обновить</button>
+      <button class="btn ghost" id="closeBtn">Закрыть · F3</button>
+    </header>
+    <div id="tabs"></div>
+    <div id="actions"></div>
+    <div id="players">
+      <h2>В сети</h2>
+      <div id="playerList"></div>
+      <div id="selectedHint">Выберите игрока — его ID подставится в окна.</div>
+    </div>
+    <div id="log">
+      <h2>Ответы сервера</h2>
+      <div id="logLines"></div>
+    </div>
+  </div>
+  <div id="modalBack">
+    <div id="modal">
+      <h3 id="modalTitle"></h3>
+      <div class="desc" id="modalDesc"></div>
+      <div id="fields"></div>
+      <div id="preview"></div>
+      <div id="modalError"></div>
+      <div class="buttons">
+        <button class="btn ghost" id="cancel">Отмена</button>
+        <button class="btn" id="submit">Выполнить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let data = { perms: {}, players: [], items: [], jobs: [], models: [], shopTypes: [], roles: [] };
+  let tab = null, selected = null, current = null;
+
+  // -- поля -------------------------------------------------------------------------------
+  // type: player (ID из списка или вручную), target (ID или license), text, rest (текст с пробелами,
+  // уходит несколькими словами), number, select (options — имя справочника или массив).
+  const F = {
+    player: (name = "id", label = "Игрок (ID)") => ({ name, label, type: "player", required: true }),
+    target: (name = "target", label = "Игрок: ID или license") =>
+      ({ name, label, type: "target", required: true, hint: "ID игрока в сети или license из rp.account" }),
+    text: (name, label, opts = {}) => ({ name, label, type: "text", required: true, ...opts }),
+    rest: (name, label, opts = {}) => ({ name, label, type: "rest", required: true, ...opts }),
+    number: (name, label, opts = {}) => ({ name, label, type: "number", required: true, ...opts }),
+    select: (name, label, options, opts = {}) => ({ name, label, type: "select", options, required: true, ...opts }),
+  };
+  const opt = f => ({ ...f, required: false });
+
+  // perm — какое право нужно, чтобы кнопка была видна; cmd(v) — слова команды.
+  const TABS = [
+    { id: "players", label: "Игроки", actions: [
+      { title: "Кто в сети", desc: "Персонаж, работа, роль, пинг", perm: "rp.view", cmd: () => ["rp.players"] },
+      { title: "Аккаунт", desc: "Роль, баны, whitelist", perm: "rp.view", fields: [opt(F.target())],
+        cmd: v => ["rp.account", v.target] },
+      { title: "Персонажи", desc: "Персонажи аккаунта", perm: "rp.view", fields: [opt(F.target())],
+        cmd: v => ["rp.characters", v.target] },
+      { title: "Инвентарь", desc: "Что в карманах", perm: "rp.view", fields: [F.player()], cmd: v => ["rp.inventory", v.id] },
+      { title: "Деньги игрока", desc: "Баланс счёта", perm: "rp.view", fields: [F.player()], cmd: v => ["rp.money", v.id] },
+      { title: "Машины игрока", desc: "Где стоят, гараж", perm: "rp.view", fields: [F.player()], cmd: v => ["rp.cars", v.id] },
+      { title: "Голод и жажда", desc: "Посмотреть", perm: "rp.view", fields: [F.player()], cmd: v => ["rp.needs", v.id] },
+      { title: "Предупреждения", desc: "История варнов", perm: "rp.view", fields: [opt(F.target())],
+        cmd: v => ["rp.warns", v.target] },
+      { title: "Состояние сервера", desc: "Схема БД, онлайн", perm: "rp.view", cmd: () => ["rp.status"] },
+    ]},
+    { id: "tp", label: "Телепорты", actions: [
+      { title: "К игроку", desc: "Перенестись к игроку", perm: "rp.teleport", fields: [F.player()], cmd: v => ["rp.tp", v.id] },
+      { title: "Игрока к себе", desc: "Перенести игрока к себе", perm: "rp.teleport", fields: [F.player()],
+        cmd: v => ["rp.bring", v.id] },
+      { title: "К метке", desc: "Поставьте метку на карте", perm: "rp.teleport", cmd: () => ["rp.tpm"] },
+      { title: "По координатам", desc: "Свои координаты — /pos", perm: "rp.teleport",
+        fields: [F.number("x", "X"), F.number("y", "Y"), F.number("z", "Z")], cmd: v => ["rp.tpc", v.x, v.y, v.z] },
+      { title: "Вернуть назад", desc: "На место до телепорта", perm: "rp.teleport",
+        fields: [opt(F.player("id", "Игрок (ID), пусто — себя"))], cmd: v => ["rp.back", v.id] },
+      { title: "Наблюдать", desc: "Камера следует за игроком", perm: "rp.spectate", fields: [F.player()],
+        cmd: v => ["rp.spec", v.id] },
+      { title: "Прекратить наблюдение", desc: "Вернуться на место", perm: "rp.spectate", cmd: () => ["rp.spec", "off"] },
+    ]},
+    { id: "mod", label: "Модерация", actions: [
+      { title: "Заморозить", desc: "Повторно — разморозить", perm: "rp.freeze", fields: [F.player()], cmd: v => ["rp.freeze", v.id] },
+      { title: "Вылечить", desc: "Мёртвого — воскресить", perm: "rp.heal", fields: [F.player()], cmd: v => ["rp.heal", v.id] },
+      { title: "Личное сообщение", desc: "От «АДМИНИСТРАЦИЯ»", perm: "rp.staff",
+        fields: [F.player(), F.rest("text", "Текст")], cmd: v => ["rp.pm", v.id, ...v.text] },
+      { title: "Предупреждение", desc: "3 варна — автобан", perm: "rp.warn",
+        fields: [F.target(), F.rest("reason", "Причина")], cmd: v => ["rp.warn", v.target, ...v.reason] },
+      { title: "Снять предупреждение", desc: "Номер — из истории", perm: "rp.unwarn",
+        fields: [F.number("num", "Номер предупреждения")], cmd: v => ["rp.unwarn", v.num] },
+      { title: "Кикнуть", desc: "Отключить с сервера", perm: "rp.kick",
+        fields: [F.player(), opt(F.rest("reason", "Причина"))], cmd: v => ["rp.kick", v.id, ...v.reason] },
+      { title: "Забанить", desc: "Срок: 30m, 12h, 7d или perm", perm: "rp.ban",
+        fields: [F.target(), F.select("time", "Срок", [["30m", "30 минут"], ["2h", "2 часа"], ["12h", "12 часов"],
+          ["1d", "1 день"], ["3d", "3 дня"], ["7d", "7 дней"], ["30d", "30 дней"], ["perm", "Навсегда"]]),
+          F.rest("reason", "Причина")],
+        cmd: v => ["rp.ban", v.target, v.time, ...v.reason], danger: true },
+      { title: "Разбанить", desc: "По license", perm: "rp.unban",
+        fields: [F.text("license", "License")], cmd: v => ["rp.unban", v.license] },
+      { title: "Объявление", desc: "Всем игрокам", perm: "rp.announce",
+        fields: [F.rest("text", "Текст")], cmd: v => ["rp.announce", ...v.text] },
+    ]},
+    { id: "access", label: "Доступ и роли", actions: [
+      { title: "Одобрить анкету", desc: "Whitelist: добавить", perm: "rp.whitelist.add",
+        fields: [F.target()], cmd: v => ["rp.whitelist", "add", v.target] },
+      { title: "Убрать из whitelist", desc: "Игрока отключит", perm: "rp.whitelist.remove",
+        fields: [F.target()], cmd: v => ["rp.whitelist", "remove", v.target], danger: true },
+      { title: "Список администрации", desc: "Роли", perm: "rp.staff", cmd: () => ["rp.staff"] },
+      { title: "Назначить роль", desc: "Только ниже своей", perm: "rp.staff.manage",
+        fields: [F.target(), F.select("role", "Роль", "roles")], cmd: v => ["rp.staff", "set", v.target, v.role] },
+      { title: "Настройки ядра", desc: "Показать", perm: "rp.tune", cmd: () => ["rp.tune"] },
+      { title: "Изменить настройку", desc: "Ключи — «Настройки ядра»", perm: "rp.tune",
+        fields: [F.text("key", "Ключ"), F.text("value", "Значение")], cmd: v => ["rp.tune", v.key, v.value] },
+    ]},
+    { id: "economy", label: "Экономика", actions: [
+      { title: "Выдать деньги", desc: "Минус — забрать", perm: "rp.money",
+        fields: [F.player(), F.number("amount", "Сумма, €$"), opt(F.rest("reason", "Причина"))],
+        cmd: v => ["rp.givemoney", v.id, v.amount, ...v.reason] },
+      { title: "Выдать предмет", desc: "Минус — забрать", perm: "rp.items",
+        fields: [F.player(), F.select("item", "Предмет", "items"), F.number("count", "Количество", { value: 1 })],
+        cmd: v => ["rp.giveitem", v.id, v.item, v.count] },
+      { title: "Касса организации", desc: "Показать", perm: "rp.jobs",
+        fields: [F.select("job", "Организация", "jobs")], cmd: v => ["rp.society", v.job] },
+      { title: "Пополнить кассу", desc: "Минус — забрать", perm: "rp.money",
+        fields: [F.select("job", "Организация", "jobs"), F.number("amount", "Сумма, €$"), opt(F.rest("reason", "Причина"))],
+        cmd: v => ["rp.society", v.job, v.amount, ...v.reason] },
+      { title: "Голод и жажда", desc: "Выставить 0–100", perm: "rp.heal",
+        fields: [F.player(), F.number("food", "Еда", { value: 100 }), F.number("water", "Вода", { value: 100 })],
+        cmd: v => ["rp.needs", v.id, v.food, v.water] },
+    ]},
+    { id: "jobs", label: "Работы", actions: [
+      { title: "Назначить работу", desc: "ID игрока или #персонаж", perm: "rp.jobs",
+        fields: [F.text("who", "Игрок: ID или #персонаж", { player: true }), F.select("job", "Работа", "jobsNone"),
+          opt(F.number("rank", "Ранг (1 — младший)"))],
+        cmd: v => ["rp.setjob", v.who, v.job, v.rank] },
+    ]},
+    { id: "vehicles", label: "Машины", actions: [
+      { title: "Выдать машину", desc: "В гараж игрока", perm: "rp.vehicles",
+        fields: [F.player(), F.select("model", "Модель", "models")], cmd: v => ["rp.givecar", v.id, v.model] },
+      { title: "Эвакуировать", desc: "#id из «Машины игрока» или номер", perm: "rp.vehicles",
+        fields: [F.text("car", "#id или номер")], cmd: v => ["rp.tow", v.car] },
+      { title: "Поставить гараж", desc: "Точка там, где вы стоите", perm: "rp.vehicles", cmd: () => ["rp.garage", "add"] },
+      { title: "Место выезда гаража", desc: "Встаньте, куда выезжать", perm: "rp.vehicles", cmd: () => ["rp.garage", "spawn"] },
+      { title: "Убрать гараж", desc: "Ближайший (до 8 м)", perm: "rp.vehicles", cmd: () => ["rp.garage", "remove"], danger: true },
+      { title: "Список гаражей", desc: "", perm: "rp.vehicles", cmd: () => ["rp.garage", "list"] },
+      { title: "Поставить автосалон", desc: "Точка там, где вы стоите", perm: "rp.vehicles", cmd: () => ["rp.dealer", "add"] },
+      { title: "Убрать автосалон", desc: "Ближайший (до 8 м)", perm: "rp.vehicles", cmd: () => ["rp.dealer", "remove"], danger: true },
+      { title: "Список автосалонов", desc: "", perm: "rp.vehicles", cmd: () => ["rp.dealer", "list"] },
+    ]},
+    { id: "shops", label: "Магазины", actions: [
+      { title: "Поставить магазин", desc: "Точка там, где вы стоите", perm: "rp.shops",
+        fields: [F.select("type", "Тип", "shopTypes")], cmd: v => ["rp.shop", "add", v.type] },
+      { title: "Убрать магазин", desc: "Ближайший", perm: "rp.shops", cmd: () => ["rp.shop", "remove"], danger: true },
+      { title: "Список магазинов", desc: "", perm: "rp.shops", cmd: () => ["rp.shop", "list"] },
+      { title: "Убрать все магазины", desc: "Все точки сразу", perm: "rp.shops", cmd: () => ["rp.shop", "purge"], danger: true },
+    ]},
+  ];
+
+  function options(source) {
+    if (Array.isArray(source)) return source;
+    if (source === "items") return data.items.map(i => [i.id, `${i.label} (${i.id})`]);
+    if (source === "models") return data.models.map(m => [m.id, `${m.label} (${m.id})`]);
+    if (source === "shopTypes") return data.shopTypes.map(t => [t.id, `${t.label} (${t.id})`]);
+    if (source === "jobs") return data.jobs.map(j => [j.id, `${j.label} (${j.id})`]);
+    if (source === "jobsNone") return [["none", "Без работы"], ...options("jobs")];
+    if (source === "roles") return [["none", "Снять роль"], ...data.roles.map(r => [r.id, r.label])];
+    return [];
+  }
+
+  // -- отрисовка --------------------------------------------------------------------------
+  function visibleTabs() {
+    return TABS.map(t => ({ ...t, actions: t.actions.filter(a => data.perms[a.perm]) })).filter(t => t.actions.length);
+  }
+
+  function renderTabs() {
+    const tabs = visibleTabs();
+    if (!tabs.find(t => t.id === tab)) tab = tabs.length ? tabs[0].id : null;
+    $("tabs").replaceChildren(...tabs.map(t => {
+      const el = document.createElement("div");
+      el.className = "tab" + (t.id === tab ? " active" : "");
+      el.textContent = t.label;
+      el.addEventListener("click", () => { tab = t.id; renderTabs(); });
+      return el;
+    }));
+    const current = tabs.find(t => t.id === tab);
+    $("actions").replaceChildren(...(current ? current.actions : []).map(a => {
+      const el = document.createElement("div");
+      el.className = "action";
+      el.innerHTML = "<b></b><small></small><code></code>";
+      el.querySelector("b").textContent = a.title;
+      el.querySelector("small").textContent = a.desc || "";
+      el.querySelector("code").textContent = a.cmd(sample(a)).filter(x => x !== "").join(" ").replace(/\s+/g, " ");
+      el.addEventListener("click", () => openAction(a));
+      return el;
+    }));
+    if (!current) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "Нет доступных действий.";
+      $("actions").append(empty);
+    }
+  }
+
+  // Подпись команды на кнопке: <поле> вместо значений.
+  function sample(action) {
+    const v = {};
+    for (const f of action.fields || []) v[f.name] = f.type === "rest" ? [`<${f.label.toLowerCase()}>`] : `<${f.label.toLowerCase()}>`;
+    return v;
+  }
+
+  function renderPlayers() {
+    $("playerList").replaceChildren(...data.players.map(p => {
+      const el = document.createElement("div");
+      el.className = "player" + (selected === p.id ? " selected" : "");
+      el.innerHTML = `<span class="id"></span><div><span></span><small></small></div>`;
+      el.querySelector(".id").textContent = p.id;
+      el.querySelector("div span").textContent = p.character || "без персонажа";
+      el.querySelector("small").textContent = p.name + (p.id === data.self ? " · вы" : "");
+      el.addEventListener("click", () => {
+        selected = selected === p.id ? null : p.id;
+        renderPlayers();
+      });
+      return el;
+    }));
+    const p = data.players.find(x => x.id === selected);
+    $("selectedHint").textContent = p ? `Выбран: [${p.id}] ${p.character || p.name}` : "Выберите игрока — его ID подставится в окна.";
+  }
+
+  function log(text, cls, author) {
+    const line = document.createElement("div");
+    if (cls) line.className = cls;
+    if (author) {
+      const a = document.createElement("span");
+      a.className = "author";
+      a.textContent = author;
+      line.append(a);
+    }
+    line.append(document.createTextNode(text));
+    $("logLines").append(line);
+    while ($("logLines").children.length > 200) $("logLines").firstChild.remove();
+    $("logLines").scrollTop = $("logLines").scrollHeight;
+  }
+
+  // -- окно действия ----------------------------------------------------------------------
+  function run(tokens) {
+    const words = tokens.filter(t => t !== undefined && t !== null && String(t) !== "").map(String);
+    log("/" + words.join(" "), "sent");
+    Open77.emit("adm:run", { tokens: words });
+  }
+
+  function openAction(action) {
+    if (!action.fields || !action.fields.length) {
+      if (action.danger) return openModal(action);
+      return run(action.cmd({}));
+    }
+    openModal(action);
+  }
+
+  function openModal(action) {
+    current = action;
+    $("modalTitle").textContent = action.title;
+    $("modalDesc").textContent = action.desc || "";
+    $("modalError").textContent = action.danger && !(action.fields || []).length ? "Действие нельзя отменить. Выполнить?" : "";
+    $("submit").textContent = action.danger ? "Подтвердить" : "Выполнить";
+    $("fields").replaceChildren(...(action.fields || []).map(fieldNode));
+    updatePreview();
+    $("modalBack").classList.add("open");
+    const first = $("fields").querySelector("input, select");
+    if (first) first.focus();
+  }
+
+  function fieldNode(f) {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    const label = document.createElement("label");
+    label.textContent = f.label + (f.required ? "" : " — необязательно");
+    wrap.append(label);
+    let input;
+    if (f.type === "select") {
+      input = document.createElement("select");
+      for (const [value, text] of options(f.options)) {
+        const o = document.createElement("option");
+        o.value = value;
+        o.textContent = text;
+        input.append(o);
+      }
+      if (!input.options.length) {
+        // Справочник не пришёл (ресурс не запущен) — вводить вручную.
+        input = document.createElement("input");
+        input.placeholder = "id";
+      }
+    } else if (f.type === "player" || f.player) {
+      const row = document.createElement("div");
+      row.className = "row2";
+      input = document.createElement("input");
+      input.placeholder = "ID";
+      const pick = document.createElement("select");
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "— из списка —";
+      pick.append(none);
+      for (const p of data.players) {
+        const o = document.createElement("option");
+        o.value = p.id;
+        o.textContent = `[${p.id}] ${p.character || p.name}`;
+        pick.append(o);
+      }
+      pick.addEventListener("change", () => { input.value = pick.value; updatePreview(); });
+      if (selected !== null && f.required) input.value = selected;
+      row.append(input, pick);
+      wrap.append(row);
+    } else {
+      input = document.createElement("input");
+      if (f.type === "number") input.inputMode = "numeric";
+      if (f.type === "target" && selected !== null) input.value = selected;
+    }
+    if (f.value !== undefined && !input.value) input.value = f.value;
+    input.dataset.name = f.name;
+    input.addEventListener("input", updatePreview);
+    input.addEventListener("change", updatePreview);
+    if (!wrap.querySelector(".row2")) wrap.append(input);
+    if (f.hint) {
+      const hint = document.createElement("div");
+      hint.className = "hint";
+      hint.textContent = f.hint;
+      wrap.append(hint);
+    }
+    return wrap;
+  }
+
+  // Значения полей; ошибка — строкой.
+  function collect() {
+    const v = {};
+    for (const f of current.fields || []) {
+      const node = $("fields").querySelector(`[data-name="${f.name}"]`);
+      const raw = node ? node.value.trim() : "";
+      if (!raw) {
+        if (f.required) return { error: `Заполните поле «${f.label}».` };
+        v[f.name] = f.type === "rest" ? [] : "";
+        continue;
+      }
+      if (f.type === "number" && !/^-?\d+(\.\d+)?$/.test(raw)) return { error: `«${f.label}» — нужно число.` };
+      if ((f.type === "player") && !/^\d+$/.test(raw)) return { error: `«${f.label}» — нужен числовой ID.` };
+      v[f.name] = f.type === "rest" ? raw.split(/\s+/) : raw;
+    }
+    return { values: v };
+  }
+
+  function updatePreview() {
+    if (!current) return;
+    const r = collect();
+    $("preview").textContent = r.values ? "/" + current.cmd(r.values).filter(x => x !== undefined && x !== "").join(" ") : "";
+  }
+
+  function closeModal() {
+    current = null;
+    $("modalBack").classList.remove("open");
+  }
+
+  function submit() {
+    if (!current) return;
+    const r = collect();
+    if (r.error) { $("modalError").textContent = r.error; return; }
+    const tokens = current.cmd(r.values);
+    if (tokens.length > 32) { $("modalError").textContent = "Слишком длинный текст: не больше 30 слов."; return; }
+    closeModal();
+    run(tokens);
+  }
+
+  // -- события ----------------------------------------------------------------------------
+  $("submit").addEventListener("click", submit);
+  $("cancel").addEventListener("click", closeModal);
+  $("closeBtn").addEventListener("click", () => Open77.emit("adm:close", {}));
+  $("refresh").addEventListener("click", () => Open77.emit("adm:refresh", {}));
+
+  document.addEventListener("keydown", e => {
+    if (!$("root").classList.contains("open")) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (current) closeModal(); else Open77.emit("adm:close", {});
+    } else if (e.key === "Enter" && current) {
+      e.preventDefault();
+      submit();
+    }
+  });
+
+  Open77.on("adm:show", p => {
+    data = Object.assign({ perms: {}, players: [], items: [], jobs: [], models: [], shopTypes: [], roles: [] }, p);
+    if (selected !== null && !data.players.find(x => x.id === selected)) selected = null;
+    $("role").textContent = data.role ? `Роль: ${data.role}` : "Доступ по acl.jsonc";
+    renderTabs();
+    renderPlayers();
+    $("root").classList.add("open");
+  });
+  Open77.on("adm:output", p => log(p.text || "", p.author === "ОШИБКА" ? "err" : "", p.author || ""));
+  Open77.on("adm:close", () => { closeModal(); $("root").classList.remove("open"); });
+
+  Open77.ready();
+</script>
+</body>
+</html>

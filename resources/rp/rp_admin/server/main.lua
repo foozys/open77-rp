@@ -455,3 +455,56 @@ RegisterNetEvent("chat:ready", function() Open77.chat.addSuggestions(source, SUG
 AddEventHandler("onResourceStart", function(name)
     if name == GetCurrentResourceName() then Open77.chat.addSuggestions(-1, SUGGESTIONS) end
 end)
+
+-- -- админ-панель (F3, rp_admin_ui) ---------------------------------------------------------
+-- Панель сама ничего не делает: кнопки отправляют те же команды, что и чат, а права
+-- проверяют команды. Сервер присылает только, что показать: какие права есть у игрока,
+-- кто в сети и справочники для выпадающих списков.
+
+local PANEL_PERMS = {
+    "rp.staff", "rp.view", "rp.teleport", "rp.spectate", "rp.freeze", "rp.heal", "rp.warn", "rp.unwarn",
+    "rp.announce", "rp.kick", "rp.ban", "rp.ban.permanent", "rp.unban", "rp.whitelist.add", "rp.whitelist.remove",
+    "rp.staff.manage", "rp.tune", "rp.money", "rp.items", "rp.jobs", "rp.shops", "rp.vehicles",
+}
+
+-- Экспорт другого ресурса или пустой список, если ресурс не запущен.
+local function listFrom(resource, name)
+    local ok, value = pcall(Open77.exports.callSync, resource, name)
+    return ok and type(value) == "table" and value or {}
+end
+
+RegisterNetEvent("rp_admin:panel", function()
+    local playerId = tonumber(source)
+    if not playerId then return end
+    local perms, any = {}, false
+    for _, permission in ipairs(PANEL_PERMS) do
+        if core("can", playerId, permission) == true then
+            perms[permission] = true
+            any = true
+        end
+    end
+    if not any then return notify(playerId, "Админ-панель доступна только администрации.") end
+
+    local players = {}
+    for _, value in ipairs(Open77.players.all()) do
+        local id = tonumber(value)
+        if id then
+            players[#players + 1] = { id = id, name = GetPlayerName(id) or "?", character = characterName(id) or "" }
+        end
+    end
+    table.sort(players, function(a, b) return a.id < b.id end)
+
+    local items = {}
+    for id, def in pairs(listFrom("rp_inventory", "catalog")) do
+        items[#items + 1] = { id = id, label = type(def) == "table" and def.label or id }
+    end
+    table.sort(items, function(a, b) return a.label < b.label end)
+
+    local _, roleLabel = core("staff_role", playerId)
+    local ok, why = TriggerClientEvent("rp_admin:panel", playerId, {
+        perms = perms, role = roleLabel or "", self = playerId, players = players,
+        items = items, jobs = listFrom("rp_jobs", "jobs_list"), models = listFrom("rp_vehicles", "models"),
+        shopTypes = listFrom("rp_shops", "shop_types"), roles = listFrom("rp_core", "staff_roles"),
+    })
+    if not ok then log("warn", "панель для %d не отправлена: %s", playerId, tostring(why)) end
+end)

@@ -410,6 +410,18 @@ exports("on_duty", function(playerId)
     return member ~= nil and member.job ~= nil and member.duty == true
 end)
 
+-- Список работ для админ-панели: { { id, label, ranks = { название, ... } } }.
+exports("jobs_list", function()
+    local list = {}
+    for id, def in pairs(JobsConfig.jobs) do
+        local ranks = {}
+        for index, rank in ipairs(def.ranks) do ranks[index] = rank.label end
+        list[#list + 1] = { id = id, label = def.label, ranks = ranks }
+    end
+    table.sort(list, function(a, b) return a.label < b.label end)
+    return list
+end)
+
 -- -- подсказки в чате ---------------------------------------------------------------
 
 local SUGGESTIONS = {
