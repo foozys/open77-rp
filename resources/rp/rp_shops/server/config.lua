@@ -29,13 +29,11 @@ ShopsConfig = {
             label = "Хозтовары", labelEn = "Hardware Store",
             items = { toolbox = 450, lighter = 5, notebook = 15 },
         },
-    },
-
-    -- Торговые автоматы самой игры: подсказка на всех объектах этих классов
-    -- (класс объекта движка; сравнение без учёта регистра, * — префикс).
-    vending = {
-        classes = { "VendingMachine*" },
-        label = "Торговый автомат", labelEn = "Vending Machine",
-        items = { water = 20, sandwich = 30 },
+        -- Ставится у автомата игры: сами автоматы движок различить не даёт
+        -- (у всех устройств класс gameDeviceBase).
+        vending = {
+            label = "Торговый автомат", labelEn = "Vending Machine",
+            items = { water = 20, sandwich = 30 },
+        },
     },
 }

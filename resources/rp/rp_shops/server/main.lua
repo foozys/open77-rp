@@ -1,13 +1,12 @@
--- Магазины. Точки — rp_shops (БД), их ставит администрация. Торговые автоматы
--- игры клиент находит сам по классу объекта. Наличных в мире нет: покупка — одна
--- операция open77_transactions, деньги со счёта в sys:rp.money, товар из
--- sys:rp.shops в карманы.
+-- Магазины и торговые автоматы. Точки — rp_shops (БД), их ставит администрация.
+-- Наличных в мире нет: покупка — одна операция open77_transactions, деньги со счёта
+-- в sys:rp.money, товар из sys:rp.shops в карманы.
 
 local MONEY_SINK = "sys:rp.money"
 local ITEM_SOURCE = "sys:rp.shops"
 
 local shops = {}     -- [id] = { id, type, x, y, z, bucket }
-local sessions = {}  -- [playerId] = { kind = "shop"|"vending", shopId?, at, busy? }
+local sessions = {}  -- [playerId] = { shopId, at, busy? }
 local dbReady = false
 
 local function log(level, fmt, ...)
@@ -96,12 +95,8 @@ local function publicList()
     return list
 end
 
-local function clientConfig()
-    return { vendingClasses = ShopsConfig.vending.classes, vendingLabel = ShopsConfig.vending.labelEn }
-end
-
 local function sendList(target)
-    local ok, reason = TriggerClientEvent("rp_shops:list", target, publicList(), clientConfig())
+    local ok, reason = TriggerClientEvent("rp_shops:list", target, publicList())
     if not ok then log("warn", "список точек не отправлен: %s", tostring(reason)) end
 end
 
@@ -168,7 +163,6 @@ local function playing(playerId)
 end
 
 local function catalogFor(session)
-    if session.kind == "vending" then return ShopsConfig.vending end
     local shop = session.shopId and shops[session.shopId]
     return shop and ShopsConfig.types[shop.type] or nil
 end
@@ -178,10 +172,8 @@ local function validSession(playerId)
     local session = sessions[playerId]
     if not session then return nil end
     if Open77.time.unix() - session.at > ShopsConfig.sessionSeconds then return nil end
-    if session.shopId then
-        local shop = shops[session.shopId]
-        if not shop or not near(playerId, shop) then return nil end
-    end
+    local shop = shops[session.shopId]
+    if not shop or not near(playerId, shop) then return nil end
     return session
 end
 
@@ -211,15 +203,7 @@ RegisterNetEvent("rp_shops:open", function(shopId)
     local shop = shops[math.tointeger(tonumber(shopId)) or 0]
     if not playerId or not shop or not playing(playerId) then return end
     if not near(playerId, shop) then return notify(playerId, "Подойдите ближе.") end
-    show(playerId, { kind = "shop", shopId = shop.id, at = Open77.time.unix() })
-end)
-
--- Торговый автомат самой игры. Сервер не знает, где они стоят, — верим клиенту:
--- худшее, что он может, — купить воду не у автомата.
-RegisterNetEvent("rp_shops:vending", function()
-    local playerId = tonumber(source)
-    if not playerId or not playing(playerId) then return end
-    show(playerId, { kind = "vending", at = Open77.time.unix() })
+    show(playerId, { shopId = shop.id, at = Open77.time.unix() })
 end)
 
 RegisterNetEvent("rp_shops:close", function()

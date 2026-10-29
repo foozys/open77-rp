@@ -3,7 +3,6 @@
 
 local page, pageReady, isOpen = nil, false, false
 local handles = {}        -- подсказки у точек, поставленных администрацией
-local targetsAdded = false
 
 local function call(name, ...)
     local pending, why = Open77.exports.call("open77_interactions", name, ...)
@@ -45,36 +44,15 @@ local function rebuildPoints(list)
     end
 end
 
--- Торговые автоматы самой игры — по классу объекта, один раз.
-local function addTargets(config)
-    if targetsAdded then return end
-    targetsAdded = true
-    local targets = {
-        { id = "rp_vending", kind = "class", classes = config.vendingClasses, distance = 1.8, marker = "shop",
-          label = "Buy: " .. tostring(config.vendingLabel or "Vending Machine"), key = "E", icon = "SHOP",
-          color = "#78DC8C", event = "rp_shops:vendingTarget" },
-    }
-    for _, target in ipairs(targets) do
-        local result = call("addTarget", target)
-        if not (type(result) == "table" and result.ok) then
-            print("[rp_shops_ui] цель " .. target.id .. ": " .. tostring(type(result) == "table" and result.error or result))
-        end
-    end
-end
-
-RegisterNetEvent("rp_shops:list", function(list, config)
+RegisterNetEvent("rp_shops:list", function(list)
     if type(list) ~= "table" then return end
-    CreateThread(function()
-        rebuildPoints(list)
-        if type(config) == "table" then addTargets(config) end
-    end)
+    CreateThread(function() rebuildPoints(list) end)
 end)
 
 AddEventHandler("rp_shops:point", function(context)
     local data = type(context) == "table" and (context.data or context.interactionData) or nil
     if type(data) == "table" and data.shopId then TriggerServerEvent("rp_shops:open", data.shopId) end
 end)
-AddEventHandler("rp_shops:vendingTarget", function() TriggerServerEvent("rp_shops:vending") end)
 
 -- -- окно -------------------------------------------------------------------------------
 
@@ -108,8 +86,9 @@ AddEventHandler("onClientResourceStart", function(name)
     TriggerServerEvent("rp_shops:request")
 end)
 
--- /rp.classes — классы объектов движка в радиусе 3 м, чтобы настроить, на каких
--- объектах появляется подсказка (ShopsConfig.vending.classes). Только чтение.
+-- /rp.classes — классы объектов движка в радиусе 3 м: проверить, можно ли повесить
+-- подсказку на объекты игры по классу (open77_interactions addTarget kind = "class").
+-- На 2.50 у устройств вроде торговых автоматов это общий gameDeviceBase. Только чтение.
 RegisterCommand("rp.classes", function()
     local rows, reason = Open77.world.nearby(3)
     local lines = {}
