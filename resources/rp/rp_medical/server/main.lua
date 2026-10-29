@@ -1,7 +1,8 @@
--- Ранение и медики. «Ранен» — это фаза dead платформы: сама она никого не поднимает,
--- поэтому раненый лежит, пока его не поднимет медик (/revive), NPC-бригада или пока
--- он сам не уйдёт в больницу (Open77.players.respawn). Подъём любым способом (в том
--- числе rp.heal администрации) приходит событием фазы alive и закрывает ранение.
+-- Ранение и медики. Смерть (фаза dead) сразу превращается в «ранен»: персонажа
+-- поднимают на месте, включают неуязвимость и ставят позу MedicalConfig.downedAnimation,
+-- а клиент (rp_medical_ui) замораживает его. Мёртвого игрока платформа заморозить не
+-- даёт (блокировки управления снимаются при смерти), поэтому раненый — живой.
+-- Поднимает медик (/revive), NPC-бригада, больница или rp.heal (экспорт raise).
 --
 -- Вышел из игры раненым — при следующем входе персонаж оказывается в больнице и
 -- платит за лечение (отметка в rp_medical_downed переживает перезапуск).
@@ -162,6 +163,28 @@ local function finish(playerId, keepMark)
     if d.called then TriggerClientEvent("rp_medical:callClosed", -1, { patient = playerId }) end
 end
 
+-- Уложить раненого: если мёртв — поднять на месте, затем неуязвимость и поза.
+local function layDown(playerId)
+    if Open77.players.isDead(playerId) then
+        local ok, why = Open77.players.revive(playerId, { health = MedicalConfig.downedHealth, graceMs = 3000 })
+        if not ok then return log("warn", "раненый %d не поднят для позы: %s", playerId, tostring(why)) end
+        for _ = 1, 20 do
+            if not Open77.players.isDead(playerId) then break end
+            Wait(250)
+        end
+    end
+    Open77.players.setGodMode(playerId, true)
+    -- Поза принимается только у готового живого игрока на ногах: пробуем несколько раз.
+    for _ = 1, 10 do
+        if not downed[playerId] then return end
+        local playback, why = Open77.animations.play(playerId, MedicalConfig.downedAnimation, { loop = true })
+        if playback then return end
+        log("debug", "поза раненого %d: %s", playerId, tostring(why))
+        Wait(500)
+    end
+    log("warn", "раненому %d не удалось поставить позу %s", playerId, MedicalConfig.downedAnimation)
+end
+
 local function startDowned(playerId)
     if downed[playerId] then return end
     local character = characterOf(playerId)
@@ -171,6 +194,21 @@ local function startDowned(playerId)
     db("update", "INSERT IGNORE INTO rp_medical_downed (character_id) VALUES (?)", { character.id })
     log("info", "игрок %d (#%d) ранен", playerId, character.id)
     status(playerId)
+    layDown(playerId)
+end
+
+-- Поднять раненого (медик, бригада, больница, администрация): снять позу и
+-- неуязвимость, выставить здоровье долей fraction. false, если не ранен.
+local function raise(playerId, fraction)
+    if not downed[playerId] then return false end
+    finish(playerId)
+    Open77.animations.stop(playerId)
+    Open77.players.setGodMode(playerId, false)
+    local hp = Open77.players.getHealth(playerId)
+    local max = hp and tonumber(hp.maxHealth) or 100
+    local ok, why = Open77.players.setHealth(playerId, math.max(1, math.floor(max * fraction)))
+    if not ok then log("warn", "здоровье %d не выставлено: %s", playerId, tostring(why)) end
+    return true
 end
 
 -- Смерть по сценарию (перенос при входе, телепорт администрации) — не ранение.
@@ -180,17 +218,24 @@ local function realDeath(playerId)
     return life ~= nil and life.cause ~= "script"
 end
 
-AddEventHandler("onPlayerLifeStateChanged", function(playerIdArg, _, phase)
+AddEventHandler("onPlayerLifeStateChanged", function(playerIdArg)
     local playerId = tonumber(playerIdArg)
-    if not playerId or not dbReady then return end
-    if phase == "alive" then
-        if downed[playerId] then
-            log("info", "игрок %d поднят", playerId)
-            finish(playerId)
-        end
-    elseif realDeath(playerId) then
-        startDowned(playerId)
+    if not playerId or not dbReady or not realDeath(playerId) then return end
+    if downed[playerId] then
+        -- Раненый всё же умер (неуязвимость не от всего спасает) — снова уложить.
+        CreateThread(function() layDown(playerId) end)
+    elseif characterOf(playerId) then
+        CreateThread(function() startDowned(playerId) end)
     end
+end)
+
+exports("is_downed", function(playerId)
+    return downed[math.tointeger(tonumber(playerId)) or 0] ~= nil
+end)
+
+-- Для rp.heal: поднять раненого с полным здоровьем. true, если был ранен.
+exports("raise", function(playerId, fraction)
+    return raise(math.tointeger(tonumber(playerId)) or 0, tonumber(fraction) or 1.0)
 end)
 
 -- G (или /medic): вызвать медиков; на смене никого — едет NPC-бригада.
@@ -223,12 +268,7 @@ local function callMedics(playerId)
             Wait(MedicalConfig.npcArriveSeconds * 1000)
             local current = downed[playerId]
             if not current or current.npcToken ~= token then return end
-            local ok, why = Open77.players.revive(playerId, { health = MedicalConfig.npcHealth, graceMs = 5000 })
-            if not ok then
-                current.npcToken, current.npcAt = nil, nil
-                status(playerId)
-                return notify(playerId, "Бригада не смогла вас поднять (%s). Вызовите снова.", tostring(why))
-            end
+            raise(playerId, MedicalConfig.npcHealth)
             local paid = charge(playerId, MedicalConfig.npcPrice, "rp.medical.npc")
             notify(playerId, "Бригада Trauma Team подняла вас. %s", paidText(paid, MedicalConfig.npcPrice))
             log("info", "NPC-бригада подняла %d, оплата %d", playerId, paid)
@@ -246,12 +286,12 @@ local function goHospital(playerId)
     local wait = MedicalConfig.giveUpSeconds - (Open77.time.unix() - d.at)
     if wait > 0 then return notify(playerId, "В больницу можно через %d с. Пока — ждите помощи (G — вызвать медиков).", wait) end
     local hospital = nearestHospital(d.pos)
-    local spot = hospital or d.pos
-    local ok, why = Open77.players.respawn(playerId, {
-        position = { x = spot.x, y = spot.y, z = spot.z }, heading = spot.heading or 0, bucket = spot.bucket or 0,
-        health = MedicalConfig.hospitalHealth,
-    })
-    if not ok then return notify(playerId, "Не получилось: %s.", tostring(why)) end
+    raise(playerId, MedicalConfig.hospitalHealth)
+    if hospital then
+        local pending, why = Open77.players.teleport(playerId, { x = hospital.x, y = hospital.y, z = hospital.z },
+            { heading = hospital.heading, bucket = hospital.bucket, dismount = true })
+        if pending then pending:await() else log("warn", "игрок %d не перенесён в больницу: %s", playerId, tostring(why)) end
+    end
     local paid = charge(playerId, MedicalConfig.hospitalPrice, "rp.medical.hospital")
     notify(playerId, "Вы очнулись в %s. %s", hospital and "больнице" or "сознании на том же месте (больниц нет)",
         paidText(paid, MedicalConfig.hospitalPrice))
@@ -293,11 +333,11 @@ RegisterCommand("revive", function(source)
             or Open77.players.isDead(medic) then
             return notify(medic, "Реанимация прервана: вы отошли.")
         end
-        local ok, why = Open77.players.revive(target, { health = MedicalConfig.reviveHealth, graceMs = 5000 })
-        if not ok then return notify(medic, "Не получилось: %s.", tostring(why)) end
+        local characterId = downed[target].characterId
+        raise(target, MedicalConfig.reviveHealth)
         notify(medic, "%s в сознании.", characterName(target))
         notify(target, "Медик %s поднял вас.", characterName(medic))
-        core("audit", "medical_revive", core("account_license", medic), tostring(downed[target] and downed[target].characterId or ""), {})
+        core("audit", "medical_revive", core("account_license", medic), tostring(characterId), {})
         log("info", "медик %d поднял %d", medic, target)
     end)
 end, false)
@@ -424,10 +464,20 @@ local queued, queueReason = Open77.database.ready(function()
     end
     dbReady = true
     loadHospitals()
-    -- Перезапуск ресурса: кто уже лежит — снова ранен.
+    -- Перезапуск ресурса: кто был ранен (отметка в БД) или лежит мёртвым — снова ранен.
     for _, id in ipairs(onlinePlayers()) do
-        if realDeath(id) then startDowned(id) end
+        local character = characterOf(id)
+        local mark = character and db("single", "SELECT character_id FROM rp_medical_downed WHERE character_id = ?",
+            { character.id })
+        if mark or realDeath(id) then CreateThread(function() startDowned(id) end) end
     end
+end)
+
+-- Остановка ресурса: снять неуязвимость с раненых (поза снимается платформой сама).
+-- Отметка в БД остаётся, и при запуске раненые снова лягут.
+AddEventHandler("onResourceStop", function(name)
+    if name ~= GetCurrentResourceName() then return end
+    for id in pairs(downed) do Open77.players.setGodMode(id, false) end
 end)
 if not queued then log("error", "база данных недоступна: %s", tostring(queueReason)) end
 

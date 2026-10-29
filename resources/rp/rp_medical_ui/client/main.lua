@@ -10,8 +10,8 @@ local function send(event, payload)
 end
 
 -- Раненый лежит неподвижно: тело не поворачивается за камерой, руки не поднимаются в
--- боевую стойку (Alt), контекстное меню (тоже Alt) не открывается. Платформа снимает блокировки
--- управления в момент смерти, поэтому ставим их после и подтверждаем раз в секунду.
+-- боевую стойку (Alt), контекстное меню (тоже Alt) не открывается. Раненый жив (сервер
+-- поднимает его под позу), поэтому блокировки держатся; подтверждаем их раз в секунду.
 local lockToken = nil
 
 local function contextMenu(enabled)
@@ -33,6 +33,7 @@ local function lock()
             Open77.players.allowWeapons(false)
             Open77.players.allowAim(false)
             Open77.players.allowShoot(false)
+            Open77.input.setActionBlocked("Movement", true)
             Wait(1000)
         end
     end)
@@ -42,6 +43,7 @@ local function unlock()
     if not lockToken then return end
     lockToken = nil
     Open77.players.resetControls()
+    Open77.input.setActionBlocked("Movement", false)
     contextMenu(true)
 end
 

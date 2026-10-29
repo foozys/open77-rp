@@ -268,7 +268,13 @@ RegisterCommand("rp.heal", function(source, args)
     if not target then return end
     local ok, why
     local dead = Open77.players.isDead(target) == true
-    if dead then
+    -- Раненый (rp_medical) жив, но лежит: поднять через rp_medical.
+    local okDowned, downed = pcall(Open77.exports.callSync, "rp_medical", "is_downed", target)
+    if okDowned and downed == true then
+        dead = true
+        local okRaise, raised = pcall(Open77.exports.callSync, "rp_medical", "raise", target, 1.0)
+        ok, why = okRaise and raised == true, okRaise and "not_downed" or tostring(raised)
+    elseif dead then
         ok, why = Open77.players.revive(target, { health = 1.0, graceMs = 3000 })
     else
         ok, why = Open77.players.restoreHealth(target)
