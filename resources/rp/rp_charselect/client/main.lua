@@ -278,30 +278,73 @@ AddEventHandler("open77:playerReset:complete", function()
 end)
 
 -- -- снимок внешности для манекена --------------------------------------------------
+-- Одежду меняют гардероб (F2) и другие ресурсы, и сервер об этом не узнаёт.
+-- Поэтому, пока игрок в игре, раз в LOOK_POLL_MS сверяем надетое с последним
+-- отправленным и шлём новый снимок только при изменении.
 
 local LOOK_MAX_BYTES = 7680
+local LOOK_POLL_MS = 30000
+local OUTFIT_SLOTS = { "Head", "Face", "InnerChest", "OuterChest", "Legs", "Feet", "Outfit" }
+local sentSignature = nil
 
+-- Надетое сейчас: слоты экипировки, поверх них активный комплект гардероба.
+local function wornEquipment()
+    local worn = Open77.equipment.registry()
+    if type(worn) ~= "table" then return {} end
+    local active = Open77.wardrobe.active()
+    if type(active) == "number" then
+        local outfit = Open77.wardrobe.outfit(active)
+        local slots = outfit and outfit.registry()
+        if type(slots) == "table" then
+            for _, slot in ipairs(OUTFIT_SLOTS) do worn[slot] = slots[slot] end
+        end
+    end
+    local equipment = {}
+    for slot, record in pairs(worn) do
+        if slot ~= "WeaponRight" and type(record) == "string" then equipment[slot] = record end
+    end
+    return equipment
+end
+
+-- Порядок ключей в json.encode не гарантирован: сравниваем по отсортированным слотам.
+local function signatureOf(equipment)
+    local parts = {}
+    for slot, record in pairs(equipment) do parts[#parts + 1] = slot .. "=" .. record end
+    table.sort(parts)
+    return table.concat(parts, ";")
+end
+
+local function captureLook(force)
+    local equipment = wornEquipment()
+    local signature = signatureOf(equipment)
+    if not force and signature == sentSignature then return end
+    local body, reason = Open77.appearance.captureBody()
+    if not body then
+        print("[rp_charselect] снимок тела: " .. tostring(reason))
+        return
+    end
+    local text = json.encode({ body = body, equipment = equipment })
+    if #text > LOOK_MAX_BYTES then text = json.encode({ body = body, equipment = {} }) end
+    if #text > LOOK_MAX_BYTES then
+        print("[rp_charselect] снимок внешности слишком большой: " .. #text)
+        return
+    end
+    sentSignature = signature
+    emit("rp_core:charselect:look", text)
+end
+
+-- Сервер просит снимок: после появления в мире и после правки внешности.
 RegisterNetEvent("rp_charselect:captureLook", function()
     CreateThread(function()
         Wait(5000) -- дать open77_appearance надеть тело и одежду
-        local body, reason = Open77.appearance.captureBody()
-        if not body then
-            print("[rp_charselect] снимок тела: " .. tostring(reason))
-            return
-        end
-        local equipment = {}
-        local worn = Open77.equipment.registry()
-        if type(worn) == "table" then
-            for slot, record in pairs(worn) do
-                if slot ~= "WeaponRight" and type(record) == "string" then equipment[slot] = record end
-            end
-        end
-        local text = json.encode({ body = body, equipment = equipment })
-        if #text > LOOK_MAX_BYTES then text = json.encode({ body = body, equipment = {} }) end
-        if #text > LOOK_MAX_BYTES then
-            print("[rp_charselect] снимок внешности слишком большой: " .. #text)
-            return
-        end
-        emit("rp_core:charselect:look", text)
+        captureLook(true)
     end)
+end)
+
+CreateThread(function()
+    while true do
+        Wait(LOOK_POLL_MS)
+        -- closed: сервер завершил выбор, игрок в игре
+        if closed and sentSignature ~= nil and playerInWorld() then captureLook(false) end
+    end
 end)
