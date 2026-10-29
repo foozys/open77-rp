@@ -116,7 +116,8 @@
       "open77_remote_camera",
       "open77_interactions",
       "open77_worldui",
-      "open77_zones"
+      "open77_zones",
+      "rp/rp_core"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,
