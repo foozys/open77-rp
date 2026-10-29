@@ -1,4 +1,4 @@
--- Подсказки у касс и банкоматов и окно магазина/банкомата. Всё решает сервер
+-- Подсказки у касс и торговых автоматов и окно магазина. Всё решает сервер
 -- (rp_shops): клиент показывает точки, открывает окно и передаёт выбор.
 
 local page, pageReady, isOpen = nil, false, false
@@ -33,8 +33,8 @@ local function rebuildPoints(list)
             id = "rp_shop_" .. shop.id,
             position = { x = shop.x, y = shop.y, z = shop.z },
             distance = 2.5, markerDistance = 20, marker = "shop",
-            label = shop.atm and "Use ATM" or ("Shop: " .. tostring(shop.labelEn or "Store")),
-            key = "E", icon = shop.atm and "ATM" or "SHOP", color = shop.atm and "#5EF6FF" or "#78DC8C",
+            label = "Shop: " .. tostring(shop.labelEn or "Store"),
+            key = "E", icon = "SHOP", color = "#78DC8C",
             event = "rp_shops:point", data = { shopId = shop.id },
         })
         if type(result) == "table" and result.ok then
@@ -45,13 +45,11 @@ local function rebuildPoints(list)
     end
 end
 
--- Банкоматы и торговые автоматы самой игры — по классу объекта, один раз.
+-- Торговые автоматы самой игры — по классу объекта, один раз.
 local function addTargets(config)
     if targetsAdded then return end
     targetsAdded = true
     local targets = {
-        { id = "rp_atm", kind = "class", classes = config.atmClasses, distance = 1.8, marker = "info",
-          label = "Use ATM", key = "E", icon = "ATM", color = "#5EF6FF", event = "rp_shops:atmTarget" },
         { id = "rp_vending", kind = "class", classes = config.vendingClasses, distance = 1.8, marker = "shop",
           label = "Buy: " .. tostring(config.vendingLabel or "Vending Machine"), key = "E", icon = "SHOP",
           color = "#78DC8C", event = "rp_shops:vendingTarget" },
@@ -76,7 +74,6 @@ AddEventHandler("rp_shops:point", function(context)
     local data = type(context) == "table" and (context.data or context.interactionData) or nil
     if type(data) == "table" and data.shopId then TriggerServerEvent("rp_shops:open", data.shopId) end
 end)
-AddEventHandler("rp_shops:atmTarget", function() TriggerServerEvent("rp_shops:atm") end)
 AddEventHandler("rp_shops:vendingTarget", function() TriggerServerEvent("rp_shops:vending") end)
 
 -- -- окно -------------------------------------------------------------------------------
@@ -106,10 +103,7 @@ AddEventHandler("onClientResourceStart", function(name)
     page:on("ui:ready", function() pageReady = true end)
     page:on("shop:close", close)
     page:on("shop:buy", function(p)
-        if type(p) == "table" then TriggerServerEvent("rp_shops:buy", tostring(p.item), tonumber(p.count), tostring(p.method)) end
-    end)
-    page:on("shop:atm", function(p)
-        if type(p) == "table" then TriggerServerEvent("rp_shops:atmMove", tostring(p.direction), tonumber(p.amount)) end
+        if type(p) == "table" then TriggerServerEvent("rp_shops:buy", tostring(p.item), tonumber(p.count)) end
     end)
     TriggerServerEvent("rp_shops:request")
 end)

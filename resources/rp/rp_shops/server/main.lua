@@ -1,13 +1,13 @@
--- Магазины и банкоматы. Точки — rp_shops (БД), их ставит администрация.
--- Торговые автоматы и банкоматы игры клиент находит сам по классу объекта.
--- Покупка — одна операция open77_transactions: деньги в sys:rp.money, товар из
--- sys:rp.shops в карманы. Банкомат — перевод между своими наличными и счётом.
+-- Магазины. Точки — rp_shops (БД), их ставит администрация. Торговые автоматы
+-- игры клиент находит сам по классу объекта. Наличных в мире нет: покупка — одна
+-- операция open77_transactions, деньги со счёта в sys:rp.money, товар из
+-- sys:rp.shops в карманы.
 
 local MONEY_SINK = "sys:rp.money"
 local ITEM_SOURCE = "sys:rp.shops"
 
 local shops = {}     -- [id] = { id, type, x, y, z, bucket }
-local sessions = {}  -- [playerId] = { kind = "shop"|"vending"|"atm", shopId?, at }
+local sessions = {}  -- [playerId] = { kind = "shop"|"vending", shopId?, at, busy? }
 local dbReady = false
 
 local function log(level, fmt, ...)
@@ -46,11 +46,10 @@ end
 -- -- деньги и предметы ------------------------------------------------------------------
 
 local function accounts(playerId)
-    local cash = sync("open77_transactions", "account", playerId, "cash")
     local bank = sync("open77_transactions", "account", playerId, "bank")
     local pockets = sync("open77_transactions", "account", playerId, "char")
-    if not cash or not bank or not pockets then return nil end
-    return { cash = cash, bank = bank, pockets = pockets }
+    if not bank or not pockets then return nil end
+    return { bank = bank, pockets = pockets }
 end
 
 local function balance(account)
@@ -76,7 +75,7 @@ local function newOpId(prefix)
 end
 
 local function explain(why)
-    if why == "insufficient_funds" then return "недостаточно денег" end
+    if why == "insufficient_funds" then return "недостаточно денег на счёте" end
     if why == "capacity_exceeded" then return "слишком тяжело, не унести" end
     if why == "mint_denied" or why == "mint_cap_exceeded" then
         log("error", "выдача товара запрещена (%s). Оператору: tunable.set open77_transactions mint3 rp_shops %s * 5000",
@@ -91,16 +90,14 @@ end
 local function publicList()
     local list = {}
     for _, shop in pairs(shops) do
-        local def = ShopsConfig.types[shop.type]
-        list[#list + 1] = { id = shop.id, x = shop.x, y = shop.y, z = shop.z, atm = def.atm == true,
-                            labelEn = def.labelEn }
+        list[#list + 1] = { id = shop.id, x = shop.x, y = shop.y, z = shop.z,
+                            labelEn = ShopsConfig.types[shop.type].labelEn }
     end
     return list
 end
 
 local function clientConfig()
-    return { vendingClasses = ShopsConfig.vending.classes, vendingLabel = ShopsConfig.vending.labelEn,
-             atmClasses = ShopsConfig.atmClasses }
+    return { vendingClasses = ShopsConfig.vending.classes, vendingLabel = ShopsConfig.vending.labelEn }
 end
 
 local function sendList(target)
@@ -121,7 +118,8 @@ local function loadShops()
             shops[id] = { id = id, type = row.type, x = tonumber(row.x), y = tonumber(row.y), z = tonumber(row.z),
                           bucket = math.tointeger(tonumber(row.bucket)) or 0 }
         else
-            log("warn", "точка #%s: нет типа %s в конфиге", tostring(row.id), tostring(row.type))
+            log("warn", "точка #%s: нет типа %s в конфиге, не показывается (убрать — rp.shop purge)",
+                tostring(row.id), tostring(row.type))
         end
     end
     sendList(-1)
@@ -163,11 +161,10 @@ local function near(playerId, shop)
     return math.sqrt(dx * dx + dy * dy + dz * dz) <= ShopsConfig.useDistance
 end
 
--- -- окна --------------------------------------------------------------------------------
+-- -- окно --------------------------------------------------------------------------------
 
 local function playing(playerId)
-    local character = core("character", playerId)
-    return type(character) == "table"
+    return type(core("character", playerId)) == "table"
 end
 
 local function catalogFor(session)
@@ -177,9 +174,9 @@ local function catalogFor(session)
 end
 
 -- Открытое окно ещё действует (и игрок всё ещё у кассы).
-local function validSession(playerId, kind)
+local function validSession(playerId)
     local session = sessions[playerId]
-    if not session or session.kind ~= kind then return nil end
+    if not session then return nil end
     if Open77.time.unix() - session.at > ShopsConfig.sessionSeconds then return nil end
     if session.shopId then
         local shop = shops[session.shopId]
@@ -191,24 +188,18 @@ end
 local function show(playerId, session)
     local acc = accounts(playerId)
     if not acc then return notify(playerId, "Сначала выберите персонажа.") end
-    local cash, bank = balance(acc.cash), balance(acc.bank)
-    local payload = { kind = session.kind == "atm" and "atm" or "shop", cash = cash or 0, bank = bank or 0 }
-    if payload.kind == "shop" then
-        local def = catalogFor(session)
-        local catalog = sync("rp_inventory", "catalog") or {}
-        payload.title = def.label
-        payload.items = {}
-        for itemId, price in pairs(def.items) do
-            local item = catalog[itemId]
-            if item then
-                payload.items[#payload.items + 1] = { id = itemId, label = item.label, price = price,
-                                                      w = item.w, h = item.h, weightG = item.weightG }
-            end
+    local def = catalogFor(session)
+    if not def then return end
+    local catalog = sync("rp_inventory", "catalog") or {}
+    local payload = { title = def.label, bank = balance(acc.bank) or 0, items = {} }
+    for itemId, price in pairs(def.items) do
+        local item = catalog[itemId]
+        if item then
+            payload.items[#payload.items + 1] = { id = itemId, label = item.label, price = price,
+                                                  w = item.w, h = item.h, weightG = item.weightG }
         end
-        table.sort(payload.items, function(a, b) return a.price < b.price end)
-    else
-        payload.title = "Банкомат"
     end
+    table.sort(payload.items, function(a, b) return a.price < b.price end)
     sessions[playerId] = session
     local ok, reason = TriggerClientEvent("rp_shops:show", playerId, payload)
     if not ok then log("warn", "окно игроку %d не отправлено: %s", playerId, tostring(reason)) end
@@ -220,22 +211,15 @@ RegisterNetEvent("rp_shops:open", function(shopId)
     local shop = shops[math.tointeger(tonumber(shopId)) or 0]
     if not playerId or not shop or not playing(playerId) then return end
     if not near(playerId, shop) then return notify(playerId, "Подойдите ближе.") end
-    local def = ShopsConfig.types[shop.type]
-    show(playerId, { kind = def.atm and "atm" or "shop", shopId = shop.id, at = Open77.time.unix() })
+    show(playerId, { kind = "shop", shopId = shop.id, at = Open77.time.unix() })
 end)
 
--- Торговый автомат или банкомат самой игры. Сервер не знает, где они стоят, —
--- верим клиенту: худшее, что он может, — купить воду или снять свои деньги не у автомата.
+-- Торговый автомат самой игры. Сервер не знает, где они стоят, — верим клиенту:
+-- худшее, что он может, — купить воду не у автомата.
 RegisterNetEvent("rp_shops:vending", function()
     local playerId = tonumber(source)
     if not playerId or not playing(playerId) then return end
     show(playerId, { kind = "vending", at = Open77.time.unix() })
-end)
-
-RegisterNetEvent("rp_shops:atm", function()
-    local playerId = tonumber(source)
-    if not playerId or not playing(playerId) then return end
-    show(playerId, { kind = "atm", at = Open77.time.unix() })
 end)
 
 RegisterNetEvent("rp_shops:close", function()
@@ -245,22 +229,20 @@ end)
 
 local function result(playerId, ok, text)
     local acc = accounts(playerId)
-    local cash = acc and balance(acc.cash) or 0
-    local bank = acc and balance(acc.bank) or 0
-    TriggerClientEvent("rp_shops:result", playerId, { ok = ok, text = text, cash = cash, bank = bank })
+    TriggerClientEvent("rp_shops:result", playerId, { ok = ok, text = text, bank = acc and balance(acc.bank) or 0 })
 end
 
--- Покупка: itemId × count, method = "cash" | "bank".
-RegisterNetEvent("rp_shops:buy", function(itemId, count, method)
+-- Покупка itemId × count со счёта.
+RegisterNetEvent("rp_shops:buy", function(itemId, count)
     local playerId = tonumber(source)
     if not playerId then return end
-    local session = validSession(playerId, "shop") or validSession(playerId, "vending")
+    local session = validSession(playerId)
     if not session then return result(playerId, false, "Магазин закрыт — откройте его снова у кассы.") end
     if session.busy then return end
     local def = catalogFor(session)
     local price = def and def.items[itemId]
     count = math.tointeger(tonumber(count))
-    if not price or not count or count < 1 or count > ShopsConfig.maxPerPurchase or (method ~= "cash" and method ~= "bank") then
+    if not price or not count or count < 1 or count > ShopsConfig.maxPerPurchase then
         return result(playerId, false, "Неверная покупка.")
     end
     local acc = accounts(playerId)
@@ -272,41 +254,15 @@ RegisterNetEvent("rp_shops:buy", function(itemId, count, method)
     local total = price * count
     local opId = newOpId("rpshop")
     local receipt, why = opId and transfer({ opId = opId, kind = "rp.shop", reason = "shop", lines = {
-        { money = total, from = acc[method], to = MONEY_SINK },
+        { money = total, from = acc.bank, to = MONEY_SINK },
         { item = itemId, count = count, from = ITEM_SOURCE, to = acc.pockets },
     } })
     session.busy = false
     if not receipt then return result(playerId, false, "Не получилось: " .. explain(why or "busy") .. ".") end
     local catalog = sync("rp_inventory", "catalog") or {}
     local label = catalog[itemId] and catalog[itemId].label or itemId
-    log("info", "покупка %d: %s x%d за %d (%s, %s)", playerId, itemId, count, total, method, opId)
-    result(playerId, true, string.format("Куплено: %s ×%d за %d €$ (%s).", label, count, total,
-        method == "cash" and "наличные" or "карта"))
-end)
-
--- Банкомат: direction = "deposit" (наличные → счёт) | "withdraw" (счёт → наличные).
-RegisterNetEvent("rp_shops:atmMove", function(direction, amount)
-    local playerId = tonumber(source)
-    if not playerId then return end
-    local session = validSession(playerId, "atm")
-    if not session then return result(playerId, false, "Банкомат закрыт — откройте его снова.") end
-    if session.busy then return end
-    amount = math.tointeger(tonumber(amount))
-    if not amount or amount < 1 or amount > 100000000 or (direction ~= "deposit" and direction ~= "withdraw") then
-        return result(playerId, false, "Неверная сумма.")
-    end
-    local acc = accounts(playerId)
-    if not acc then return result(playerId, false, "Сначала выберите персонажа.") end
-    session.busy = true
-    local from, to = acc.cash, acc.bank
-    if direction == "withdraw" then from, to = acc.bank, acc.cash end
-    local opId = newOpId("rpatm")
-    local receipt, why = opId and transfer({ opId = opId, kind = "rp.atm", reason = direction,
-                                             lines = { { money = amount, from = from, to = to } } })
-    session.busy = false
-    if not receipt then return result(playerId, false, "Не получилось: " .. explain(why or "busy") .. ".") end
-    result(playerId, true, string.format(direction == "deposit" and "Внесено на счёт: %d €$." or "Снято со счёта: %d €$.",
-        amount))
+    log("info", "покупка %d: %s x%d за %d (%s)", playerId, itemId, count, total, opId)
+    result(playerId, true, string.format("Куплено: %s ×%d за %d €$.", label, count, total))
 end)
 
 RegisterNetEvent("rp_shops:request", function()
@@ -321,7 +277,7 @@ end)
 
 -- -- админ -----------------------------------------------------------------------------
 
--- rp.shop add <тип> | rp.shop remove | rp.shop list — право rp.shops
+-- rp.shop add <тип> | remove | list | purge — право rp.shops
 RegisterCommand("rp.shop", function(source, args)
     if source and source > 0 and core("can", source, "rp.shops") ~= true then
         return notify(source, "Недостаточно прав (rp.shops).")
@@ -337,7 +293,18 @@ RegisterCommand("rp.shop", function(source, args)
         if count == 0 then notify(source, "Точек нет.") end
         return
     end
-    if not source or source < 1 then return notify(source, "rp.shop add/remove — только в игре: точка ставится там, где вы стоите.") end
+    if action == "purge" then
+        -- Точки, тип которых убран из конфига (например, бывшие банкоматы).
+        local known = {}
+        for id in pairs(ShopsConfig.types) do known[#known + 1] = id end
+        local marks = string.rep("?", #known, ", ")
+        local affected, err = db("update", "DELETE FROM rp_shops WHERE type NOT IN (" .. marks .. ")", known)
+        if err then return notify(source, "Ошибка БД: %s", err) end
+        return notify(source, "Удалено точек без типа: %d.", tonumber(affected) or 0)
+    end
+    if not source or source < 1 then
+        return notify(source, "rp.shop add/remove — только в игре: точка ставится там, где вы стоите.")
+    end
     local place = placeOf(source)
     if not place then return notify(source, "Ваша позиция неизвестна.") end
     if action == "add" then
@@ -368,6 +335,6 @@ RegisterCommand("rp.shop", function(source, args)
         notify(source, "Точка #%d (%s) убрана.", nearest.id, ShopsConfig.types[nearest.type].label)
         loadShops()
     else
-        notify(source, "Использование: rp.shop add <тип> | rp.shop remove | rp.shop list")
+        notify(source, "Использование: rp.shop add <тип> | rp.shop remove | rp.shop list | rp.shop purge")
     end
 end, false)

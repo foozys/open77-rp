@@ -1,5 +1,6 @@
 -- Раскладка по клеткам. Чистые функции над списком стопок:
---   stack = { i = id предмета, n = количество, x, y = левая верхняя клетка (1..), r = повёрнут }
+--   stack = { i = id предмета, n = количество, x, y = левая верхняя клетка (1..), r = повёрнут,
+--             u = id экземпляра — для уникальных предметов (денежная щепка), всегда n = 1 }
 -- Стопка без x — «не помещается»: предмет есть, а места под него нет.
 
 Grid = {}
@@ -50,7 +51,7 @@ function Grid.add(stacks, itemId, count)
     if not def then return count end
     for _, stack in ipairs(stacks) do
         if count <= 0 then break end
-        if stack.i == itemId and placed(stack) and stack.n < def.stack then
+        if stack.i == itemId and not stack.u and placed(stack) and stack.n < def.stack then
             local put = math.min(count, def.stack - stack.n)
             stack.n, count = stack.n + put, count - put
         end
@@ -70,7 +71,7 @@ function Grid.remove(stacks, itemId, count)
     for index = #stacks, 1, -1 do
         if count <= 0 then break end
         local stack = stacks[index]
-        if stack.i == itemId then
+        if stack.i == itemId and not stack.u then
             local take = math.min(count, stack.n)
             stack.n, count = stack.n - take, count - take
             if stack.n <= 0 then table.remove(stacks, index) end
@@ -78,20 +79,31 @@ function Grid.remove(stacks, itemId, count)
     end
 end
 
--- Привести раскладку к фактическим количествам { [id] = n } (их хранит
--- open77_transactions и они главнее). Лишнее убирается, недостающее
--- раскладывается; что не влезло — стопками без x («не помещается»).
--- Возвращает true, если раскладка изменилась.
-function Grid.reconcile(stacks, items)
+-- Привести раскладку к фактическому содержимому (его хранит open77_transactions,
+-- и оно главнее): items — { [id] = n } обычных предметов, instances — { [id экземпляра] =
+-- { item, meta } } уникальных. Лишнее убирается, недостающее раскладывается; что не
+-- влезло — стопками без x («не помещается»). Возвращает true, если раскладка изменилась.
+function Grid.reconcile(stacks, items, instances)
+    instances = instances or {}
     local changed = false
-    local have = {}
+    local have, seen = {}, {}
     for index = #stacks, 1, -1 do
         local stack = stacks[index]
-        if not InvConfig.items[stack.i] or (tonumber(stack.n) or 0) < 1 then
+        if not InvConfig.items[stack.i] or (tonumber(stack.n) or 0) < 1
+            or (stack.u and (not instances[stack.u] or seen[stack.u])) then
             table.remove(stacks, index)
             changed = true
+        elseif stack.u then
+            seen[stack.u] = true
         else
             have[stack.i] = (have[stack.i] or 0) + stack.n
+        end
+    end
+    for instanceId, record in pairs(instances) do
+        if not seen[instanceId] and InvConfig.items[record.item] then
+            local x, y, r = Grid.findSpot(stacks, record.item)
+            stacks[#stacks + 1] = { i = record.item, n = 1, u = instanceId, x = x, y = y, r = x and r or nil }
+            changed = true
         end
     end
     -- Сначала пробуем уложить то, что раньше не поместилось.
@@ -120,11 +132,21 @@ function Grid.reconcile(stacks, items)
     return changed
 end
 
--- Поместится ли ещё count штук (на копии раскладки).
+-- Поместится ли ещё count штук (на копии раскладки). Для уникального предмета
+-- count — число экземпляров, каждому нужна своя клетка.
 function Grid.fits(stacks, itemId, count)
     local copy = {}
     for index, stack in ipairs(stacks) do
-        copy[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r }
+        copy[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r, u = stack.u }
+    end
+    local def = InvConfig.items[itemId]
+    if def and def.unique then
+        for _ = 1, count do
+            local x, y, r = Grid.findSpot(copy, itemId)
+            if not x then return false end
+            copy[#copy + 1] = { i = itemId, n = 1, x = x, y = y, r = r, u = "probe" }
+        end
+        return true
     end
     return Grid.add(copy, itemId, count) == 0
 end

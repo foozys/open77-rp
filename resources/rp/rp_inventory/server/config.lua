@@ -5,7 +5,9 @@
 -- рисует движок (подсказка над предметом на земле): кириллицу он не показывает;
 -- w, h — сколько клеток занимает; weightG — вес одной штуки в граммах; stack — сколько штук в одной клетке-стопке (1 — не складывается);
 -- color — цвет плашки в окне; use = "consume" — при использовании тратится одна штука;
--- heal — доля здоровья, которую восстанавливает (1 — полностью); раненым быть обязательно.
+-- heal — доля здоровья, которую восстанавливает (1 — полностью); раненым быть обязательно;
+-- unique = true — каждая штука отдельная, со своими данными (денежная щепка хранит сумму);
+-- use = "chip" — вставить щепку: сумма зачисляется на счёт.
 -- id предмета: a-z, 0-9 и _, до 64 символов. Удалять предмет из каталога, пока он
 -- у кого-то есть, нельзя: open77_transactions откажет в операциях с ним.
 
@@ -16,8 +18,14 @@ InvConfig = {
     giveDistance = 3,                 -- передать — только стоящему рядом, метры
     dropTtlMs = 30 * 60 * 1000,       -- выброшенное лежит на земле 30 минут
 
+    -- Денежные щепки: деньги с записанных щепок лежат в этом хранилище, пока щепку не вставят.
+    chipVault = "soc:rp.chipvault",
+    chipMin = 1,
+    chipMax = 10000000,
+
     items = {
-        water      = { label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
+        credchip   = { label = "Денежная щепка",    labelEn = "Cred chip",    w = 1, h = 1, weightG = 10,   stack = 1,  color = "#f3e600", use = "chip", unique = true },
+        water     = { label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
         sandwich   = { label = "Сэндвич",           labelEn = "Sandwich",     w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
         cigarettes = { label = "Сигареты",          labelEn = "Cigarettes",   w = 1, h = 1, weightG = 40,   stack = 20, color = "#8a8a8a", use = "consume" },
         lighter    = { label = "Зажигалка",         labelEn = "Lighter",      w = 1, h = 1, weightG = 30,   stack = 1,  color = "#d65a31" },

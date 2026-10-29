@@ -31,10 +31,10 @@ local function createPage()
     end)
 end
 
--- cash и bank — числа, или false: персонаж не выбран, блок денег скрыт.
-RegisterNetEvent("rp_hud:money", function(cash, bank)
-    if type(cash) == "number" and type(bank) == "number" then
-        state.money = { cash = cash, bank = bank }
+-- Сумма на счёте, или false: персонаж не выбран, HUD скрыт. Наличных в мире нет.
+RegisterNetEvent("rp_hud:money", function(bank)
+    if type(bank) == "number" then
+        state.money = { bank = bank }
     else
         state.money = false
     end

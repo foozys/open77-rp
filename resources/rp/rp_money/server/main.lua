@@ -101,35 +101,50 @@ local function grantStart(playerId, characterId)
         return
     end
     if done then return end
-    local cash, bank = Ledger.accounts(playerId)
-    if not cash then
-        log("warn", "стартовые деньги #%d: нет кошелька (%s)", characterId, tostring(bank))
+    local bank, why = Ledger.bank(playerId)
+    if not bank then
+        log("warn", "стартовые деньги #%d: нет счёта (%s)", characterId, tostring(why))
         return
     end
-    local lines = {}
-    if MoneyTune.startCash > 0 then lines[#lines + 1] = { money = MoneyTune.startCash, from = SOURCE, to = cash } end
-    if MoneyTune.startBank > 0 then lines[#lines + 1] = { money = MoneyTune.startBank, from = SOURCE, to = bank } end
-    if #lines > 0 then
-        local receipt, why = Ledger.transfer({ opId = "rpstart:" .. characterId, kind = "rp.start", reason = "start",
-                                               lines = lines })
+    if MoneyTune.startBank > 0 then
+        local receipt
+        receipt, why = Ledger.transfer({ opId = "rpstart:" .. characterId, kind = "rp.start", reason = "start",
+                                         lines = { { money = MoneyTune.startBank, from = SOURCE, to = bank } } })
         if not receipt then
             log("error", "стартовые деньги #%d не выданы: %s", characterId, explain(why))
             return
         end
-        if not receipt.replay then
-            reply(playerId, "Стартовые деньги: %s наличными и %s на счёте.",
-                formatMoney(MoneyTune.startCash), formatMoney(MoneyTune.startBank))
-        end
+        if not receipt.replay then reply(playerId, "Стартовые деньги: %s на счёте.", formatMoney(MoneyTune.startBank)) end
     end
     local inserted, err = pcall(Open77.database.insert.await,
         "INSERT IGNORE INTO rp_money_start (character_id) VALUES (?)", { characterId })
     if not inserted then log("error", "отметка стартовых денег #%d: %s", characterId, tostring(err)) end
 end
 
+-- Наличных больше нет: остаток старого кошелька наличных — на счёт.
+local function mergeCash(playerId, characterId)
+    local cash, bank = Ledger.cash(playerId), Ledger.bank(playerId)
+    if not cash or not bank then return end
+    local amount = Ledger.balance(cash)
+    if not amount or amount <= 0 then return end
+    local opId = Ledger.newOpId("rpcash")
+    local receipt, why = opId and Ledger.transfer({ opId = opId, kind = "rp.cash.merge", reason = "cash",
+                                                    lines = { { money = amount, from = cash, to = bank } } })
+    if not receipt then
+        log("error", "наличные #%d не перенесены: %s", characterId, explain(why or "busy"))
+        return
+    end
+    log("info", "наличные #%d: %d перенесено на счёт", characterId, amount)
+    reply(playerId, "Наличных в городе больше нет: %s перенесено на ваш счёт.", formatMoney(amount))
+end
+
 AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
     local playerId, characterId = tonumber(playerIdArg), math.tointeger(tonumber(characterIdArg))
     if not playerId or not characterId then return end
-    CreateThread(function() grantStart(playerId, characterId) end)
+    CreateThread(function()
+        grantStart(playerId, characterId)
+        mergeCash(playerId, characterId)
+    end)
 end)
 
 -- -- зарплата ---------------------------------------------------------------------
@@ -216,21 +231,20 @@ end)
 -- -- команды игрока -----------------------------------------------------------------
 
 local function showBalance(target, ofPlayer)
-    local cash, bank = Ledger.accounts(ofPlayer)
-    if not cash then
+    local bank = Ledger.bank(ofPlayer)
+    if not bank then
         reply(target, ofPlayer == target and "Сначала выберите персонажа." or "У игрока не выбран персонаж.")
         return
     end
-    local c, whyC = Ledger.balance(cash)
-    local b, whyB = Ledger.balance(bank)
-    if not c or not b then
-        reply(target, "Банк недоступен: %s.", explain(whyC or whyB))
+    local b, why = Ledger.balance(bank)
+    if not b then
+        reply(target, "Банк недоступен: %s.", explain(why))
         return
     end
     if ofPlayer == target then
-        reply(target, "Наличные: %s. Счёт: %s.", formatMoney(c), formatMoney(b))
+        reply(target, "На счёте: %s.", formatMoney(b))
     else
-        reply(target, "%s [%d]: наличные %s, счёт %s.", nameOf(ofPlayer), ofPlayer, formatMoney(c), formatMoney(b))
+        reply(target, "%s [%d]: на счёте %s.", nameOf(ofPlayer), ofPlayer, formatMoney(b))
     end
 end
 
@@ -240,7 +254,7 @@ RegisterCommand("money", function(source)
     showBalance(playerId, playerId)
 end, false)
 
--- /pay <ID> <сумма> — передать наличные игроку рядом.
+-- /pay <ID> <сумма> — перевести со своего счёта на счёт игрока рядом.
 RegisterCommand("pay", function(source, args)
     local playerId = tonumber(source)
     if not playerId or playerId < 1 then return end
@@ -266,9 +280,9 @@ RegisterCommand("pay", function(source, args)
         reply(playerId, "Игрок с ID %d должен стоять рядом с вами.", target)
         return
     end
-    local fromCash, whyFrom = Ledger.accounts(playerId)
-    local toCash, whyTo = Ledger.accounts(target)
-    if not fromCash or not toCash then
+    local fromBank, whyFrom = Ledger.bank(playerId)
+    local toBank, whyTo = Ledger.bank(target)
+    if not fromBank or not toBank then
         reply(playerId, "Не получилось: %s.", explain(whyFrom or whyTo))
         return
     end
@@ -278,14 +292,14 @@ RegisterCommand("pay", function(source, args)
         return
     end
     local receipt, why = Ledger.transfer({ opId = opId, kind = "rp.give", reason = "pay",
-                                           lines = { { money = amount, from = fromCash, to = toCash } } })
+                                           lines = { { money = amount, from = fromBank, to = toBank } } })
     if not receipt then
         reply(playerId, "Не получилось: %s.", explain(why))
         return
     end
     log("info", "pay %d -> %d: %d (%s)", playerId, target, amount, opId)
-    reply(playerId, "Вы передали %s [%d] %s наличными.", nameOf(target), target, formatMoney(amount))
-    reply(target, "%s [%d] передал вам %s наличными.", nameOf(playerId), playerId, formatMoney(amount))
+    reply(playerId, "Перевод %s [%d]: %s.", nameOf(target), target, formatMoney(amount))
+    reply(target, "Перевод от %s [%d]: +%s на счёт.", nameOf(playerId), playerId, formatMoney(amount))
 end, false)
 
 -- -- админские команды ------------------------------------------------------------
@@ -301,24 +315,23 @@ RegisterCommand("rp.money", function(source, args)
     showBalance(source, target)
 end, false)
 
--- rp.givemoney <ID> <cash|bank> <сумма> [причина] — отрицательная сумма забирает (право rp.money)
+-- rp.givemoney <ID> <сумма> [причина] — на счёт; отрицательная сумма забирает (право rp.money)
 RegisterCommand("rp.givemoney", function(source, args)
     if not allowed(source, "rp.money") then return end
+    -- Старый синтаксис с cash|bank: счёт теперь один, слово пропускаем.
+    if args[2] == "cash" or args[2] == "bank" then table.remove(args, 2) end
     local target = math.tointeger(tonumber(args[1]))
-    local kind = args[2]
-    local amount = math.tointeger(tonumber(args[3]))
-    if not target or (kind ~= "cash" and kind ~= "bank") or not amount or amount == 0
-        or math.abs(amount) > 100000000 then
-        reply(source, "Использование: rp.givemoney <ID игрока> <cash|bank> <сумма, минус — забрать> [причина]")
+    local amount = math.tointeger(tonumber(args[2]))
+    if not target or not amount or amount == 0 or math.abs(amount) > 100000000 then
+        reply(source, "Использование: rp.givemoney <ID игрока> <сумма, минус — забрать> [причина]")
         return
     end
-    local cash, bank = Ledger.accounts(target)
-    if not cash then
+    local account = Ledger.bank(target)
+    if not account then
         reply(source, "У игрока %d не выбран персонаж.", target)
         return
     end
-    local account = kind == "cash" and cash or bank
-    local reason = table.concat(args, " ", 4)
+    local reason = table.concat(args, " ", 3)
     local opId = Ledger.newOpId("rpadmin")
     if not opId then
         reply(source, "Банк недоступен.")
@@ -331,12 +344,10 @@ RegisterCommand("rp.givemoney", function(source, args)
         reply(source, "Не выполнено: %s.", explain(why))
         return
     end
-    audit("money_" .. kind, actorOf(source), core("account_license", target),
+    audit("money_bank", actorOf(source), core("account_license", target),
         { amount = amount, account = account, reason = reason, opId = opId })
-    reply(source, "%s [%d]: %s%s (%s).", nameOf(target), target, amount > 0 and "+" or "", formatMoney(amount),
-        kind == "cash" and "наличные" or "счёт")
-    reply(target, "Администрация: %s%s %s.", amount > 0 and "+" or "", formatMoney(amount),
-        kind == "cash" and "наличными" or "на счёт")
+    reply(source, "%s [%d]: %s%s на счёт.", nameOf(target), target, amount > 0 and "+" or "", formatMoney(amount))
+    reply(target, "Администрация: %s%s на счёт.", amount > 0 and "+" or "", formatMoney(amount))
 end, false)
 
 -- rp.society <организация> [сумма] [причина] — касса "soc:<организация>"; без суммы показать
@@ -372,9 +383,9 @@ RegisterCommand("rp.society", function(source, args)
 end, false)
 
 -- -- HUD ----------------------------------------------------------------------------
--- После каждой операции open77_transactions называет затронутые кошельки. Кошелёк
--- персонажа "cash:rpc-<id>" / "bank:rpc-<id>" → игрок, который за него играет →
--- свежий баланс в rp_hud. Без персонажа (экран выбора) HUD денег скрыт.
+-- После каждой операции open77_transactions называет затронутые счета. Счёт
+-- персонажа "bank:rpc-<id>" → игрок, который за него играет → свежий баланс в rp_hud.
+-- Без персонажа (экран выбора) HUD денег скрыт.
 
 local hudPending = {} -- [playerId] = true, пока обновление в пути
 
@@ -384,12 +395,9 @@ local function pushHud(playerId)
     CreateThread(function()
         Wait(250) -- несколько операций подряд — одно обновление
         hudPending[playerId] = nil
-        local cash, bank = Ledger.accounts(playerId)
-        local c, b
-        if cash then
-            c, b = Ledger.balance(cash), Ledger.balance(bank)
-        end
-        local ok, reason = TriggerClientEvent("rp_hud:money", playerId, c or false, b or false)
+        local bank = Ledger.bank(playerId)
+        local balance = bank and Ledger.balance(bank)
+        local ok, reason = TriggerClientEvent("rp_hud:money", playerId, balance or false)
         if not ok then log("warn", "HUD игроку %d не отправлен: %s", playerId, tostring(reason)) end
     end)
 end
@@ -407,8 +415,7 @@ AddEventHandler("open77_transactions:committed", function(_, _, accounts)
     for _, account in ipairs(accounts) do
         local namespace, characterId
         if type(account) == "string" then namespace, characterId = account:match("^(%a+):rpc%-(%d+)$") end
-        local playerId = (namespace == "cash" or namespace == "bank")
-            and playerOfCharacter(math.tointeger(tonumber(characterId)))
+        local playerId = namespace == "bank" and playerOfCharacter(math.tointeger(tonumber(characterId)))
         if playerId then pushHud(playerId) end
     end
 end)
@@ -440,8 +447,8 @@ end)
 -- -- подсказки в чате ---------------------------------------------------------------
 
 local SUGGESTIONS = {
-    { command = "/money", help = "Наличные и счёт", parameters = {} },
-    { command = "/pay", help = "Передать наличные игроку рядом",
+    { command = "/money", help = "Сколько на счёте", parameters = {} },
+    { command = "/pay", help = "Перевести со счёта игроку рядом",
       parameters = { { name = "ID", help = "ID игрока" }, { name = "сумма", help = "" } } },
 }
 

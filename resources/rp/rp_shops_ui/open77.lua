@@ -4,7 +4,7 @@ auto_start true
 -- WebUI-поверхность должна пересоздаваться с сессией.
 reload_policy "reconnect"
 
--- Подсказки у касс, банкоматов и торговых автоматов.
+-- Подсказки у касс и торговых автоматов.
 dependency "open77_interactions >=0.2.0"
 
 -- network.events: связь с rp_shops

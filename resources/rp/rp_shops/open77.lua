@@ -6,8 +6,8 @@ dependency "open77_transactions >=0.1.0"
 dependency "rp_core"
 dependency "rp_inventory"
 
--- database.access: точки магазинов и банкоматов (rp_shops);
--- network.events: окно магазина и банкомата (rp_shops_ui);
+-- database.access: точки магазинов (rp_shops);
+-- network.events: окно магазина (rp_shops_ui);
 -- players.life.read: позиция игрока для проверки, что он у кассы
 permissions { "database.access", "network.events", "players.life.read" }
 

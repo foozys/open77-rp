@@ -23,6 +23,11 @@ function Store.pockets(playerId)
     return sync("open77_transactions", "account", playerId, "char")
 end
 
+-- Банковский счёт персонажа: "bank:rpc-<id>".
+function Store.bank(playerId)
+    return sync("open77_transactions", "account", playerId, "bank")
+end
+
 function Store.newOpId(prefix)
     local id = sync("open77_transactions", "newOpId")
     return type(id) == "string" and (prefix .. ":" .. id) or nil
@@ -41,11 +46,13 @@ function Store.transfer(spec, via)
     return nil, "busy"
 end
 
--- Свободные (не зарезервированные) количества { [id] = n }; несуществующий счёт — пусто.
+-- Содержимое счёта: свободные (не зарезервированные) количества { [id] = n }, вес в
+-- граммах и уникальные предметы { [id экземпляра] = { item, meta } }.
+-- Несуществующий счёт — пусто.
 function Store.items(account)
     local snapshot, why = Store.tx("read", account)
     if not snapshot then
-        if why == "unknown_account" then return {}, 0 end
+        if why == "unknown_account" then return {}, 0, {} end
         return nil, why
     end
     local items, held = {}, (snapshot.held and snapshot.held.items) or {}
@@ -53,7 +60,13 @@ function Store.items(account)
         local free = (tonumber(count) or 0) - (tonumber(held[id]) or 0)
         if free > 0 then items[id] = math.tointeger(free) end
     end
-    return items, tonumber(snapshot.weightG) or 0
+    local instances = {}
+    for id, record in pairs(snapshot.instances or {}) do
+        if type(record) == "table" then
+            instances[id] = { item = record.item, meta = type(record.meta) == "table" and record.meta or {} }
+        end
+    end
+    return items, tonumber(snapshot.weightG) or 0, instances
 end
 
 -- Создаёт карманы или задаёт им вместимость заново.
@@ -64,7 +77,7 @@ end
 -- Объявить предметы координатору (в памяти: повторять на каждый его ready).
 function Store.define()
     local defs = {}
-    for id, def in pairs(InvConfig.items) do defs[id] = { weightG = def.weightG } end
+    for id, def in pairs(InvConfig.items) do defs[id] = { weightG = def.weightG, unique = def.unique == true } end
     local registered, rejected = sync("open77_transactions", "define", defs)
     if type(rejected) == "table" and next(rejected) then
         Open77.log.warn("[rp_inventory] предметы не приняты: " .. json.encode(rejected))

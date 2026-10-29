@@ -113,8 +113,10 @@
     el.style.width = `${w * CELL}px`;
     el.style.height = `${h * CELL}px`;
     el.style.background = `linear-gradient(160deg, ${d.color}cc, ${d.color}55)`;
-    el.innerHTML = `<div class="name"></div>${stack.n > 1 ? `<div class="count">×${stack.n}</div>` : ""}`;
+    const badge = stack.a != null ? `${stack.a} €$` : stack.n > 1 ? `×${stack.n}` : "";
+    el.innerHTML = `<div class="name"></div>${badge ? `<div class="count"></div>` : ""}`;
     el.querySelector(".name").textContent = d.label;
+    if (badge) el.querySelector(".count").textContent = badge;
     el.addEventListener("pointerdown", e => startDrag(e, index, stack, el));
     el.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(e, index, stack); });
     el.addEventListener("mouseenter", e => showTooltip(e, stack));
@@ -162,7 +164,8 @@
     const d = def(stack);
     const tip = $("tooltip");
     tip.innerHTML = `<div class="label"></div><div class="muted"></div>`;
-    tip.querySelector(".label").textContent = d.label + (stack.n > 1 ? ` ×${stack.n}` : "");
+    tip.querySelector(".label").textContent = d.label +
+      (stack.a != null ? ` — ${stack.a} €$` : stack.n > 1 ? ` ×${stack.n}` : "");
     tip.querySelector(".muted").textContent =
       `${kg(d.weightG * stack.n)} кг · ${d.w}×${d.h}${d.stack > 1 ? ` · до ${d.stack} в клетке` : ""}`;
     tip.style.display = "block";
@@ -295,7 +298,7 @@
     const menu = $("menu");
     menu.replaceChildren();
     const base = { index, item: stack.i };
-    if (d.usable) addButton(menu, "Использовать", () => emit("inv:use", base));
+    if (d.usable) addButton(menu, d.useLabel || "Использовать", () => emit("inv:use", base));
     if (stack.n > 1 && stack.x) {
       addButton(menu, "Разделить", () => askCount(e, "Сколько отделить", stack.n - 1,
         n => emit("inv:split", { ...base, a: n })));

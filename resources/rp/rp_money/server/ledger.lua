@@ -15,15 +15,16 @@ local function await(name, ...)
     return pending:await()
 end
 
--- Наличные и счёт персонажа, за которого играет playerId (ключи даёт rp_core).
+-- Счёт персонажа, за которого играет playerId: "bank:rpc-<id>" (ключ даёт rp_core).
 -- nil, reason — если персонаж не выбран или координатор недоступен.
-function Ledger.accounts(playerId)
-    local cash, why = sync("account", playerId, "cash")
-    if not cash then return nil, why end
-    local bank
-    bank, why = sync("account", playerId, "bank")
-    if not bank then return nil, why end
-    return cash, bank
+-- Наличных в мире нет: деньги — счёт и денежные щепки (предмет rp_inventory).
+function Ledger.bank(playerId)
+    return sync("account", playerId, "bank")
+end
+
+-- Старый кошелёк наличных "cash:rpc-<id>" — только чтобы перенести остаток на счёт.
+function Ledger.cash(playerId)
+    return sync("account", playerId, "cash")
 end
 
 -- Новый id операции: один раз на действие, при повторе — тот же.

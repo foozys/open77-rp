@@ -643,8 +643,8 @@ RegisterNetEvent("open77:appearance:body", function(body, characterKey)
 end)
 
 -- -- субъект open77_transactions ------------------------------------------------------
--- Деньги и предметы принадлежат персонажу, а не аккаунту: account(playerId, "cash")
--- у open77_transactions спрашивает нас и получает "cash:rpc-<id персонажа>".
+-- Деньги и предметы принадлежат персонажу, а не аккаунту: account(playerId, "bank")
+-- у open77_transactions спрашивает нас и получает "bank:rpc-<id персонажа>".
 -- Без выбранного персонажа (экран выбора, анкета) кошелька нет.
 
 local SUBJECT_PREFIX = "rpc-"

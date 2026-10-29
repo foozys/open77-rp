@@ -5,8 +5,7 @@
 <title>HUD</title>
 <style>
   :root {
-    --cash: #f3e600;
-    --bank: #5ef6ff;
+    --bank: #f3e600;
     --up: #78dc8c;
     --down: #eb6e6e;
     --shadow: 0 0 6px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.9);
@@ -21,9 +20,7 @@
   .row { display: flex; justify-content: flex-end; align-items: baseline; gap: 10px;
     text-shadow: var(--shadow); white-space: nowrap; }
   .label { font-size: 14px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.75; }
-  #cash { color: var(--cash); font-size: 30px; font-weight: 700; letter-spacing: 1px; }
-  .bank { color: var(--bank); margin-top: 2px; }
-  #bank { font-size: 20px; font-weight: 600; }
+  #bank { color: var(--bank); font-size: 30px; font-weight: 700; letter-spacing: 1px; }
   #job { margin-top: 10px; display: none; text-shadow: var(--shadow); color: #e8f1f2; }
   #job.visible { display: block; }
   #jobLabel { font-size: 15px; font-weight: 600; }
@@ -58,8 +55,7 @@
 </head>
 <body>
 <div id="money">
-  <div class="row"><span id="cash"></span></div>
-  <div class="row bank"><span class="label">Счёт</span><span id="bank"></span></div>
+  <div class="row"><span id="bank"></span></div>
   <div id="job">
     <div class="row"><span id="jobLabel"></span><span id="duty"></span></div>
     <div class="row"><span id="jobRank"></span></div>
@@ -100,14 +96,10 @@
       last = null;
       return;
     }
-    $("cash").textContent = format(money.cash);
     $("bank").textContent = format(money.bank);
     box.classList.add("visible");
-    if (last) {
-      flash($("cash").parentElement, money.cash - last.cash);
-      flash($("bank").parentElement, money.bank - last.bank);
-    }
-    last = { cash: money.cash, bank: money.bank };
+    if (last) flash($("bank").parentElement, money.bank - last.bank);
+    last = { bank: money.bank };
   }
 
   function renderJob(job) {

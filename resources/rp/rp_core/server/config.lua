@@ -29,7 +29,7 @@ RpConfig = {
     --   rp.unwarn            — снять предупреждение
     --   rp.announce          — объявление на весь сервер
     -- rp_shops:
-    --   rp.shops             — ставить и убирать магазины и банкоматы
+    --   rp.shops             — ставить и убирать магазины
     -- (жалобы /report видит и отвечает на них rp.pm каждый с правом rp.staff)
     staffRoles = {
         { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view", "rp.teleport" } },

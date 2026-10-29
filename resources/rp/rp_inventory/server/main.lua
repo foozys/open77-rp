@@ -81,7 +81,8 @@ local function catalog()
     local items = {}
     for id, def in pairs(InvConfig.items) do
         items[id] = { label = def.label, w = def.w, h = def.h, weightG = def.weightG, stack = def.stack,
-                      color = def.color, usable = def.use ~= nil }
+                      color = def.color, usable = def.use ~= nil,
+                      useLabel = def.use == "chip" and "Вставить в нейропорт" or "Использовать" }
     end
     return items
 end
@@ -89,26 +90,33 @@ end
 local function push(playerId, withCatalog)
     local state = inv[playerId]
     if not state or not state.open then return end
+    -- Для окна: у щепки — сумма (a). Раскладка в БД её не хранит, она в open77_transactions.
+    local stacks = {}
+    for index, stack in ipairs(state.stacks) do
+        local record = stack.u and state.instances and state.instances[stack.u]
+        stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r,
+                          a = record and tonumber(record.meta.amount) or nil }
+    end
     local ok, reason = TriggerClientEvent("rp_inventory:state", playerId, {
         cols = InvConfig.grid.cols, rows = InvConfig.grid.rows,
         capacityG = InvConfig.capacityG, weightG = state.weightG,
-        stacks = state.stacks, nearby = nearbyPlayers(playerId),
+        stacks = stacks, nearby = nearbyPlayers(playerId),
         catalog = withCatalog and catalog() or nil,
     })
     if not ok then log("warn", "окно игроку %d не обновлено: %s", playerId, tostring(reason)) end
 end
 
--- Подтянуть количества из open77_transactions и привести к ним раскладку.
+-- Подтянуть содержимое из open77_transactions и привести к нему раскладку.
 local function refresh(playerId)
     local state = inv[playerId]
     if not state then return false end
-    local items, weight = Store.items(state.account)
+    local items, weight, instances = Store.items(state.account)
     if not items then
         log("warn", "карманы %s: %s", state.account, tostring(weight))
         return false
     end
-    state.weightG = weight
-    if Grid.reconcile(state.stacks, items) then Store.saveLayout(state.characterId, state.stacks) end
+    state.weightG, state.instances = weight, instances
+    if Grid.reconcile(state.stacks, items, instances) then Store.saveLayout(state.characterId, state.stacks) end
     push(playerId)
     return true
 end
@@ -165,6 +173,12 @@ local function clampCount(count, stack)
     return math.max(1, math.min(count, stack.n))
 end
 
+-- Строка операции для перемещения из стопки: уникальный предмет — экземпляром.
+local function lineFor(stack, count, from, to)
+    if stack.u then return { instance = stack.u, from = from, to = to } end
+    return { item = stack.i, count = count, from = from, to = to }
+end
+
 -- -- события окна -----------------------------------------------------------------------
 
 RegisterNetEvent("rp_inventory:open", function()
@@ -191,7 +205,7 @@ RegisterNetEvent("rp_inventory:move", function(index, itemId, x, y, rotated, tar
         local def = InvConfig.items[stack.i]
         target = math.tointeger(tonumber(target))
         local other = target and target ~= index and state.stacks[target]
-        if other and other.i == stack.i and other.x then
+        if other and other.i == stack.i and other.x and not stack.u and not other.u then
             local put = math.min(stack.n, def.stack - other.n)
             if put > 0 then
                 other.n = other.n + put
@@ -217,7 +231,7 @@ RegisterNetEvent("rp_inventory:split", function(index, itemId, count)
     local playerId = tonumber(source)
     withStack(playerId, index, itemId, function(state, stack)
         count = math.tointeger(tonumber(count))
-        if not count or count < 1 or count >= stack.n or not stack.x then return push(playerId) end
+        if stack.u or not count or count < 1 or count >= stack.n or not stack.x then return push(playerId) end
         local x, y, r = Grid.findSpot(state.stacks, stack.i)
         if not x then
             notify(playerId, "Нет свободного места.")
@@ -234,6 +248,22 @@ RegisterNetEvent("rp_inventory:use", function(index, itemId)
     local playerId = tonumber(source)
     withStack(playerId, index, itemId, function(state, stack, at)
         local def = InvConfig.items[stack.i]
+        if def.use == "chip" then
+            -- Вставить щепку в нейропорт: щепка тратится, сумма — из хранилища на счёт.
+            local record = stack.u and state.instances and state.instances[stack.u]
+            local amount = record and math.tointeger(tonumber(record.meta.amount)) or 0
+            local bank = Store.bank(playerId)
+            if not bank then return notify(playerId, "Счёт недоступен.") end
+            local lines = { { instance = stack.u, from = state.account, to = SOURCE } }
+            if amount > 0 then lines[2] = { money = amount, from = InvConfig.chipVault, to = bank } end
+            local opId = Store.newOpId("rpchipin")
+            local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.chip.in", reason = "chip", lines = lines })
+            if not receipt then return notify(playerId, "Щепка не читается: %s.", explain(why or "busy")) end
+            takeFrom(state, at, 1)
+            refresh(playerId)
+            log("info", "щепка %s: +%d игроку %d (%s)", tostring(stack.u), amount, playerId, opId)
+            return notify(playerId, "Щепка считана: +%d €$ на счёт.", amount)
+        end
         if def.use ~= "consume" then return notify(playerId, "%s нельзя использовать.", def.label) end
         local life = Open77.players.getLifeState(playerId)
         if not life or life.phase ~= "alive" then return notify(playerId, "Сейчас нельзя.") end
@@ -278,7 +308,7 @@ RegisterNetEvent("rp_inventory:give", function(index, itemId, count, targetId)
         local opId = Store.newOpId("rpgive")
         other.busy = true
         local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.give", reason = "give",
-            lines = { { item = stack.i, count = count, from = state.account, to = other.account } } })
+            lines = { lineFor(stack, count, state.account, other.account) } })
         other.busy = false
         if not receipt then return notify(playerId, "Не получилось: %s.", explain(why or "busy")) end
         takeFrom(state, at, count)
@@ -308,7 +338,7 @@ RegisterNetEvent("rp_inventory:drop", function(index, itemId, count)
         local opId = Store.newOpId("rpdrop")
         local receipt
         receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.drop", reason = "drop", player = playerId,
-            lines = { { item = stack.i, count = count, from = state.account, to = pile.id } } }, "containers")
+            lines = { lineFor(stack, count, state.account, pile.id) } }, "containers")
         if not receipt then
             Store.boxes("close", pile.id)
             return notify(playerId, "Не получилось выбросить: %s.", explain(why or "busy"))
@@ -330,16 +360,25 @@ AddEventHandler("open77_containers:used", function(containerId, playerIdArg, _, 
         if state.busy then return end
         state.busy = true
         local ok, err = pcall(function()
-            local items = Store.items(containerId)
-            if not items or not next(items) then return end
-            local copy, lines = {}, {}
-            for i, s in ipairs(state.stacks) do copy[i] = { i = s.i, n = s.n, x = s.x, y = s.y, r = s.r } end
+            local items, _, instances = Store.items(containerId)
+            if not items or (not next(items) and not next(instances or {})) then return end
+            local copy, lines, picked = {}, {}, {}
+            for i, s in ipairs(state.stacks) do copy[i] = { i = s.i, n = s.n, x = s.x, y = s.y, r = s.r, u = s.u } end
             for itemId, count in pairs(items) do
                 local take = count
                 while take > 0 and not Grid.fits(copy, itemId, take) do take = take - 1 end
                 if take > 0 then
                     Grid.add(copy, itemId, take)
                     lines[#lines + 1] = { item = itemId, count = take, from = containerId, to = state.account }
+                    picked[#picked + 1] = { item = itemId, count = take }
+                end
+            end
+            for instanceId, record in pairs(instances or {}) do
+                local x, y, r = Grid.findSpot(copy, record.item)
+                if x then
+                    copy[#copy + 1] = { i = record.item, n = 1, x = x, y = y, r = r, u = instanceId }
+                    lines[#lines + 1] = { instance = instanceId, from = containerId, to = state.account }
+                    picked[#picked + 1] = { item = record.item, count = 1 }
                 end
             end
             if #lines == 0 then return notify(playerId, "Нет места.") end
@@ -347,7 +386,7 @@ AddEventHandler("open77_containers:used", function(containerId, playerIdArg, _, 
             local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.pickup", reason = "pickup",
                 player = playerId, lines = lines }, "containers")
             if not receipt then return notify(playerId, "Не получилось подобрать: %s.", explain(why or "busy")) end
-            for _, line in ipairs(lines) do notify(playerId, "Подобрано: %s ×%d.", labelOf(line.item), line.count) end
+            for _, line in ipairs(picked) do notify(playerId, "Подобрано: %s ×%d.", labelOf(line.item), line.count) end
         end)
         state.busy = false
         if not ok then log("error", "%s", tostring(err)) end
@@ -422,6 +461,9 @@ RegisterCommand("rp.giveitem", function(source, args)
         return
     end
     if not InvConfig.items[itemId] then return notify(source, "Нет предмета %s.", tostring(itemId)) end
+    if InvConfig.items[itemId].unique then
+        return notify(source, "%s выдаётся иначе: щепку записывают со счёта (/chip <сумма>).", labelOf(itemId))
+    end
     local state, problem = ensure(target)
     if not state then return notify(source, "Игрок %d: %s", target, problem) end
     if count > 0 and not Grid.fits(state.stacks, itemId, count) then
@@ -438,6 +480,36 @@ RegisterCommand("rp.giveitem", function(source, args)
     refresh(target)
     notify(source, "%s [%d]: %s%d %s.", nameOf(target), target, count > 0 and "+" or "", count, labelOf(itemId))
     notify(target, "Администрация: %s%d %s.", count > 0 and "+" or "", count, labelOf(itemId))
+end, false)
+
+-- /chip <сумма> — записать денежную щепку со своего счёта. Деньги уходят в хранилище
+-- щепок и вернутся на счёт тому, кто щепку вставит.
+RegisterCommand("chip", function(source, args)
+    local playerId = tonumber(source)
+    if not playerId or playerId < 1 then return end
+    local amount = math.tointeger(tonumber(args[1]))
+    if not amount or amount < InvConfig.chipMin or amount > InvConfig.chipMax then
+        return notify(playerId, "Использование: /chip <сумма> — записать денежную щепку со своего счёта.")
+    end
+    local state, problem = ensure(playerId)
+    if not state then return notify(playerId, problem) end
+    if state.busy then return end
+    if not Grid.fits(state.stacks, "credchip", 1) then return notify(playerId, "Нет места в инвентаре.") end
+    local bank = Store.bank(playerId)
+    if not bank then return notify(playerId, "Счёт недоступен.") end
+    local opId = Store.newOpId("rpchipout")
+    if not opId then return notify(playerId, "Банк недоступен.") end
+    state.busy = true
+    local receipt, why = Store.transfer({ opId = opId, kind = "rp.chip.out", reason = "chip", lines = {
+        { money = amount, from = bank, to = InvConfig.chipVault },
+        { instance = "chip." .. opId:gsub("^rpchipout:", ""), item = "credchip", from = SOURCE, to = state.account,
+          meta = { amount = amount } },
+    } })
+    state.busy = false
+    if not receipt then return notify(playerId, "Не получилось: %s.", explain(why or "busy")) end
+    refresh(playerId)
+    log("info", "щепка на %d записана игроком %d (%s)", amount, playerId, opId)
+    notify(playerId, "Щепка на %d €$ записана и лежит в инвентаре.", amount)
 end, false)
 
 -- rp.inventory <ID> — что у игрока в карманах (право rp.view)
