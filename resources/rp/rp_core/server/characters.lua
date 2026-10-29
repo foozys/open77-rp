@@ -125,8 +125,15 @@ local function appearanceExists(s, row)
     return (tonumber(count) or 0) > 0
 end
 
+-- id = nil снимает пометку. Отдельный запрос: nil в параметрах мост БД не принимает.
 local function setNext(s, id)
-    local _, err = Db.update("UPDATE rp_accounts SET next_character_id = ? WHERE license = ?", { id, s.license })
+    local _, err
+    if id then
+        _, err = Db.update("UPDATE rp_accounts SET next_character_id = ? WHERE license = ?", { id, s.license })
+    else
+        _, err = Db.update("UPDATE rp_accounts SET next_character_id = NULL WHERE license = ?", { s.license })
+    end
+    if err then log.error("next_character_id %s: %s", s.license, err) end
     return err == nil, err
 end
 
