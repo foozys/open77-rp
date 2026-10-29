@@ -16,7 +16,6 @@ local log = Log.scope("characters")
 -- phase: loading → waiting_client → profile | select → spawning → playing
 local PRIVATE_BUCKET_BASE = 60000 -- + playerId: игрок на экране выбора никого не видит, и его не видят
 local LOOK_MAX_BYTES = 7680       -- снимок + позиция манекена должны уложиться в 8 КиБ
-local LOOK_MIN_INTERVAL = 10      -- секунд между снимками от одного игрока
 local POSITION_INTERVAL_MS = 30000
 
 local MSG_RECONNECT_CREATE = "Переподключитесь: откроется редактор нового персонажа."
@@ -164,6 +163,8 @@ local function openUi(playerId, s, mode)
         currentId = s.current and s.current.id or false,
         maxCharacters = Tune.maxCharacters,
     })
+    -- тело могло опубликоваться раньше, чем открылась анкета
+    if mode == "profile" and s.bodyText then send(playerId, "rp_charselect:look", "self", s.bodyText) end
 end
 
 -- -- появление в мире -----------------------------------------------------------
@@ -212,7 +213,6 @@ local function place(playerId, s)
         s.phase = "playing"
         log.info("игрок %d играет за #%d %s", playerId, row.id, fullName(row))
         TriggerEvent("rp_core:characterLoaded", playerId, row.id)
-        send(playerId, "rp_charselect:captureLook")
     end)
 end
 
@@ -622,28 +622,24 @@ local function validLook(text)
         and (look.equipment == nil or type(look.equipment) == "table")
 end
 
-RegisterNetEvent("rp_core:charselect:look", function(text)
-    local playerId, s = sessionOf(source, "playing")
-    if not s or not s.current then return end
-    local now = Open77.time.unix()
-    if s.lookAt and now - s.lookAt < LOOK_MIN_INTERVAL then return end
-    if not validLook(text) then
-        log.warn("игрок %d прислал некорректный снимок внешности", playerId)
-        return
-    end
-    s.lookAt = now
-    local row = s.current
-    local _, err = Db.update("UPDATE rp_characters SET look = ? WHERE id = ? AND license = ?", { text, row.id, s.license })
-    if err then log.error("look #%d: %s", row.id, err) else row.has_look = true end
-end)
-
--- Внешность изменили в игре (/appearance, рипердок): обновить снимок для манекена.
-AddEventHandler("open77:appearance:saved", function(playerIdArg, _, characterKey)
-    local playerId = Util.toPlayerId(playerIdArg)
+-- Тело для манекена берём то же, что open77_appearance публикует другим игрокам:
+-- клиент шлёт его, только когда сохранённая внешность действительно надета.
+-- Слушаем то же сетевое событие; запоминаем, только если ключ — текущий персонаж.
+RegisterNetEvent("open77:appearance:body", function(body, characterKey)
+    local playerId = Util.toPlayerId(source)
     local s = playerId and Characters.sessions[playerId]
-    if s and s.phase == "playing" and s.current and characterKey == Characters.key(s.current.id) then
-        send(playerId, "rp_charselect:captureLook")
-    end
+    if not s or not s.current or characterKey ~= Characters.key(s.current.id) or type(body) ~= "table" then return end
+    local ok, text = pcall(json.encode, { body = body })
+    if not ok or not validLook(text) or text == s.bodyText then return end
+    s.bodyText = text
+    if s.phase == "profile" then send(playerId, "rp_charselect:look", "self", text) end
+    local row = s.current
+    local queued, reason = Open77.database.update("UPDATE rp_characters SET look = ? WHERE id = ? AND license = ?",
+        { text, row.id, s.license },
+        function(_, err)
+            if err then log.error("look #%d: %s", row.id, tostring(err)) else row.has_look = true end
+        end)
+    if queued == false then log.error("look #%d: %s", row.id, tostring(reason)) end
 end)
 
 -- -- место выхода ----------------------------------------------------------------

@@ -156,31 +156,11 @@ showLook = function(id)
     preview, previewId = created, id
 end
 
--- open77_appearance закончил надевать сохранённую внешность на тело. Без
--- побочных эффектов, в отличие от previewReady.
-local function appearanceSettled()
-    local ok, ready = pcall(Open77.exports.callSync, "open77_appearance", "wardrobeMutationReady")
-    return ok and ready == true
-end
-
 -- Анкета: манекен с телом, которое игрок только что создал в редакторе.
+-- Тело присылает сервер ("self"), когда open77_appearance опубликует его
+-- уже с надетой внешностью; до этого манекена нет.
 showSelf = function()
-    CreateThread(function()
-        -- Внешность надевается несколько секунд; снимок до этого — чужое лицо.
-        for _ = 1, 60 do
-            if not state or state.mode ~= "profile" or not scene then return end
-            if appearanceSettled() then
-                local body = Open77.appearance.captureBody()
-                if type(body) == "table" and type(body.groups) == "table" and #body.groups > 0 then
-                    looks.self = { body = body }
-                    showLook("self")
-                    return
-                end
-            end
-            Wait(500)
-        end
-        print("[rp_charselect] не удалось снять тело для анкеты")
-    end)
+    if looks.self then showLook("self") end
 end
 
 local function showCharacter(id)
@@ -196,8 +176,9 @@ local function showCharacter(id)
     showLook(id)
 end
 
+-- id — номер персонажа или "self" (тело игрока для анкеты).
 RegisterNetEvent("rp_charselect:look", function(id, text)
-    id = tonumber(id)
+    id = tonumber(id) or (id == "self" and "self") or nil
     if not id then return end
     local look = false
     if type(text) == "string" then
@@ -205,7 +186,12 @@ RegisterNetEvent("rp_charselect:look", function(id, text)
         if ok and type(decoded) == "table" and type(decoded.body) == "table" then look = decoded end
     end
     looks[id] = look
-    if wanted == id and state and state.mode == "select" then showLook(id) end
+    if not state then return end
+    if id == "self" and state.mode == "profile" and look then
+        showLook("self")
+    elseif wanted == id and state.mode == "select" then
+        showLook(id)
+    end
 end)
 
 -- -- страница ---------------------------------------------------------------------
@@ -300,31 +286,3 @@ AddEventHandler("open77:playerReset:complete", function()
     report()
 end)
 
--- -- снимок внешности для манекена --------------------------------------------------
--- Отсюда серверу нужно только тело: одежду для манекена он берёт из
--- open77_appearance, где её хранит гардероб (F2).
-
-local LOOK_MAX_BYTES = 7680
-
--- Сервер просит снимок: после появления в мире и после правки внешности.
-RegisterNetEvent("rp_charselect:captureLook", function()
-    CreateThread(function()
-        -- ждём, пока open77_appearance наденет внешность (до минуты)
-        for _ = 1, 60 do
-            if appearanceSettled() then break end
-            Wait(1000)
-        end
-        Wait(1000)
-        local body, reason = Open77.appearance.captureBody()
-        if not body then
-            print("[rp_charselect] снимок тела: " .. tostring(reason))
-            return
-        end
-        local text = json.encode({ body = body })
-        if #text > LOOK_MAX_BYTES then
-            print("[rp_charselect] снимок внешности слишком большой: " .. #text)
-            return
-        end
-        emit("rp_core:charselect:look", text)
-    end)
-end)

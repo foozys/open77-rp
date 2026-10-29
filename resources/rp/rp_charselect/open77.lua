@@ -5,12 +5,9 @@ auto_start true
 reload_policy "reconnect"
 
 -- network.events: связь с rp_core; camera.script: кадр сцены выбора;
--- puppets.present: манекены персонажей; player.appearance.read + player.cyberware.read:
--- снимок тела для манекена; player.freeze: стоять на месте у экрана
-permissions {
-    "network.events", "camera.script", "puppets.present",
-    "player.appearance.read", "player.cyberware.read", "player.freeze",
-}
+-- puppets.present: манекены персонажей (тело для них присылает сервер);
+-- player.freeze: стоять на месте у экрана
+permissions { "network.events", "camera.script", "puppets.present", "player.freeze" }
 
 client_script "client/main.lua"
 web_file "web/index.html"
