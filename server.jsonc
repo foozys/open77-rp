@@ -139,7 +139,7 @@
     "file": "acl.jsonc"
   },
   "database": {
-    "enabled": false,
+    "enabled": true,
     "connectionString": "",
     "connectionStringEnvironmentVariable": "OP77_DATABASE_CONNECTION",
     "maxRows": 10000
