@@ -22,14 +22,17 @@ end
 
 -- -- сообщить серверу, кем загружен мир -------------------------------------------
 
-local function bootstrapReady()
+-- Персонаж в мире: тело выбрано (phase) и уже стоит в загруженном мире
+-- (playerReset). worldReady приходит раньше, на старте стриминга, когда тела
+-- ещё нет и строить сцену не от чего.
+local function playerInWorld()
     local ok, bootstrap = pcall(Open77.session.characterBootstrap)
     return ok and type(bootstrap) == "table" and bootstrap.phase == "ready"
+        and bootstrap.playerReset == "complete"
 end
 
 local function report()
-    -- Мир меню (до выбора тела) — не тот мир, в котором играет персонаж.
-    if not bootstrapReady() then return end
+    if not playerInWorld() then return end
     local ok, key = pcall(Open77.exports.callSync, "open77_appearance", "characterKey")
     if not ok or type(key) ~= "string" then
         print("[rp_charselect] ключ персонажа недоступен: " .. tostring(key))
@@ -83,10 +86,19 @@ local function shot(mode)
     }
 end
 
+local showLook -- ниже; сцена вызывает его, когда наконец построилась
+
 local function startScene(mode)
     if not scene then
         local me = Open77.character.state()
-        if not me or not me.position then return end
+        if not me or not me.position then
+            -- тело ещё не появилось: повторим, пока экран открыт
+            CreateThread(function()
+                Wait(500)
+                if state and state.mode == mode and not scene then startScene(mode) end
+            end)
+            return
+        end
         local f = me.forward or { x = 0, y = 1 }
         local length = math.sqrt(f.x * f.x + f.y * f.y)
         if length < 0.01 then f, length = { x = 0, y = 1 }, 1 end
@@ -103,6 +115,8 @@ local function startScene(mode)
         return
     end
     camera = created
+    -- снимок могли получить раньше, чем появилась сцена
+    if mode == "select" and wanted and looks[wanted] and previewId ~= wanted then showLook(wanted) end
     CreateThread(function()
         -- Во время смены перспективы activate отвечает camera_unavailable: повторяем.
         for _ = 1, 20 do
@@ -129,7 +143,7 @@ local function stopScene()
     wanted = nil
 end
 
-local function showLook(id)
+showLook = function(id)
     removePreview()
     local look = looks[id]
     if not scene or not look then return end
@@ -254,6 +268,13 @@ end)
 
 AddEventHandler("onClientResourceStop", function(name)
     if name == GetCurrentResourceName() then closeAll() end
+end)
+
+-- Тело (пере)появилось в мире: старые камера и манекен ушли вместе с прежним
+-- миром, строим заново по свежей позиции.
+AddEventHandler("open77:playerReset:complete", function()
+    scene, camera, preview, previewId = nil, nil, nil, nil
+    report()
 end)
 
 -- -- снимок внешности для манекена --------------------------------------------------
