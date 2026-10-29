@@ -88,6 +88,46 @@ RegisterCommand("rp.kick", function(source, args)
     end
 end, true)
 
+-- rp.whitelist <add|remove> <id|license>
+RegisterCommand("rp.whitelist", function(source, args)
+    local action = args[1]
+    local license, playerId = resolveTarget(args[2])
+    if (action ~= "add" and action ~= "remove") or not license then
+        Util.reply(source, "Использование: rp.whitelist <add|remove> <ID игрока|license>")
+        return
+    end
+    local actor = actorOf(source)
+    local affected, err
+    if action == "add" then
+        -- Аккаунт мог ещё ни разу не заходить: создаём строку заранее.
+        affected, err = Db.update([[
+            INSERT INTO rp_accounts (license, whitelisted_at, whitelisted_by) VALUES (?, NOW(), ?)
+            ON DUPLICATE KEY UPDATE whitelisted_at = COALESCE(whitelisted_at, NOW()),
+                whitelisted_by = COALESCE(whitelisted_by, VALUES(whitelisted_by))
+        ]], { license, actor })
+    else
+        affected, err = Db.update(
+            "UPDATE rp_accounts SET whitelisted_at = NULL, whitelisted_by = NULL WHERE license = ? AND whitelisted_at IS NOT NULL",
+            { license })
+    end
+    if err then
+        Util.reply(source, "Ошибка БД, см. лог сервера.")
+        return
+    end
+    Log.audit("whitelist_" .. action, actor, license, nil)
+
+    local onlineId, account = Accounts.byLicense(license)
+    if account then account.whitelisted = action == "add" end
+    if action == "add" then
+        Util.reply(source, "%s добавлен в whitelist.", license)
+    else
+        Util.reply(source, (tonumber(affected) or 0) > 0 and "%s убран из whitelist." or "%s и так не был в whitelist.", license)
+        if onlineId and Tune.whitelistEnabled and not Accounts.bypassesWhitelist(onlineId) then
+            Open77.players.disconnect(onlineId, Util.kickText(Accounts.noAccessMessage(license)))
+        end
+    end
+end, true)
+
 -- rp.account <id|license>
 RegisterCommand("rp.account", function(source, args)
     local license, playerId = resolveTarget(args[1])
@@ -97,7 +137,8 @@ RegisterCommand("rp.account", function(source, args)
     end
     local row, err = Db.single([[
         SELECT last_name, DATE_FORMAT(first_seen, '%d.%m.%Y %H:%i') AS first_seen,
-               DATE_FORMAT(last_seen, '%d.%m.%Y %H:%i') AS last_seen, playtime_seconds
+               DATE_FORMAT(last_seen, '%d.%m.%Y %H:%i') AS last_seen, playtime_seconds,
+               whitelisted_at IS NOT NULL AS whitelisted
         FROM rp_accounts WHERE license = ?
     ]], { license })
     if err then
@@ -111,7 +152,8 @@ RegisterCommand("rp.account", function(source, args)
     local ban
     ban, err = Bans.findByLicense(license)
     local banText = err and "ошибка проверки" or (ban and ("#" .. tostring(ban.id) .. " " .. (ban.until_text or "навсегда")) or "нет")
-    Util.reply(source, "%s | %s | онлайн: %s | первый вход %s, последний %s | в игре %.1f ч | бан: %s",
+    Util.reply(source, "%s | %s | онлайн: %s | whitelist: %s | первый вход %s, последний %s | в игре %.1f ч | бан: %s",
         license, row.last_name, playerId and ("ID " .. playerId) or "нет",
+        (tonumber(row.whitelisted) == 1 or row.whitelisted == true) and "да" or "нет",
         row.first_seen, row.last_seen, (tonumber(row.playtime_seconds) or 0) / 3600, banText)
 end, true)

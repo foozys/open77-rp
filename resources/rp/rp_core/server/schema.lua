@@ -59,3 +59,12 @@ Migrations.add(2, "accounts_and_bans", {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ]],
 })
+
+-- Допуск по анкете на уровне аккаунта.
+Migrations.add(3, "account_whitelist", {
+    [[
+        ALTER TABLE rp_accounts
+            ADD COLUMN IF NOT EXISTS whitelisted_at DATETIME NULL,
+            ADD COLUMN IF NOT EXISTS whitelisted_by VARCHAR(64) NULL
+    ]],
+})

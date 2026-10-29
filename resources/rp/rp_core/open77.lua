@@ -3,8 +3,9 @@ version "0.1.0"
 auto_start true
 
 -- database.access: миграции, аудит, аккаунты; players.life.read: Util.isAlive;
--- players.gate: проверка бана на входе; players.disconnect: кик забаненных
-permissions { "database.access", "players.life.read", "players.gate", "players.disconnect" }
+-- players.gate: проверка бана на входе; players.disconnect: кик забаненных;
+-- acl.read: обход whitelist для админов (rp.whitelist.bypass)
+permissions { "database.access", "players.life.read", "players.gate", "players.disconnect", "acl.read" }
 
 -- Порядок важен: каждый файл использует глобалы предыдущих.
 server_script "server/config.lua"

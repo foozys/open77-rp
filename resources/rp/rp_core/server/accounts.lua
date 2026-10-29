@@ -15,6 +15,22 @@ function Accounts.byLicense(license)
     end
 end
 
+function Accounts.bypassesWhitelist(playerId)
+    local allowed, reason = Open77.acl.isAllowed(playerId, "rp.whitelist.bypass")
+    if reason then log.warn("проверка ACL игрока %d: %s", playerId, tostring(reason)) end
+    return allowed == true
+end
+
+-- Игрок без допуска должен увидеть свой license: по нему админ его добавит.
+function Accounts.noAccessMessage(license)
+    local url = Tune.applicationUrl
+    if url ~= "" then
+        local text = string.format("Нет допуска. Анкета: %s ID: %s", url, license)
+        if #text <= 127 then return text end
+    end
+    return string.format("Нет допуска, подайте анкету. Ваш ID: %s", license)
+end
+
 local function kick(playerId, text)
     local ok, reason = Open77.players.disconnect(playerId, Util.kickText(text))
     if not ok then log.warn("не удалось отключить игрока %d: %s", playerId, tostring(reason)) end
@@ -111,6 +127,24 @@ function Accounts.load(playerId)
         log.info("игрок %d (%s) отключён: бан #%s", playerId, account.license, tostring(ban.id))
         Accounts.online[playerId] = nil
         kick(playerId, Bans.message(ban))
+        return
+    end
+
+    local whitelisted
+    whitelisted, err = Db.scalar(
+        "SELECT whitelisted_at IS NOT NULL FROM rp_accounts WHERE license = ?", { account.license })
+    if Accounts.online[playerId] ~= account then return end
+    if err then
+        log.error("проверка whitelist %s: %s", account.license, err)
+        Accounts.online[playerId] = nil
+        kick(playerId, MSG_DB_ERROR)
+        return
+    end
+    account.whitelisted = tonumber(whitelisted) == 1 or whitelisted == true
+    if Tune.whitelistEnabled and not account.whitelisted and not Accounts.bypassesWhitelist(playerId) then
+        log.info("игрок %d (%s) без допуска, отключён", playerId, account.license)
+        Accounts.online[playerId] = nil
+        kick(playerId, Accounts.noAccessMessage(account.license))
         return
     end
 

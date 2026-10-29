@@ -16,6 +16,21 @@ RpConfig = {
             apply = "live", group = "Ядро", label = "Аудит в БД",
             description = "Писать значимые действия (выдача денег, баны, админ-команды) в таблицу rp_audit_log.",
         },
+        whitelistEnabled = {
+            value = true, type = "boolean",
+            apply = "live", group = "Доступ", label = "Whitelist включён",
+            description = "Пускать только аккаунты с одобренной анкетой (rp.whitelist add). Админы с правом ACL rp.whitelist.bypass проходят всегда.",
+        },
+        applicationUrl = {
+            value = "", type = "string",
+            apply = "live", group = "Доступ", label = "Где подать анкету",
+            description = "Короткая ссылка (Discord, сайт), которую видит игрок без допуска. Сообщение ограничено 127 байтами, длинная ссылка не поместится.",
+        },
+        maxCharacters = {
+            value = 1, type = "integer", min = 1, max = 5,
+            apply = "live", group = "Персонажи", label = "Слотов на аккаунт",
+            description = "Сколько персонажей может быть у одного аккаунта. Уменьшение не удаляет существующих персонажей.",
+        },
     },
 }
 
