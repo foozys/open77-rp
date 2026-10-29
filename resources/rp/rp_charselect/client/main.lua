@@ -67,17 +67,10 @@ local function spot()
     return { x = p.x + f.x * 3.0, y = p.y + f.y * 3.0, z = p.z }
 end
 
-local function shot(mode)
+-- Камера перед игроком, смотрит на манекен; сам игрок за кадром. На своё
+-- тело смотреть нельзя: от первого лица игра рисует его без головы.
+local function shot()
     local p, f = scene.position, scene.forward
-    if mode == "profile" then
-        -- лицом к самому игроку: он только что создал внешность
-        return {
-            position = { x = p.x + f.x * 1.4, y = p.y + f.y * 1.4, z = p.z + 1.6 },
-            lookAt = { x = p.x, y = p.y, z = p.z + 1.45 },
-            fov = 35,
-        }
-    end
-    -- камера перед игроком, смотрит на манекен; сам игрок за кадром
     local s = spot()
     return {
         position = { x = p.x + f.x * 0.6, y = p.y + f.y * 0.6, z = p.z + 1.45 },
@@ -86,7 +79,7 @@ local function shot(mode)
     }
 end
 
-local showLook -- ниже; сцена вызывает его, когда наконец построилась
+local showLook, showSelf -- ниже; сцена вызывает их, когда наконец построилась
 
 local function startScene(mode)
     if not scene then
@@ -109,14 +102,17 @@ local function startScene(mode)
         }
     end
     if camera then Open77.camera.destroy(camera); camera = nil end
-    local created, reason = Open77.camera.create(shot(mode))
+    local created, reason = Open77.camera.create(shot())
     if not created then
         print("[rp_charselect] камера: " .. tostring(reason))
         return
     end
     camera = created
-    -- снимок могли получить раньше, чем появилась сцена
-    if mode == "select" and wanted and looks[wanted] and previewId ~= wanted then showLook(wanted) end
+    if mode == "profile" then
+        showSelf()
+    elseif wanted and looks[wanted] and previewId ~= wanted then
+        showLook(wanted) -- снимок могли получить раньше, чем появилась сцена
+    end
     CreateThread(function()
         -- Во время смены перспективы activate отвечает camera_unavailable: повторяем.
         for _ = 1, 20 do
@@ -158,6 +154,24 @@ showLook = function(id)
         return
     end
     preview, previewId = created, id
+end
+
+-- Анкета: манекен с телом, которое игрок только что создал в редакторе.
+showSelf = function()
+    CreateThread(function()
+        -- Тело надевается не мгновенно: ждём, пока снимок станет непустым.
+        for _ = 1, 20 do
+            if not state or state.mode ~= "profile" or not scene then return end
+            local body = Open77.appearance.captureBody()
+            if type(body) == "table" and type(body.groups) == "table" and #body.groups > 0 then
+                looks.self = { body = body }
+                showLook("self")
+                return
+            end
+            Wait(500)
+        end
+        print("[rp_charselect] не удалось снять тело для анкеты")
+    end)
 end
 
 local function showCharacter(id)
