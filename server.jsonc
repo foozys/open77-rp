@@ -128,6 +128,7 @@
       "rp/rp_inventory_ui",
       "rp/rp_jobs",
       "rp/rp_admin",
+      "rp/rp_admin_ui",
       "rp/rp_needs",
       "rp/rp_shops",
       "rp/rp_shops_ui",
