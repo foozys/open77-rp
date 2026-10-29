@@ -15,15 +15,9 @@ function Migrations.add(version, name, statements)
     Migrations.list[#Migrations.list + 1] = { version = version, name = name, statements = statements }
 end
 
-local function await(method, sql, params)
-    local ok, result = pcall(method.await, sql, params)
-    if not ok then return nil, tostring(result) end
-    return result
-end
-
 -- Вызывать из корутины (Open77.database.ready, CreateThread). Возвращает true или false, reason.
 function Migrations.run(module)
-    local _, err = await(Open77.database.update, [[
+    local _, err = Db.update([[
         CREATE TABLE IF NOT EXISTS rp_schema_version (
             module     VARCHAR(32)  NOT NULL,
             version    INT          NOT NULL,
@@ -35,7 +29,7 @@ function Migrations.run(module)
     if err then return false, "bootstrap: " .. err end
 
     local current
-    current, err = await(Open77.database.scalar,
+    current, err = Db.scalar(
         "SELECT COALESCE(MAX(version), 0) FROM rp_schema_version WHERE module = ?", { module })
     if err then return false, "read version: " .. err end
     current = math.tointeger(tonumber(current)) or 0
@@ -47,12 +41,12 @@ function Migrations.run(module)
         if m.version > current then
             log.info("%s: применяю v%d %s", module, m.version, m.name)
             for i, sql in ipairs(m.statements) do
-                _, err = await(Open77.database.update, sql)
+                _, err = Db.update(sql)
                 if err then
                     return false, string.format("v%d %s, утверждение %d: %s", m.version, m.name, i, err)
                 end
             end
-            _, err = await(Open77.database.insert,
+            _, err = Db.insert(
                 "INSERT INTO rp_schema_version (module, version, name) VALUES (?, ?, ?)",
                 { module, m.version, m.name })
             if err then return false, string.format("v%d запись версии: %s", m.version, err) end

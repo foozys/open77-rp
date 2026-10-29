@@ -15,6 +15,7 @@ local queued, reason = Open77.database.ready(function()
     log.info("ядро готово, схема v%d", result)
     local sent, sendReason = TriggerEvent("rp_core:ready")
     if sent == false then log.warn("rp_core:ready не отправлено: %s", tostring(sendReason)) end
+    Accounts.loadOnline()
 end)
 if not queued then log.error("база данных недоступна: %s", tostring(reason)) end
 
@@ -30,6 +31,14 @@ end)
 
 exports("license", function(playerId)
     return Util.license(playerId)
+end)
+
+-- license игрока, чей аккаунт загружен и не забанен; иначе nil.
+exports("account_license", function(playerId)
+    local id = Util.toPlayerId(playerId)
+    local account = id and Accounts.online[id]
+    if not account or not account.loaded then return nil end
+    return account.license
 end)
 
 exports("audit", function(action, actor, target, details)
@@ -50,15 +59,3 @@ RegisterCommand("rp.status", function()
     log.info("БД готова: %s, схема rp_core v%d, уровень лога: %s, аудит: %s",
         tostring(Core.dbReady), Core.schemaVersion, Tune.logLevel, tostring(Tune.auditLog))
 end, true)
-
--- Временная диагностика до появления аккаунтов: проверяем, что license читается.
-AddEventHandler("onPlayerReady", function(playerIdStr, detail)
-    local playerId = Util.toPlayerId(playerIdStr)
-    if playerId == nil then return end
-    local license, licenseReason = Util.license(playerId)
-    if license == nil then
-        log.warn("игрок %d: license недоступен (%s)", playerId, tostring(licenseReason))
-        return
-    end
-    log.info("игрок %d готов (%s), license=%s", playerId, tostring(detail), license)
-end)
