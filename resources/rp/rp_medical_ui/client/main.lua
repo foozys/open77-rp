@@ -9,7 +9,8 @@ local function send(event, payload)
     if page and pageReady then page:send(event, payload or {}) end
 end
 
--- Раненый лежит неподвижно (камера свободна, тело держит поза), руки не поднимаются в
+-- Раненый не ходит (блок Movement; позу держит анимация, камера свободна — без
+-- freezeRotation/freezePosition, они блокируют камеру), руки не поднимаются в
 -- боевую стойку (Alt), контекстное меню (тоже Alt) не открывается. Раненый жив (сервер
 -- поднимает его под позу), поэтому блокировки держатся; подтверждаем их раз в секунду.
 local lockToken = nil
@@ -27,7 +28,6 @@ local function lock()
     pcall(function() Open77.exports.call("open77_contextmenu", "close") end)
     CreateThread(function()
         while lockToken == token do
-            Open77.players.freezePosition(true)
             -- Alt в игре поднимает руки в боевую стойку: запрещаем оружие (и кулаки) и прицел.
             Open77.players.allowWeapons(false)
             Open77.players.allowAim(false)
