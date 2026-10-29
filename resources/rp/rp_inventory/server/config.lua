@@ -7,7 +7,9 @@
 -- color — цвет плашки в окне; use = "consume" — при использовании тратится одна штука;
 -- heal — доля здоровья, которую восстанавливает (1 — полностью); раненым быть обязательно;
 -- unique = true — каждая штука отдельная, со своими данными (денежная щепка хранит сумму);
--- use = "chip" — вставить щепку: сумма зачисляется на счёт.
+-- use = "chip" — вставить щепку: сумма зачисляется на счёт;
+-- use = "event" — не тратится, другой ресурс ловит событие rp_inventory:used
+-- (ключ от машины — rp_vehicles); useLabel — надпись кнопки вместо «Использовать».
 -- id предмета: a-z, 0-9 и _, до 64 символов. Удалять предмет из каталога, пока он
 -- у кого-то есть, нельзя: open77_transactions откажет в операциях с ним.
 
@@ -25,7 +27,8 @@ InvConfig = {
 
     items = {
         credchip   = { label = "Денежная щепка",    labelEn = "Cred chip",    w = 1, h = 1, weightG = 10,   stack = 1,  color = "#f3e600", use = "chip", unique = true },
-        water     = { label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
+        carkey     = { label = "Ключ от машины",    labelEn = "Car key",      w = 1, h = 1, weightG = 20,   stack = 1,  color = "#5ef6ff", use = "event", unique = true, useLabel = "Запереть / открыть" },
+        water     ={ label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
         sandwich   = { label = "Сэндвич",           labelEn = "Sandwich",     w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
         cigarettes = { label = "Сигареты",          labelEn = "Cigarettes",   w = 1, h = 1, weightG = 40,   stack = 20, color = "#8a8a8a", use = "consume" },
         lighter    = { label = "Зажигалка",         labelEn = "Lighter",      w = 1, h = 1, weightG = 30,   stack = 1,  color = "#d65a31" },

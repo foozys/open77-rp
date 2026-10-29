@@ -78,8 +78,11 @@ AddEventHandler("onClientResourceStart", function(name)
     page:on("ui:ready", function() pageReady = true end)
     page:on("veh:close", close)
     page:on("veh:buy", function(p) if type(p) == "table" then TriggerServerEvent("rp_vehicles:buy", tostring(p.model)) end end)
-    page:on("veh:takeOut", function(p) if type(p) == "table" then TriggerServerEvent("rp_vehicles:takeOut", tonumber(p.id)) end end)
-    page:on("veh:park", function(p) if type(p) == "table" then TriggerServerEvent("rp_vehicles:park", tonumber(p.id)) end end)
+    for _, action in ipairs({ "takeOut", "park", "tow", "key", "rekey" }) do
+        page:on("veh:" .. action, function(p)
+            if type(p) == "table" then TriggerServerEvent("rp_vehicles:" .. action, tonumber(p.id)) end
+        end)
+    end
 
     local ok, why = RegisterKeyMapping("rp_vehicle_lock", "Замок машины", "L", function()
         TriggerServerEvent("rp_vehicles:lock")

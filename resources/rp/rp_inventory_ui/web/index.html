@@ -113,7 +113,7 @@
     el.style.width = `${w * CELL}px`;
     el.style.height = `${h * CELL}px`;
     el.style.background = `linear-gradient(160deg, ${d.color}cc, ${d.color}55)`;
-    const badge = stack.a != null ? `${stack.a} €$` : stack.n > 1 ? `×${stack.n}` : "";
+    const badge = stack.a != null ? `${stack.a} €$` : stack.t ? stack.t : stack.n > 1 ? `×${stack.n}` : "";
     el.innerHTML = `<div class="name"></div>${badge ? `<div class="count"></div>` : ""}`;
     el.querySelector(".name").textContent = d.label;
     if (badge) el.querySelector(".count").textContent = badge;
@@ -165,7 +165,7 @@
     const tip = $("tooltip");
     tip.innerHTML = `<div class="label"></div><div class="muted"></div>`;
     tip.querySelector(".label").textContent = d.label +
-      (stack.a != null ? ` — ${stack.a} €$` : stack.n > 1 ? ` ×${stack.n}` : "");
+      (stack.a != null ? ` — ${stack.a} €$` : stack.t ? ` — ${stack.t}` : stack.n > 1 ? ` ×${stack.n}` : "");
     tip.querySelector(".muted").textContent =
       `${kg(d.weightG * stack.n)} кг · ${d.w}×${d.h}${d.stack > 1 ? ` · до ${d.stack} в клетке` : ""}`;
     tip.style.display = "block";

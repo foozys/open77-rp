@@ -5,6 +5,7 @@
 --
 -- Права ранга:
 --   job.manage — нанимать, повышать и увольнять тех, кто ниже по рангу
+--   vehicle.tow — /tow: отправить брошенную машину в гараж владельца (rp_vehicles)
 --   остальные (ncpd.arrest и т.п.) — для будущих механик работы; другие ресурсы
 --   проверяют их экспортом rp_jobs:can(playerId, право, нужнаСмена)
 --
@@ -19,7 +20,7 @@ JobsConfig = {
             label = "NCPD", payFrom = "state",
             ranks = {
                 { label = "Кадет", salary = 300, permissions = { "ncpd.basic" } },
-                { label = "Офицер", salary = 450, permissions = { "ncpd.arrest", "ncpd.fine" } },
+                { label = "Офицер", salary = 450, permissions = { "ncpd.arrest", "ncpd.fine", "vehicle.tow" } },
                 { label = "Сержант", salary = 550, permissions = {} },
                 { label = "Лейтенант", salary = 700, permissions = { "job.manage" } },
                 { label = "Капитан", salary = 900, permissions = {} },
@@ -37,7 +38,7 @@ JobsConfig = {
         mechanic = {
             label = "Автомастерская", payFrom = "society",
             ranks = {
-                { label = "Ученик", salary = 200, permissions = { "mechanic.repair" } },
+                { label = "Ученик", salary = 200, permissions = { "mechanic.repair", "vehicle.tow" } },
                 { label = "Механик", salary = 300, permissions = {} },
                 { label = "Мастер", salary = 400, permissions = {} },
                 { label = "Владелец", salary = 500, permissions = { "job.manage" } },

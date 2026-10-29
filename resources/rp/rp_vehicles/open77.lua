@@ -4,8 +4,10 @@ auto_start true
 
 dependency "open77_transactions >=0.1.0"
 dependency "rp_core"
+-- ключи — предметы инвентаря (экспорт give_instance)
+dependency "rp_inventory"
 
--- world.vehicles: создать, сохранить, убрать машину, замок, посадка владельца;
+-- world.vehicles: создать, сохранить, убрать машину, замок;
 -- database.access: машины и точки (rp_vehicles, rp_vehicle_points);
 -- network.events: окна автосалона и гаража, клавиша замка (rp_vehicles_ui);
 -- players.life.read: позиция игрока для проверок «рядом»

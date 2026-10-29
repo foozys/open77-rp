@@ -19,7 +19,7 @@
     font: 16px/1.35 "Segoe UI", Arial, sans-serif; user-select: none; }
   #root { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
   #root.open { display: block; }
-  #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 600px; max-height: 80vh;
+  #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 760px; max-height: 80vh;
     overflow-y: auto; padding: 24px 26px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
   header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
   h1 { margin: 0; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
@@ -30,6 +30,7 @@
   .row .name { flex: 1; }
   .row .name small { display: block; color: var(--muted); font-size: 12px; }
   .row .price { font-weight: 600; }
+  .row .actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 330px; }
   button { padding: 7px 14px; border: 1px solid var(--accent); background: transparent; color: var(--accent);
     font: inherit; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
   button:hover { background: rgba(94, 246, 255, 0.12); }
@@ -70,22 +71,26 @@
     node.className = text ? (ok ? "ok" : "bad") : "";
   }
 
-  function row(name, sub, extra, label, action, disabled) {
+  // buttons: [{ label, action, title? }]
+  function row(name, sub, extra, buttons) {
     const el = document.createElement("div");
     el.className = "row";
-    el.innerHTML = `<div class="name"><span></span><small></small></div><div class="price"></div><button></button>`;
+    el.innerHTML = `<div class="name"><span></span><small></small></div><div class="price"></div><div class="actions"></div>`;
     el.querySelector(".name span").textContent = name;
     el.querySelector(".name small").textContent = sub || "";
     el.querySelector(".price").textContent = extra || "";
-    const button = el.querySelector("button");
-    button.textContent = label;
-    if (disabled) { button.disabled = true; button.dataset.off = "1"; }
-    button.addEventListener("click", () => {
-      if (busy) return;
-      setBusy(true);
-      message("");
-      action();
-    });
+    for (const b of buttons) {
+      const button = document.createElement("button");
+      button.textContent = b.label;
+      if (b.title) button.title = b.title;
+      button.addEventListener("click", () => {
+        if (busy) return;
+        setBusy(true);
+        message("");
+        b.action();
+      });
+      el.querySelector(".actions").append(button);
+    }
     $("list").append(el);
   }
 
@@ -93,7 +98,7 @@
     $("wallet").innerHTML = "На счёте <b></b>";
     $("wallet").querySelector("b").textContent = money(p.bank || 0);
     for (const m of p.models || []) {
-      row(m.label, "", money(m.price), "Купить", () => Open77.emit("veh:buy", { model: m.model }));
+      row(m.label, "", money(m.price), [{ label: "Купить", action: () => Open77.emit("veh:buy", { model: m.model }) }]);
     }
   }
 
@@ -107,14 +112,23 @@
       $("list").append(empty);
       return;
     }
+    const act = (event, id) => () => Open77.emit(event, { id });
     for (const v of list) {
-      if (!v.out) {
-        row(v.label, v.plate, "в гараже", "Выгнать", () => Open77.emit("veh:takeOut", { id: v.id }));
-      } else if (v.near) {
-        row(v.label, v.plate, "рядом", "Поставить", () => Open77.emit("veh:park", { id: v.id }));
+      const buttons = [];
+      if (v.status === "garage") {
+        buttons.push({ label: "Выгнать", action: act("veh:takeOut", v.id) });
+      } else if (v.status === "near") {
+        buttons.push({ label: "Поставить", action: act("veh:park", v.id) });
       } else {
-        row(v.label, v.plate, "в городе", "Поставить", () => {}, true);
+        buttons.push({ label: `Эвакуировать · ${money(p.towPrice)}`, action: act("veh:tow", v.id),
+                       title: "Машину доставят в гараж, где бы она ни была" });
       }
+      buttons.push({ label: `Ключ · ${money(p.keyPrice)}`, action: act("veh:key", v.id),
+                     title: "Изготовить ключ: он появится в инвентаре, его можно передать" });
+      buttons.push({ label: `Сменить замок · ${money(p.rekeyPrice)}`, action: act("veh:rekey", v.id),
+                     title: "Все прежние ключи перестанут подходить" });
+      const where = { garage: "в гараже", near: "рядом", city: "в городе" }[v.status] || "";
+      row(v.label, v.plate, where, buttons);
     }
   }
 

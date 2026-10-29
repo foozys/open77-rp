@@ -82,7 +82,7 @@ local function catalog()
     for id, def in pairs(InvConfig.items) do
         items[id] = { label = def.label, w = def.w, h = def.h, weightG = def.weightG, stack = def.stack,
                       color = def.color, usable = def.use ~= nil,
-                      useLabel = def.use == "chip" and "Вставить в нейропорт" or "Использовать" }
+                      useLabel = def.useLabel or (def.use == "chip" and "Вставить в нейропорт") or "Использовать" }
     end
     return items
 end
@@ -90,12 +90,14 @@ end
 local function push(playerId, withCatalog)
     local state = inv[playerId]
     if not state or not state.open then return end
-    -- Для окна: у щепки — сумма (a). Раскладка в БД её не хранит, она в open77_transactions.
+    -- Для окна: у щепки — сумма (a), у ключа — номер машины (t). Раскладка в БД их
+    -- не хранит, они в open77_transactions.
     local stacks = {}
     for index, stack in ipairs(state.stacks) do
         local record = stack.u and state.instances and state.instances[stack.u]
         stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r,
-                          a = record and tonumber(record.meta.amount) or nil }
+                          a = record and tonumber(record.meta.amount) or nil,
+                          t = record and type(record.meta.plate) == "string" and record.meta.plate or nil }
     end
     local ok, reason = TriggerClientEvent("rp_inventory:state", playerId, {
         cols = InvConfig.grid.cols, rows = InvConfig.grid.rows,
@@ -263,6 +265,11 @@ RegisterNetEvent("rp_inventory:use", function(index, itemId)
             refresh(playerId)
             log("info", "щепка %s: +%d игроку %d (%s)", tostring(stack.u), amount, playerId, opId)
             return notify(playerId, "Щепка считана: +%d €$ на счёт.", amount)
+        end
+        if def.use == "event" then
+            -- Предмет не тратится: действие решает другой ресурс (ключ — rp_vehicles).
+            local record = stack.u and state.instances and state.instances[stack.u]
+            return TriggerEvent("rp_inventory:used", playerId, itemId, state.characterId, record and record.meta or {})
         end
         if def.use ~= "consume" then return notify(playerId, "%s нельзя использовать.", def.label) end
         local life = Open77.players.getLifeState(playerId)
@@ -435,6 +442,40 @@ exports("fits", function(playerId, itemId, count)
     return Grid.fits(state.stacks, itemId, math.tointeger(tonumber(count)) or 1)
 end)
 
+-- Выдать персонажу игрока уникальный предмет с данными meta (ключ от машины), только
+-- для rp_*-ресурсов. price > 0 — в той же операции списать столько со счёта (деньги
+-- сгорают в sys:rp.money). Ждёт: вызывать через Open77.exports.call.
+-- id экземпляра, или nil, reason ("no_space", "insufficient_funds", …).
+exports("give_instance", function(playerId, itemId, meta, price)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    playerId = math.tointeger(tonumber(playerId))
+    local def = InvConfig.items[itemId]
+    price = math.tointeger(tonumber(price)) or 0
+    if not playerId or not def or not def.unique or type(meta) ~= "table" or price < 0 then
+        return nil, "invalid_argument"
+    end
+    local state, problem = ensure(playerId)
+    if not state then return nil, problem end
+    if state.busy then return nil, "busy" end
+    if not Grid.fits(state.stacks, itemId, 1) then return nil, "no_space" end
+    local opId = Store.newOpId("rpinst")
+    if not opId then return nil, "store_unavailable" end
+    local lines = { { instance = itemId .. "." .. opId:gsub("^rpinst:", ""), item = itemId, from = SOURCE,
+                      to = state.account, meta = meta } }
+    if price > 0 then
+        local bank = Store.bank(playerId)
+        if not bank then return nil, "no_bank" end
+        lines[2] = { money = price, from = bank, to = "sys:rp.money" }
+    end
+    state.busy = true
+    local receipt, why = Store.transfer({ opId = opId, kind = "rp.instance", reason = caller, lines = lines })
+    state.busy = false
+    if not receipt then return nil, why or "busy" end
+    refresh(playerId)
+    return lines[1].instance
+end)
+
 -- Предметы живут в памяти координатора: объявлять на каждом его ready.
 CreateThread(function() Store.define() end)
 AddEventHandler("open77_transactions:ready", function() Store.define() end)
@@ -462,7 +503,8 @@ RegisterCommand("rp.giveitem", function(source, args)
     end
     if not InvConfig.items[itemId] then return notify(source, "Нет предмета %s.", tostring(itemId)) end
     if InvConfig.items[itemId].unique then
-        return notify(source, "%s выдаётся иначе: щепку записывают со счёта (/chip <сумма>).", labelOf(itemId))
+        return notify(source, "%s выдаётся иначе: щепку записывают со счёта (/chip <сумма>), ключ делают в гараже.",
+            labelOf(itemId))
     end
     local state, problem = ensure(target)
     if not state then return notify(source, "Игрок %d: %s", target, problem) end
