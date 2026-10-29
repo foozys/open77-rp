@@ -181,17 +181,32 @@ local function place(playerId, s)
         local row = s.current
         local x, y, z = tonumber(row.pos_x), tonumber(row.pos_y), tonumber(row.pos_z)
         local placed = false
-        if x and y and z and Util.isAlive(playerId) then
-            local pending, reason = Open77.players.teleport(playerId, { x = x, y = y, z = z },
-                { heading = tonumber(row.heading), bucket = 0, dismount = true })
-            if pending then
-                local landed, err = pending:await()
-                placed = landed ~= nil
-                if not placed then log.warn("игрок %d не перенесён на место выхода: %s", playerId, tostring(err)) end
+        -- При смене персонажа другого пола open77_appearance пересоздаёт тело,
+        -- и телепорт на это время отвечает player_not_ready: повторяем.
+        for _ = 1, 15 do
+            if not (x and y and z) or Characters.sessions[playerId] ~= s then break end
+            local err
+            if Util.isAlive(playerId) then
+                local pending, reason = Open77.players.teleport(playerId, { x = x, y = y, z = z },
+                    { heading = tonumber(row.heading), bucket = 0, dismount = true })
+                if pending then
+                    local landed
+                    landed, err = pending:await()
+                    placed = landed ~= nil
+                else
+                    err = reason
+                end
             else
-                log.warn("телепорт игрока %d отклонён: %s", playerId, tostring(reason))
+                err = "player_not_alive"
             end
+            if placed then break end
+            if err ~= "player_not_ready" and err ~= "player_not_alive" and err ~= "settle_timeout" then
+                log.warn("игрок %d не перенесён на место выхода: %s", playerId, tostring(err))
+                break
+            end
+            Wait(2000)
         end
+        if x and not placed then log.warn("игрок %d остался на месте появления", playerId) end
         if Characters.sessions[playerId] ~= s then return end
         if not placed then setBucket(playerId, 0) end
         s.phase = "playing"
