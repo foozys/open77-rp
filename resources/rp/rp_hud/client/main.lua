@@ -2,6 +2,10 @@
 -- рисует. Сейчас: деньги (rp_money), работа и смена (rp_jobs), голод и жажда (rp_needs),
 -- здоровье (читаем сами; стандартная полоса здоровья игры скрыта).
 
+-- Заменить стандартную полосу здоровья игры своей (в блоке справа, над едой и водой).
+-- Сейчас выключено по решению владельца: работает стандартная полоса. Чтобы включить,
+-- поставьте true и перезапустите ресурс (игроки получат его при переподключении).
+local REPLACE_VANILLA_HEALTH = false
 local HEALTH_POLL_MS = 250
 
 local page, pageReady = nil, false
@@ -60,12 +64,14 @@ end)
 -- Стандартная полоса здоровья игры (вместе с ней — броня, память кибердеки и баффы)
 -- скрыта, пока работает этот ресурс; при его остановке платформа вернёт её сама.
 local function hideVanillaHealth()
+    if not REPLACE_VANILLA_HEALTH then return end
     local ok, reason = Open77.hud.setVisible("health", false)
     if not ok then print("[rp_hud] стандартная полоса здоровья не скрыта: " .. tostring(reason)) end
 end
 
 -- Здоровье локального игрока: в HUD при изменении хотя бы на 1%.
 CreateThread(function()
+    if not REPLACE_VANILLA_HEALTH then return end
     while true do
         Wait(HEALTH_POLL_MS)
         local stats = Open77.stats.get()
