@@ -108,7 +108,7 @@
     if (!list.length) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = "У вас нет машин. Купить — в автосалоне.";
+      empty.textContent = "У вас нет машин и ключей от чужих. Купить — в автосалоне.";
       $("list").append(empty);
       return;
     }
@@ -123,12 +123,14 @@
         buttons.push({ label: `Эвакуировать · ${money(p.towPrice)}`, action: act("veh:tow", v.id),
                        title: "Машину доставят в гараж, где бы она ни была" });
       }
-      buttons.push({ label: `Ключ · ${money(p.keyPrice)}`, action: act("veh:key", v.id),
-                     title: "Изготовить ключ: он появится в инвентаре, его можно передать" });
-      buttons.push({ label: `Сменить замок · ${money(p.rekeyPrice)}`, action: act("veh:rekey", v.id),
-                     title: "Все прежние ключи перестанут подходить" });
+      if (v.owner) {
+        buttons.push({ label: `Ключ · ${money(p.keyPrice)}`, action: act("veh:key", v.id),
+                       title: "Изготовить ключ: он появится в инвентаре, его можно передать" });
+        buttons.push({ label: `Сменить замок · ${money(p.rekeyPrice)}`, action: act("veh:rekey", v.id),
+                       title: "Все прежние ключи перестанут подходить" });
+      }
       const where = { garage: "в гараже", near: "рядом", city: "в городе" }[v.status] || "";
-      row(v.label, v.plate, where, buttons);
+      row(v.label, v.owner ? v.plate : `${v.plate} · по ключу`, where, buttons);
     }
   }
 

@@ -382,14 +382,31 @@ local function garageSpot(garage)
     return { x = spot.x, y = spot.y, z = spot.z, heading = spot.heading, bucket = garage.bucket }
 end
 
+-- Машины, которыми игрок распоряжается в гараже: свои и те, от которых у него
+-- подходящий ключ. Строки rp_vehicles с полем owner = true у своих.
+local function accessibleRows(playerId, character)
+    local keys = keysOf(playerId)
+    local sql, params, marks = "SELECT * FROM rp_vehicles WHERE character_id = ?", { character.id }, {}
+    for rpId in pairs(keys) do
+        marks[#marks + 1] = "?"
+        params[#params + 1] = rpId
+    end
+    if #marks > 0 then sql = sql .. " OR id IN (" .. table.concat(marks, ", ") .. ")" end
+    local list = {}
+    for _, row in ipairs(db("query", sql .. " ORDER BY id", params) or {}) do
+        local rpId = math.tointeger(tonumber(row.id))
+        row.owner = math.tointeger(tonumber(row.character_id)) == character.id
+        if row.owner or keys[rpId] == math.tointeger(tonumber(row.lock_gen)) then list[#list + 1] = row end
+    end
+    return list
+end
+
 local function garageList(playerId, garage)
     local character = characterOf(playerId)
     if not character then return nil end
-    local rows = db("query", "SELECT id, model, plate, state FROM rp_vehicles WHERE character_id = ? ORDER BY id",
-        { character.id }) or {}
     local list = {}
     local spot = garageSpot(garage)
-    for _, row in ipairs(rows) do
+    for _, row in ipairs(accessibleRows(playerId, character)) do
         local rpId = math.tointeger(tonumber(row.id))
         local car = alive(rpId)
         local def = VehiclesConfig.catalog[row.model]
@@ -399,7 +416,8 @@ local function garageList(playerId, garage)
             status = place and place.bucket == spot.bucket and distance(place, spot) <= VehiclesConfig.parkDistance
                 and "near" or "city"
         end
-        list[#list + 1] = { id = rpId, label = def and def.label or row.model, plate = row.plate, status = status }
+        list[#list + 1] = { id = rpId, label = def and def.label or row.model, plate = row.plate, status = status,
+                            owner = row.owner }
     end
     return list
 end
@@ -480,23 +498,37 @@ RegisterNetEvent("rp_vehicles:buy", function(model)
     result(playerId, true, string.format("Куплено: %s, номер %s. Забрать — в любом гараже.", def.label, plate))
 end)
 
--- Своя машина для действия в гараже: { row, garage, id, session }, или nil, текст отказа.
-local function ownCar(playerId, rpId)
+local function ownerPlayer(characterId)
+    for _, id in ipairs(onlinePlayers()) do
+        local character = characterOf(id)
+        if character and character.id == characterId then return id end
+    end
+    return nil
+end
+
+-- Машина для действия в гараже: своя или с подходящим ключом (ownerOnly — только своя).
+-- { row, garage, id, session }, или nil, текст отказа.
+local function garageCar(playerId, rpId, ownerOnly)
     local garage = validSession(playerId, "garage")
     if not garage then return nil, "Гараж закрыт — откройте его снова." end
     local character = characterOf(playerId)
     rpId = math.tointeger(tonumber(rpId))
-    local row = rpId and character and db("single", "SELECT * FROM rp_vehicles WHERE id = ?", { rpId })
-    if not row or math.tointeger(tonumber(row.character_id)) ~= character.id then return nil, "Это не ваша машина." end
-    return { row = row, garage = garage, id = rpId, session = sessions[playerId] }
+    if not character or not rpId then return nil, "Это не ваша машина." end
+    for _, row in ipairs(accessibleRows(playerId, character)) do
+        if math.tointeger(tonumber(row.id)) == rpId then
+            if ownerOnly and not row.owner then return nil, "Это может сделать только хозяин машины." end
+            return { row = row, garage = garage, id = rpId, session = sessions[playerId] }
+        end
+    end
+    return nil, "Это не ваша машина, и ключа от неё у вас нет."
 end
 
--- Обработчик кнопки гаража: проверка владельца и защита от двойного нажатия.
-local function garageAction(event, fn)
+-- Обработчик кнопки гаража: проверка доступа и защита от двойного нажатия.
+local function garageAction(event, ownerOnly, fn)
     RegisterNetEvent(event, function(rpId)
         local playerId = tonumber(source)
         if not playerId then return end
-        local car, problem = ownCar(playerId, rpId)
+        local car, problem = garageCar(playerId, rpId, ownerOnly)
         if not car then return result(playerId, false, problem, true) end
         if car.session.busy then return end
         car.session.busy = true
@@ -509,7 +541,7 @@ local function garageAction(event, fn)
     end)
 end
 
-garageAction("rp_vehicles:takeOut", function(playerId, car)
+garageAction("rp_vehicles:takeOut", false, function(playerId, car)
     if car.row.state == "out" then
         return result(playerId, false, "Машина в городе. Не можете найти — эвакуируйте её в гараж.", true)
     end
@@ -520,7 +552,7 @@ garageAction("rp_vehicles:takeOut", function(playerId, car)
     notify(playerId, "Машина %s выехала. Замок — L.", car.row.plate)
 end)
 
-garageAction("rp_vehicles:park", function(playerId, car)
+garageAction("rp_vehicles:park", false, function(playerId, car)
     local world = alive(car.id)
     local place = world and placeOfVehicle(world.vehicleId)
     local spot = garageSpot(car.garage)
@@ -532,7 +564,7 @@ garageAction("rp_vehicles:park", function(playerId, car)
     result(playerId, true, "Машина в гараже.", true)
 end)
 
-garageAction("rp_vehicles:tow", function(playerId, car)
+garageAction("rp_vehicles:tow", false, function(playerId, car)
     if car.row.state ~= "out" then return result(playerId, false, "Машина и так в гараже.", true) end
     local world = alive(car.id)
     if world and occupied(world.vehicleId) then return result(playerId, false, "В машине кто-то есть.", true) end
@@ -543,9 +575,11 @@ garageAction("rp_vehicles:tow", function(playerId, car)
     park(car.id)
     log("info", "эвакуация: машина #%d (%s) по заказу игрока %d", car.id, car.row.plate, playerId)
     result(playerId, true, string.format("Машину %s эвакуировали в гараж.", car.row.plate), true)
+    local owner = not car.row.owner and ownerPlayer(math.tointeger(tonumber(car.row.character_id)))
+    if owner then notify(owner, "Вашу машину %s эвакуировал в гараж держатель ключа.", car.row.plate) end
 end)
 
-garageAction("rp_vehicles:key", function(playerId, car)
+garageAction("rp_vehicles:key", true, function(playerId, car)
     local instance, why = await("rp_inventory", "give_instance", playerId, KEY_ITEM,
         { vehicle = car.id, plate = car.row.plate, gen = math.tointeger(tonumber(car.row.lock_gen)) or 1 },
         VehiclesConfig.keyPrice)
@@ -554,7 +588,7 @@ garageAction("rp_vehicles:key", function(playerId, car)
     result(playerId, true, string.format("Ключ от %s готов и лежит в инвентаре.", car.row.plate), true)
 end)
 
-garageAction("rp_vehicles:rekey", function(playerId, car)
+garageAction("rp_vehicles:rekey", true, function(playerId, car)
     local bank = bankOf(playerId)
     if not bank then return result(playerId, false, "Счёт недоступен.", true) end
     local receipt, why = pay(bank, VehiclesConfig.rekeyPrice, "rp.car.rekey")
@@ -627,14 +661,6 @@ AddEventHandler("rp_inventory:used", function(playerIdArg, itemId, _, meta)
 end)
 
 -- -- эвакуация ----------------------------------------------------------------------------
-
-local function ownerPlayer(characterId)
-    for _, id in ipairs(onlinePlayers()) do
-        local character = characterOf(id)
-        if character and character.id == characterId then return id end
-    end
-    return nil
-end
 
 -- /tow — механик или полицейский на смене отправляет ближайшую пустую личную машину
 -- в гараж владельца (право работы vehicle.tow, rp_jobs).
