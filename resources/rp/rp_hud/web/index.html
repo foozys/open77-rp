@@ -32,12 +32,13 @@
     text-transform: uppercase; border: 1px solid currentColor; vertical-align: 2px; }
   #duty.on { color: var(--up); }
   #duty.off { color: #8fa3a8; }
-  #needs { margin-top: 12px; display: none; width: 200px; margin-left: auto; }
+  #needs { margin-top: 12px; display: none; width: 230px; margin-left: auto; }
   #needs.visible { display: block; }
   .need { display: flex; align-items: center; gap: 8px; margin-top: 5px; text-shadow: var(--shadow); }
-  .need .label { width: 46px; text-align: right; font-size: 11px; color: #e8f1f2; }
+  .need .label { width: 76px; text-align: right; font-size: 11px; color: #e8f1f2; }
   .need .bar { flex: 1; height: 6px; background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 3px rgba(0, 0, 0, 0.8); }
   .need .fill { height: 100%; transition: width 0.6s; }
+  #healthFill { background: #e5484d; }
   #hungerFill { background: #f0a020; }
   #thirstFill { background: #3fa9f5; }
   .need.low .fill { animation: blink 1s steps(2, start) infinite; }
@@ -64,6 +65,7 @@
     <div class="row"><span id="jobRank"></span></div>
   </div>
   <div id="needs">
+    <div class="need" id="health"><span class="label">Здоровье</span><div class="bar"><div class="fill" id="healthFill"></div></div></div>
     <div class="need" id="hunger"><span class="label">Еда</span><div class="bar"><div class="fill" id="hungerFill"></div></div></div>
     <div class="need" id="thirst"><span class="label">Вода</span><div class="bar"><div class="fill" id="thirstFill"></div></div></div>
   </div>
@@ -118,20 +120,29 @@
     duty.className = job.duty ? "on" : "off";
   }
 
-  function renderNeeds(needs) {
-    $("needs").classList.toggle("visible", !!needs);
-    if (!needs) return;
-    for (const key of ["hunger", "thirst"]) {
-      const value = Math.max(0, Math.min(100, needs[key]));
-      $(`${key}Fill`).style.width = `${value}%`;
-      $(key).classList.toggle("low", value <= 20);
+  function setBar(key, value) {
+    value = Math.max(0, Math.min(100, value));
+    $(`${key}Fill`).style.width = `${value}%`;
+    $(key).classList.toggle("low", value <= 20);
+  }
+
+  function renderNeeds(needs, health) {
+    $("needs").classList.toggle("visible", !!needs || !!health);
+    $("health").style.display = health ? "" : "none";
+    $("hunger").style.display = needs ? "" : "none";
+    $("thirst").style.display = needs ? "" : "none";
+    if (health) setBar("health", health.percent);
+    if (needs) {
+      setBar("hunger", needs.hunger);
+      setBar("thirst", needs.thirst);
     }
   }
 
   Open77.on("hud:state", state => {
-    renderMoney(state && state.money);
-    renderJob(state && state.money && state.job);
-    renderNeeds(state && state.money && state.needs);
+    const playing = state && state.money; // без выбранного персонажа HUD скрыт
+    renderMoney(playing);
+    renderJob(playing && state.job);
+    renderNeeds(playing && state.needs, playing && state.health);
   });
   Open77.ready();
 </script>

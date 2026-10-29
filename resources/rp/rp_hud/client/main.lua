@@ -1,8 +1,11 @@
 -- Постоянный HUD сервера. Значения присылают серверные ресурсы, клиент только
--- рисует. Сейчас: деньги (rp_money), работа и смена (rp_jobs), голод и жажда (rp_needs).
+-- рисует. Сейчас: деньги (rp_money), работа и смена (rp_jobs), голод и жажда (rp_needs),
+-- здоровье (читаем сами; стандартная полоса здоровья игры скрыта).
+
+local HEALTH_POLL_MS = 250
 
 local page, pageReady = nil, false
-local state = { money = false, job = false, needs = false } -- последнее состояние, для страницы после загрузки
+local state = { money = false, job = false, needs = false, health = false } -- для страницы после загрузки
 
 local function push()
     if page and pageReady then page:send("hud:state", state) end
@@ -54,8 +57,34 @@ RegisterNetEvent("rp_hud:needs", function(values)
     push()
 end)
 
+-- Стандартная полоса здоровья игры (вместе с ней — броня, память кибердеки и баффы)
+-- скрыта, пока работает этот ресурс; при его остановке платформа вернёт её сама.
+local function hideVanillaHealth()
+    local ok, reason = Open77.hud.setVisible("health", false)
+    if not ok then print("[rp_hud] стандартная полоса здоровья не скрыта: " .. tostring(reason)) end
+end
+
+-- Здоровье локального игрока: в HUD при изменении хотя бы на 1%.
+CreateThread(function()
+    while true do
+        Wait(HEALTH_POLL_MS)
+        local stats = Open77.stats.get()
+        local health = type(stats) == "table" and stats.health
+        local percent = type(health) == "table" and math.floor((tonumber(health.fraction) or 0) * 100 + 0.5) or nil
+        local shown = state.health and state.health.percent
+        if percent ~= shown then
+            state.health = percent and { percent = percent } or false
+            push()
+        end
+    end
+end)
+
 AddEventHandler("onClientResourceStart", function(name)
     if name ~= GetCurrentResourceName() then return end
     createPage()
+    hideVanillaHealth()
     TriggerServerEvent("rp_hud:request")
 end)
+
+-- После перезагрузки мира игра заново поднимает свои виджеты: повторяем заявку.
+AddEventHandler("open77:playerReset:complete", hideVanillaHealth)
