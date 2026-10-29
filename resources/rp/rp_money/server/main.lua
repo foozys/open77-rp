@@ -133,26 +133,48 @@ AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
 end)
 
 -- -- зарплата ---------------------------------------------------------------------
--- Период — paydayMinutes по часам сервера. Кто провёл в игре за период не меньше
--- paydayMinOnline минут, получает пособие на счёт в начале следующего.
+-- Период — paydayMinutes по часам сервера, выплата в начале следующего, на счёт.
+--   работа (rp_jobs): на смене не меньше paydayMinOnline минут → зарплата ранга,
+--     из казны города (выпуск из sys:rp.money) или из кассы организации "soc:<работа>";
+--     без смены — ничего;
+--   без работы: в игре не меньше paydayMinOnline минут → пособие paydayAmount.
 -- opId "rppay:<персонаж>:<период>" — за один период не заплатит дважды.
 
-local tracked = {} -- [playerId] = { characterId, period, seconds }
+local tracked = {} -- [playerId] = { characterId, period, seconds, duty, job }
 
-local function payday(playerId, characterId, period)
-    local amount = MoneyTune.paydayAmount
-    if amount <= 0 then return end
+-- Работа игрока из rp_jobs (если он запущен): { id, label, rank, salary, payFrom, duty } или nil.
+local function jobOf(playerId)
+    local ok, job = pcall(Open77.exports.callSync, "rp_jobs", "job", playerId)
+    return ok and type(job) == "table" and job or nil
+end
+
+local function payday(playerId, characterId, period, worked)
+    local minimum = MoneyTune.paydayMinOnline * 60
+    local amount, from, label
+    if worked.job then
+        if worked.duty < minimum then return end
+        amount, label = worked.job.salary, worked.job.label .. ", " .. worked.job.rank
+        from = worked.job.payFrom == "society" and ("soc:" .. worked.job.id) or SOURCE
+    else
+        if worked.seconds < minimum then return end
+        amount, from, label = MoneyTune.paydayAmount, SOURCE, "пособие"
+    end
+    if not amount or amount <= 0 then return end
     local subject = core("character_subject", characterId)
     if not subject then return end
     local receipt, why = Ledger.transfer({
         opId = "rppay:" .. characterId .. ":" .. period, kind = "rp.payday", reason = "payday",
-        lines = { { money = amount, from = SOURCE, to = "bank:" .. subject } },
+        lines = { { money = amount, from = from, to = "bank:" .. subject } },
     })
     if not receipt then
-        log("error", "зарплата #%d за период %d: %s", characterId, period, explain(why))
+        if why == "insufficient_funds" and from ~= SOURCE then
+            reply(playerId, "В кассе «%s» не хватает денег на зарплату.", worked.job.label)
+        else
+            log("error", "зарплата #%d за период %d: %s", characterId, period, explain(why))
+        end
         return
     end
-    if not receipt.replay then reply(playerId, "Зарплата: +%s на счёт.", formatMoney(amount)) end
+    if not receipt.replay then reply(playerId, "Зарплата (%s): +%s на счёт.", label, formatMoney(amount)) end
 end
 
 CreateThread(function()
@@ -165,18 +187,20 @@ CreateThread(function()
             if character then
                 local t = tracked[playerId]
                 if not t or t.characterId ~= character.id then
-                    t = { characterId = character.id, period = period, seconds = 0 }
+                    t = { characterId = character.id, period = period, seconds = 0, duty = 0 }
                     tracked[playerId] = t
                 end
                 if t.period ~= period then
-                    local due, paidPeriod = t.seconds >= MoneyTune.paydayMinOnline * 60, t.period
-                    t.period, t.seconds = period, 0
-                    if due then
-                        local id = character.id
-                        CreateThread(function() payday(playerId, id, paidPeriod) end)
-                    end
+                    local worked = { seconds = t.seconds, duty = t.duty, job = t.job }
+                    local paidPeriod, id = t.period, character.id
+                    t.period, t.seconds, t.duty, t.job = period, 0, 0, nil
+                    CreateThread(function() payday(playerId, id, paidPeriod, worked) end)
                 end
+                -- Работа на последнем тике периода решает, что платить; смена копит минуты.
+                local job = jobOf(playerId)
+                t.job = job
                 t.seconds = t.seconds + TICK_SECONDS
+                if job and job.duty then t.duty = t.duty + TICK_SECONDS end
             elseif playerId then
                 tracked[playerId] = nil
             end
@@ -313,6 +337,38 @@ RegisterCommand("rp.givemoney", function(source, args)
         kind == "cash" and "наличные" or "счёт")
     reply(target, "Администрация: %s%s %s.", amount > 0 and "+" or "", formatMoney(amount),
         kind == "cash" and "наличными" or "на счёт")
+end, false)
+
+-- rp.society <организация> [сумма] [причина] — касса "soc:<организация>"; без суммы показать
+-- (право rp.jobs), с суммой пополнить, минус — забрать (право rp.money)
+RegisterCommand("rp.society", function(source, args)
+    local society = args[1]
+    local amount = math.tointeger(tonumber(args[2]))
+    if not society or not society:match("^[a-z][a-z0-9_.]*$") or (args[2] and (not amount or amount == 0)) then
+        reply(source, "Использование: rp.society <организация> [сумма, минус — забрать] [причина]")
+        return
+    end
+    if not allowed(source, amount and "rp.money" or "rp.jobs") then return end
+    local account = "soc:" .. society
+    if amount then
+        local opId = Ledger.newOpId("rpsoc")
+        local line = amount > 0 and { money = amount, from = SOURCE, to = account }
+            or { money = -amount, from = account, to = SOURCE }
+        local receipt, why = opId and Ledger.transfer({ opId = opId, kind = "rp.admin", reason = "society",
+                                                        lines = { line } })
+        if not receipt then
+            reply(source, "Не выполнено: %s.", explain(why or "busy"))
+            return
+        end
+        audit("money_society", actorOf(source), account,
+            { amount = amount, reason = table.concat(args, " ", 3), opId = opId })
+    end
+    local balance, why = Ledger.balance(account)
+    if not balance then
+        reply(source, "Касса недоступна: %s.", explain(why))
+        return
+    end
+    reply(source, "Касса %s: %s.", society, formatMoney(balance))
 end, false)
 
 -- -- HUD ----------------------------------------------------------------------------

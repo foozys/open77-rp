@@ -125,7 +125,8 @@
       "rp/rp_money",
       "rp/rp_hud",
       "rp/rp_inventory",
-      "rp/rp_inventory_ui"
+      "rp/rp_inventory_ui",
+      "rp/rp_jobs"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,

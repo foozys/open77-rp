@@ -24,6 +24,14 @@
   #cash { color: var(--cash); font-size: 30px; font-weight: 700; letter-spacing: 1px; }
   .bank { color: var(--bank); margin-top: 2px; }
   #bank { font-size: 20px; font-weight: 600; }
+  #job { margin-top: 10px; display: none; text-shadow: var(--shadow); color: #e8f1f2; }
+  #job.visible { display: block; }
+  #jobLabel { font-size: 15px; font-weight: 600; }
+  #jobRank { font-size: 13px; opacity: 0.75; }
+  #duty { display: inline-block; margin-left: 8px; padding: 1px 7px; font-size: 11px; letter-spacing: 1px;
+    text-transform: uppercase; border: 1px solid currentColor; vertical-align: 2px; }
+  #duty.on { color: var(--up); }
+  #duty.off { color: #8fa3a8; }
   .delta { position: absolute; right: 0; font-size: 18px; font-weight: 700; text-shadow: var(--shadow);
     animation: rise 2.4s ease-out forwards; pointer-events: none; }
   .delta.up { color: var(--up); }
@@ -40,6 +48,10 @@
 <div id="money">
   <div class="row"><span id="cash"></span></div>
   <div class="row bank"><span class="label">Счёт</span><span id="bank"></span></div>
+  <div id="job">
+    <div class="row"><span id="jobLabel"></span><span id="duty"></span></div>
+    <div class="row"><span id="jobRank"></span></div>
+  </div>
 </div>
 
 <script>
@@ -81,7 +93,20 @@
     last = { cash: money.cash, bank: money.bank };
   }
 
-  Open77.on("hud:state", state => renderMoney(state && state.money));
+  function renderJob(job) {
+    $("job").classList.toggle("visible", !!job);
+    if (!job) return;
+    $("jobLabel").textContent = job.label;
+    $("jobRank").textContent = job.rank;
+    const duty = $("duty");
+    duty.textContent = job.duty ? "на смене" : "не на смене";
+    duty.className = job.duty ? "on" : "off";
+  }
+
+  Open77.on("hud:state", state => {
+    renderMoney(state && state.money);
+    renderJob(state && state.money && state.job);
+  });
   Open77.ready();
 </script>
 </body>

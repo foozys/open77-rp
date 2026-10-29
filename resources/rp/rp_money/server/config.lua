@@ -31,7 +31,7 @@ MoneyConfig = {
         paydayAmount = {
             value = 250, type = "integer", min = 0, max = 100000,
             apply = "live", group = "Деньги", label = "Пособие",
-            description = "Зарплата без работы, на банковский счёт. Работы будут платить свою.",
+            description = "Выплата безработным за период в игре. Сотрудникам организаций платится зарплата их ранга, и только за смену.",
         },
         payDistance = {
             value = 3, type = "number", min = 1, max = 10,

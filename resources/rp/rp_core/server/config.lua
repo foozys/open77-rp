@@ -17,6 +17,7 @@ RpConfig = {
     --   rp.unban
     --   rp.money             — выдавать и забирать деньги (rp.givemoney в rp_money)
     --   rp.items             — выдавать и забирать предметы (rp.giveitem в rp_inventory)
+    --   rp.jobs              — назначать работу и ранг (rp.setjob в rp_jobs), смотреть кассы организаций
     --   rp.staff.manage      — назначать роли ниже своей
     --   rp.tune              — менять настройки ядра
     staffRoles = {
@@ -24,7 +25,7 @@ RpConfig = {
         { id = "moderator", label = "Модератор", permissions = { "rp.kick", "rp.ban", "rp.whitelist.add" },
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
-          permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items" } },
+          permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 
