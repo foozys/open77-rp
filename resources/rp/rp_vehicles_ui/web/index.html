@@ -108,16 +108,12 @@
     if (!list.length) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = "У вас нет машин и ключей от чужих. Купить — в автосалоне.";
+      empty.textContent = "В этом гараже нет ваших машин.";
       $("list").append(empty);
       return;
     }
     const act = (event, id) => () => Open77.emit(event, { id });
     for (const v of list) {
-      if (v.status === "elsewhere") {
-        row(v.label, v.plate, `${v.out ? "в городе, " : ""}гараж #${v.elsewhere}`, []);
-        continue;
-      }
       const buttons = [];
       if (v.status === "garage") {
         buttons.push({ label: "Выгнать", action: act("veh:takeOut", v.id) });

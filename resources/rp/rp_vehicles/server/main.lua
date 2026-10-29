@@ -440,11 +440,6 @@ local function garageList(playerId, garage)
         if visibleAt(row, garage) then
             entry.status, entry.home = statusAt(row, garage), isHome(row, garage)
             list[#list + 1] = entry
-        elseif row.owner then
-            -- Своя машина из другого гаража: только подсказка, где она.
-            entry.status, entry.elsewhere = "elsewhere", math.tointeger(tonumber(row.garage_id))
-            entry.out = row.state == "out"
-            list[#list + 1] = entry
         end
     end
     return list
