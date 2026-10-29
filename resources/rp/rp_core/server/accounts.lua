@@ -53,7 +53,12 @@ AddEventHandler("onPlayerConnecting", function(player, deferrals)
             log.info("вход отклонён: %s (%s), бан #%s", tostring(player.name), player.userId, tostring(ban.id))
             deferrals.done(Bans.message(ban))
         else
-            deferrals.done()
+            -- Пока игрок ещё на входе, выбираем персонажа: см. Characters.preselect.
+            CreateThread(function()
+                local ok, err = pcall(Characters.preselect, player.userId)
+                if not ok then log.warn("предвыбор персонажа %s: %s", player.userId, tostring(err)) end
+                deferrals.done()
+            end)
         end
     end)
     if queued == false then

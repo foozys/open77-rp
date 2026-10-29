@@ -262,6 +262,59 @@ local function handleReport(playerId, s, key)
     decide(playerId, s)
 end
 
+-- Кого загружать: помеченный на следующий вход → последний сыгранный →
+-- незаконченный. nil — персонажей нет. Второе значение — next_character_id.
+local function pick(license, list)
+    local nextId = math.tointeger(tonumber((Db.scalar(
+        "SELECT next_character_id FROM rp_accounts WHERE license = ?", { license }))))
+    local s = { list = list }
+    local row = nextId and byId(s, nextId)
+    if not row then
+        local best = Db.scalar([[
+            SELECT id FROM rp_characters WHERE license = ? AND status = 'active'
+            ORDER BY last_played_at IS NULL, last_played_at DESC, id LIMIT 1
+        ]], { license })
+        row = byId(s, math.tointeger(tonumber(best)))
+    end
+    if not row then
+        for _, candidate in ipairs(list) do
+            if candidate.status == "creating" then row = candidate; break end
+        end
+    end
+    return row, nextId
+end
+
+-- Ключ персонажа нужно отдать open77_appearance раньше, чем клиент спросит
+-- его сам (а спрашивает он сразу после загрузки ресурсов), иначе мир загрузится
+-- с чужим ключом или загрузка оборвётся (stale_character_session). Поэтому
+-- выбираем ещё на входе — по ID установки, license там пока неизвестен — и
+-- отправляем первым делом в onPlayerConnected.
+Characters.preselected = {} -- [userId] = { license, id, at }
+Characters.sent = {}        -- [playerId] = { license, key }: что уже отдано open77_appearance
+
+function Characters.preselect(userId)
+    local license = Db.scalar(
+        "SELECT license FROM rp_account_identities WHERE user_id = ? ORDER BY last_seen DESC LIMIT 1", { userId })
+    if type(license) ~= "string" then return end -- новая установка: выберем после загрузки аккаунта
+    local list = loadList(license)
+    if not list then return end
+    local row = pick(license, list)
+    if row then
+        Characters.preselected[userId] = { license = license, id = row.id, at = Open77.time.unix() }
+    end
+end
+
+AddEventHandler("onPlayerConnected", function(playerIdStr)
+    local playerId = Util.toPlayerId(playerIdStr)
+    local userId = playerId and GetPlayerIdentifier(playerId)
+    local pre = userId and Characters.preselected[userId]
+    if not pre then return end
+    Characters.preselected[userId] = nil
+    if Open77.time.unix() - pre.at > 60 then return end
+    Characters.sent[playerId] = { license = pre.license, key = Characters.key(pre.id) }
+    selectAppearance(playerId, { id = pre.id })
+end)
+
 -- Выбор персонажа сразу после загрузки аккаунта, пока мир ещё не загружен.
 local function prepare(playerId, s)
     local list, err = loadList(s.license)
@@ -273,28 +326,11 @@ local function prepare(playerId, s)
     end
     s.list = list
 
-    local nextId
-    nextId, err = Db.scalar("SELECT next_character_id FROM rp_accounts WHERE license = ?", { s.license })
+    local current, nextId = pick(s.license, s.list)
     if Characters.sessions[playerId] ~= s then return end
-    if err then log.error("next_character_id %s: %s", s.license, err) end
-    nextId = math.tointeger(tonumber(nextId))
     if nextId then setNext(s, nil) end
 
     if not s.adopted then
-        local current = nextId and byId(s, nextId)
-        if not current then
-            -- тот, за кого играли последним
-            local best = Db.scalar([[
-                SELECT id FROM rp_characters WHERE license = ? AND status = 'active'
-                ORDER BY last_played_at IS NULL, last_played_at DESC, id LIMIT 1
-            ]], { s.license })
-            current = byId(s, math.tointeger(tonumber(best)))
-        end
-        if not current then
-            for _, row in ipairs(s.list) do
-                if row.status == "creating" then current = row; break end
-            end
-        end
         if not current then
             current, err = createRow(s)
             if not current then
@@ -305,7 +341,10 @@ local function prepare(playerId, s)
         end
         if Characters.sessions[playerId] ~= s then return end
         s.current = current
-        selectAppearance(playerId, current)
+        local sent = Characters.sent[playerId]
+        if not sent or sent.license ~= s.license or sent.key ~= Characters.key(current.id) then
+            selectAppearance(playerId, current)
+        end
         log.debug("игрок %d: загружаем #%d (%s)", playerId, current.id, current.status)
     end
 
@@ -603,6 +642,7 @@ AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     local playerId = Util.toPlayerId(playerIdStr)
     if not playerId then return end
     Characters.early[playerId] = nil
+    Characters.sent[playerId] = nil
     local s = Characters.sessions[playerId]
     if not s then return end
     Characters.sessions[playerId] = nil
