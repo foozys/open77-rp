@@ -7,5 +7,6 @@
 !/acl.jsonc
 !/Start-Logged.cmd
 
+!/resources/
 /resources/*
 !/resources/rp/
