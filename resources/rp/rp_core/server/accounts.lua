@@ -26,7 +26,7 @@ function Accounts.noAccessMessage(license)
     local url = Tune.applicationUrl
     if url ~= "" then
         local text = string.format("Нет допуска. Анкета: %s ID: %s", url, license)
-        if #text <= 127 then return text end
+        if #Util.kickText(text) == #Util.transliterate(text) then return text end -- влезло целиком
     end
     return string.format("Нет допуска, подайте анкету. Ваш ID: %s", license)
 end
@@ -39,7 +39,7 @@ end
 -- Гейт на входе: license ещё неизвестен, проверяем бан по устройству.
 AddEventHandler("onPlayerConnecting", function(player, deferrals)
     if not Core.dbReady then
-        deferrals.done(MSG_STARTING)
+        deferrals.done(Util.kickText(MSG_STARTING))
         return
     end
     if type(player.userId) ~= "string" or player.userId == "" then return end -- допустим, проверим license после входа
@@ -48,7 +48,7 @@ AddEventHandler("onPlayerConnecting", function(player, deferrals)
     local queued, reason = Bans.findByUserId(player.userId, function(ban, err)
         if err then
             log.error("проверка бана %s: %s", player.userId, tostring(err))
-            deferrals.done(MSG_DB_ERROR)
+            deferrals.done(Util.kickText(MSG_DB_ERROR))
         elseif ban then
             log.info("вход отклонён: %s (%s), бан #%s", tostring(player.name), player.userId, tostring(ban.id))
             deferrals.done(Bans.message(ban))
@@ -63,7 +63,7 @@ AddEventHandler("onPlayerConnecting", function(player, deferrals)
     end)
     if queued == false then
         log.error("проверка бана %s не отправлена: %s", player.userId, tostring(reason))
-        deferrals.done(MSG_DB_ERROR)
+        deferrals.done(Util.kickText(MSG_DB_ERROR))
     end
 end)
 

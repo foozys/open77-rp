@@ -41,9 +41,39 @@ function Util.truncateUtf8(text, maxBytes)
     return text:sub(1, cut)
 end
 
--- Сообщение при отказе во входе или кике: платформа ограничивает его 127 байтами.
+local TRANSLIT = {
+    ["а"] = "a", ["б"] = "b", ["в"] = "v", ["г"] = "g", ["д"] = "d", ["е"] = "e", ["ё"] = "yo",
+    ["ж"] = "zh", ["з"] = "z", ["и"] = "i", ["й"] = "y", ["к"] = "k", ["л"] = "l", ["м"] = "m",
+    ["н"] = "n", ["о"] = "o", ["п"] = "p", ["р"] = "r", ["с"] = "s", ["т"] = "t", ["у"] = "u",
+    ["ф"] = "f", ["х"] = "kh", ["ц"] = "ts", ["ч"] = "ch", ["ш"] = "sh", ["щ"] = "shch", ["ъ"] = "",
+    ["ы"] = "y", ["ь"] = "'", ["э"] = "e", ["ю"] = "yu", ["я"] = "ya",
+    ["«"] = "\"", ["»"] = "\"", ["—"] = "-", ["–"] = "-", ["№"] = "No",
+}
+-- Заглавные: А–Я лежат ровно на 32 кодовые точки ниже а–я.
+for code = 0x430, 0x44F do
+    local latin = TRANSLIT[utf8.char(code)]
+    TRANSLIT[utf8.char(code - 32)] = latin:sub(1, 1):upper() .. latin:sub(2)
+end
+TRANSLIT["Ё"] = "Yo"
+
+-- Кириллица → латиница; прочие не-ASCII символы → "?".
+function Util.transliterate(text)
+    local out = {}
+    for _, code in utf8.codes(text) do
+        if code < 128 then
+            out[#out + 1] = string.char(code)
+        else
+            out[#out + 1] = TRANSLIT[utf8.char(code)] or "?"
+        end
+    end
+    return table.concat(out)
+end
+
+-- Сообщение при отказе во входе или кике. Экран ошибок OPEN//77 не рисует
+-- кириллицу (одни ромбики), поэтому транслитерируем; платформа ограничивает
+-- текст 127 байтами.
 function Util.kickText(text)
-    return Util.truncateUtf8(text, 127)
+    return Util.truncateUtf8(Util.transliterate(text), 127)
 end
 
 local replyLog = Log.scope("cmd")
