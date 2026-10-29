@@ -203,6 +203,11 @@
     "listenUrl": "http://127.0.0.1:11783",
     "tokenEnvironmentVariable": "OP77_METRICS_TOKEN"
   },
+  // Городской трафик (open77_traffic): convar включает генерацию по умолчанию.
+  // Плотность и прочее — tunable.set open77_traffic <ключ> <значение> или Warden → Tuning.
+  "convars": {
+    "open77_traffic_enabled": "true"
+  },
   "startup": {
     "commands": []
   }

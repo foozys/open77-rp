@@ -426,6 +426,22 @@ tunable.set rp_admin warnBanHours 0       -- только считать, без
 
 Консоль: `transactions health`, `transactions mints`, `transactions read <счёт>`.
 
+### `open77_traffic` — городской трафик
+
+Платформенный ресурс: машины с NPC-водителями вокруг каждого игрока, ездят по правилам самой игры. Включён convar'ом `open77_traffic_enabled` в `server.jsonc`. Основные ключи:
+
+| Ключ | По умолчанию | Что значит |
+|---|---|---|
+| `enabled` | `true` (из convar) | генерировать трафик; выключение оставляет уже едущие машины |
+| `densityScale` | `1` | множитель плотности: `0.5` — вдвое реже, `2` — вдвое чаще |
+| `maxCarsPerArea` | `60` | не больше стольких машин вокруг одного игрока |
+| `carsStealable` | `true` | можно ли садиться в машины трафика; `false` — все заперты |
+| `driversKillable` | `true` | можно ли убить водителя |
+
+Пример: `tunable.set open77_traffic densityScale 0.6`. Значение из `tunable.set` или Warden главнее convar и переживает перезапуск; вернуть по умолчанию — `tunable.reset open77_traffic <ключ>`.
+
+Консоль: `traffic.status` — сколько машин и почему не появляются новые; `traffic reset confirm` — убрать весь трафик и начать заново. Панель в игре — `/traffic` (нужно ACL `command.traffic`).
+
 ---
 
 ## 6. Настройки в файлах (нужен перезапуск ресурса)
