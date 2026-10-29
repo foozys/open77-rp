@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Инвентарь</title>
+<style>
+  :root {
+    --cell: 64px;
+    --bg: rgba(10, 12, 18, 0.92);
+    --line: rgba(94, 246, 255, 0.28);
+    --accent: #5ef6ff;
+    --warn: #ff5e6c;
+    --ok: #78dc8c;
+    --text: #e8f1f2;
+    --muted: #8fa3a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 15px/1.3 "Segoe UI", Arial, sans-serif; user-select: none; }
+  #root { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+  #root.open { display: block; }
+  #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    padding: 22px 24px 20px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; gap: 40px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; }
+  #weight { min-width: 220px; }
+  #weightText { text-align: right; font-size: 13px; color: var(--muted); }
+  #weightBar { height: 4px; margin-top: 4px; background: rgba(255, 255, 255, 0.08); }
+  #weightFill { height: 100%; background: var(--accent); width: 0; }
+
+  #grid { position: relative; background-color: rgba(255, 255, 255, 0.02);
+    background-image: linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: var(--cell) var(--cell); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .item { position: absolute; padding: 4px 5px; overflow: hidden; cursor: grab;
+    border: 1px solid rgba(255, 255, 255, 0.25); }
+  .item .name { font-size: 11px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 2px #000; }
+  .item .count { position: absolute; right: 4px; bottom: 2px; font-size: 13px; font-weight: 700; text-shadow: 0 1px 2px #000; }
+  .item:hover { border-color: var(--accent); }
+  .item.dragging { opacity: 0.25; }
+
+  #ghost { position: absolute; display: none; pointer-events: none; z-index: 20; opacity: 0.85;
+    border: 2px solid var(--ok); }
+  #ghost.bad { border-color: var(--warn); }
+  #ghost .name { font-size: 11px; font-weight: 600; padding: 4px 5px; text-shadow: 0 1px 2px #000; }
+
+  #overflow { margin-top: 12px; display: none; }
+  #overflow.visible { display: block; }
+  #overflow .title { color: var(--warn); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  #overflowList { display: flex; flex-wrap: wrap; gap: 6px; }
+  #overflowList .item { position: relative; width: auto; height: 34px; padding-right: 30px; }
+
+  #tooltip { position: absolute; display: none; z-index: 30; padding: 8px 10px; background: #0b0e14;
+    border: 1px solid var(--line); font-size: 13px; pointer-events: none; max-width: 260px; }
+  #tooltip .muted { color: var(--muted); font-size: 12px; }
+
+  #menu { position: absolute; display: none; z-index: 40; min-width: 180px; background: #0b0e14; border: 1px solid var(--line); }
+  #menu button { display: block; width: 100%; padding: 9px 14px; text-align: left; background: none; border: 0;
+    color: var(--text); font: inherit; cursor: pointer; }
+  #menu button:hover { background: rgba(94, 246, 255, 0.12); }
+  #menu .sep { padding: 6px 14px 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+
+  #dialog { position: absolute; display: none; z-index: 50; padding: 14px; background: #0b0e14; border: 1px solid var(--accent); }
+  #dialog label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  #dialog input { width: 160px; padding: 6px 8px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--line);
+    color: var(--text); font: inherit; }
+  #dialog button { margin-left: 6px; padding: 6px 12px; background: var(--accent); border: 0; color: #041014;
+    font: inherit; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="panel">
+    <header>
+      <div>
+        <h1>Инвентарь</h1>
+        <div class="hint">Перетащите мышью · R — повернуть · ПКМ — действия · I / Esc — закрыть</div>
+      </div>
+      <div id="weight"><div id="weightText"></div><div id="weightBar"><div id="weightFill"></div></div></div>
+    </header>
+    <div id="grid"></div>
+    <div id="overflow"><div class="title">Не помещается — переложите или выбросьте</div><div id="overflowList"></div></div>
+  </div>
+  <div id="ghost"><div class="name"></div></div>
+  <div id="tooltip"></div>
+  <div id="menu"></div>
+  <div id="dialog"><label id="dialogLabel"></label><input id="dialogInput" type="number" min="1"><button id="dialogOk">OK</button></div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const CELL = 64;
+  let state = null;        // последнее состояние от сервера
+  let catalog = {};
+  let drag = null;         // { index, stack, rotated, grabX, grabY, el }
+
+  const emit = (event, payload) => Open77.emit(event, payload || {});
+
+  function def(stack) { return catalog[stack.i] || { label: stack.i, w: 1, h: 1, weightG: 0, stack: 1, color: "#555" }; }
+  function size(stack, rotated) {
+    const d = def(stack);
+    return rotated ? [d.h, d.w] : [d.w, d.h];
+  }
+  const kg = grams => (grams / 1000).toFixed(1);
+
+  // -- отрисовка -------------------------------------------------------------------
+
+  function tile(stack, index, w, h) {
+    const d = def(stack);
+    const el = document.createElement("div");
+    el.className = "item";
+    el.style.width = `${w * CELL}px`;
+    el.style.height = `${h * CELL}px`;
+    el.style.background = `linear-gradient(160deg, ${d.color}cc, ${d.color}55)`;
+    el.innerHTML = `<div class="name"></div>${stack.n > 1 ? `<div class="count">×${stack.n}</div>` : ""}`;
+    el.querySelector(".name").textContent = d.label;
+    el.addEventListener("pointerdown", e => startDrag(e, index, stack, el));
+    el.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(e, index, stack); });
+    el.addEventListener("mouseenter", e => showTooltip(e, stack));
+    el.addEventListener("mousemove", moveTooltip);
+    el.addEventListener("mouseleave", hideTooltip);
+    return el;
+  }
+
+  function render() {
+    if (!state) return;
+    const grid = $("grid");
+    grid.style.width = `${state.cols * CELL + 1}px`;
+    grid.style.height = `${state.rows * CELL + 1}px`;
+    grid.replaceChildren();
+    const overflow = $("overflowList");
+    overflow.replaceChildren();
+    state.stacks.forEach((stack, i) => {
+      const index = i + 1; // индексы Lua
+      if (stack.x) {
+        const [w, h] = size(stack, stack.r);
+        const el = tile(stack, index, w, h);
+        el.style.left = `${(stack.x - 1) * CELL + 1}px`;
+        el.style.top = `${(stack.y - 1) * CELL + 1}px`;
+        el.style.width = `${w * CELL - 1}px`;
+        el.style.height = `${h * CELL - 1}px`;
+        grid.append(el);
+      } else {
+        const el = tile(stack, index, 1, 1);
+        el.style.width = "auto";
+        el.style.height = "34px";
+        overflow.append(el);
+      }
+    });
+    $("overflow").classList.toggle("visible", overflow.children.length > 0);
+    const ratio = state.capacityG ? Math.min(1, state.weightG / state.capacityG) : 0;
+    $("weightText").textContent = `${kg(state.weightG)} / ${kg(state.capacityG)} кг`;
+    $("weightFill").style.width = `${ratio * 100}%`;
+    $("weightFill").style.background = ratio > 0.9 ? "var(--warn)" : "var(--accent)";
+  }
+
+  // -- подсказка -------------------------------------------------------------------
+
+  function showTooltip(e, stack) {
+    if (drag) return;
+    const d = def(stack);
+    const tip = $("tooltip");
+    tip.innerHTML = `<div class="label"></div><div class="muted"></div>`;
+    tip.querySelector(".label").textContent = d.label + (stack.n > 1 ? ` ×${stack.n}` : "");
+    tip.querySelector(".muted").textContent =
+      `${kg(d.weightG * stack.n)} кг · ${d.w}×${d.h}${d.stack > 1 ? ` · до ${d.stack} в клетке` : ""}`;
+    tip.style.display = "block";
+    moveTooltip(e);
+  }
+  function moveTooltip(e) {
+    const tip = $("tooltip");
+    tip.style.left = `${e.clientX + 16}px`;
+    tip.style.top = `${e.clientY + 16}px`;
+  }
+  function hideTooltip() { $("tooltip").style.display = "none"; }
+
+  // -- перетаскивание --------------------------------------------------------------
+
+  function startDrag(e, index, stack, el) {
+    if (e.button !== 0) return;
+    closeMenu();
+    hideTooltip();
+    const rect = el.getBoundingClientRect();
+    drag = { index, stack, rotated: !!stack.r, el,
+             grabX: Math.floor((e.clientX - rect.left) / CELL), grabY: Math.floor((e.clientY - rect.top) / CELL) };
+    el.classList.add("dragging");
+    const ghost = $("ghost");
+    ghost.querySelector(".name").textContent = def(stack).label;
+    ghost.style.background = el.style.background;
+    ghost.style.display = "block";
+    updateGhost(e);
+  }
+
+  // Клетка сетки, куда ляжет левый верхний угол предмета (1..), и можно ли туда.
+  function target(e) {
+    const grid = $("grid").getBoundingClientRect();
+    const [w, h] = size(drag.stack, drag.rotated);
+    const gx = Math.min(drag.grabX, w - 1), gy = Math.min(drag.grabY, h - 1);
+    const x = Math.floor((e.clientX - grid.left) / CELL) - gx + 1;
+    const y = Math.floor((e.clientY - grid.top) / CELL) - gy + 1;
+    return { x, y, w, h, gx, gy };
+  }
+
+  function overlaps(x, y, w, h) {
+    let hit = null;
+    state.stacks.forEach((other, i) => {
+      if (i + 1 === drag.index || !other.x) return;
+      const [ow, oh] = size(other, other.r);
+      if (x < other.x + ow && other.x < x + w && y < other.y + oh && other.y < y + h) hit = hit === null ? i + 1 : -1;
+    });
+    return hit; // null — свободно, индекс — одна стопка, -1 — несколько
+  }
+
+  function stackUnderCursor(e) {
+    const grid = $("grid").getBoundingClientRect();
+    const cx = Math.floor((e.clientX - grid.left) / CELL) + 1, cy = Math.floor((e.clientY - grid.top) / CELL) + 1;
+    let found = null;
+    state.stacks.forEach((other, i) => {
+      if (i + 1 === drag.index || !other.x) return;
+      const [ow, oh] = size(other, other.r);
+      if (cx >= other.x && cx < other.x + ow && cy >= other.y && cy < other.y + oh) found = i + 1;
+    });
+    return found;
+  }
+
+  function updateGhost(e) {
+    const t = target(e);
+    const ghost = $("ghost");
+    ghost.style.width = `${t.w * CELL}px`;
+    ghost.style.height = `${t.h * CELL}px`;
+    ghost.style.left = `${e.clientX - t.gx * CELL - CELL / 2}px`;
+    ghost.style.top = `${e.clientY - t.gy * CELL - CELL / 2}px`;
+    const inside = t.x >= 1 && t.y >= 1 && t.x + t.w - 1 <= state.cols && t.y + t.h - 1 <= state.rows;
+    const under = stackUnderCursor(e);
+    const merge = under && state.stacks[under - 1].i === drag.stack.i && def(drag.stack).stack > 1;
+    ghost.classList.toggle("bad", !merge && (!inside || overlaps(t.x, t.y, t.w, t.h) !== null));
+  }
+
+  document.addEventListener("pointermove", e => { if (drag) updateGhost(e); });
+
+  document.addEventListener("pointerup", e => {
+    if (!drag) return;
+    const t = target(e);
+    const under = stackUnderCursor(e);
+    const payload = { index: drag.index, item: drag.stack.i, a: t.x, b: t.y, c: drag.rotated };
+    if (under && state.stacks[under - 1].i === drag.stack.i) payload.d = under;
+    const moved = payload.d || t.x !== drag.stack.x || t.y !== drag.stack.y || drag.rotated !== !!drag.stack.r;
+    drag.el.classList.remove("dragging");
+    $("ghost").style.display = "none";
+    drag = null;
+    if (moved) emit("inv:move", payload);
+  });
+
+  // -- меню и количество -------------------------------------------------------------
+
+  function closeMenu() { $("menu").style.display = "none"; }
+
+  function addButton(menu, text, action) {
+    const b = document.createElement("button");
+    b.textContent = text;
+    b.addEventListener("click", () => { closeMenu(); action(); });
+    menu.append(b);
+  }
+
+  function askCount(e, label, max, onOk) {
+    if (max <= 1) return onOk(1);
+    const dialog = $("dialog");
+    $("dialogLabel").textContent = `${label} (1–${max})`;
+    const input = $("dialogInput");
+    input.max = max;
+    input.value = max;
+    dialog.style.left = `${e.clientX}px`;
+    dialog.style.top = `${e.clientY}px`;
+    dialog.style.display = "block";
+    input.focus();
+    input.select();
+    const finish = () => {
+      dialog.style.display = "none";
+      $("dialogOk").onclick = null;
+      input.onkeydown = null;
+      const n = Math.max(1, Math.min(max, Math.floor(Number(input.value) || 0)));
+      onOk(n);
+    };
+    $("dialogOk").onclick = finish;
+    input.onkeydown = ev => {
+      if (ev.key === "Enter") finish();
+      if (ev.key === "Escape") { dialog.style.display = "none"; ev.stopPropagation(); }
+    };
+  }
+
+  function openMenu(e, index, stack) {
+    hideTooltip();
+    const d = def(stack);
+    const menu = $("menu");
+    menu.replaceChildren();
+    const base = { index, item: stack.i };
+    if (d.usable) addButton(menu, "Использовать", () => emit("inv:use", base));
+    if (stack.n > 1 && stack.x) {
+      addButton(menu, "Разделить", () => askCount(e, "Сколько отделить", stack.n - 1,
+        n => emit("inv:split", { ...base, a: n })));
+    }
+    const nearby = state.nearby || [];
+    if (nearby.length) {
+      const sep = document.createElement("div");
+      sep.className = "sep";
+      sep.textContent = "Передать";
+      menu.append(sep);
+      for (const p of nearby) {
+        addButton(menu, `${p.name} [${p.id}]`, () => askCount(e, "Сколько передать", stack.n,
+          n => emit("inv:give", { ...base, a: n, b: p.id })));
+      }
+    }
+    addButton(menu, "Выбросить", () => askCount(e, "Сколько выбросить", stack.n,
+      n => emit("inv:drop", { ...base, a: n })));
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+    menu.style.display = "block";
+  }
+
+  document.addEventListener("pointerdown", e => {
+    if (!$("menu").contains(e.target)) closeMenu();
+    if (!$("dialog").contains(e.target)) $("dialog").style.display = "none";
+  });
+  document.addEventListener("contextmenu", e => e.preventDefault());
+
+  document.addEventListener("keydown", e => {
+    if (!$("root").classList.contains("open")) return;
+    if (document.activeElement === $("dialogInput")) return;
+    const key = e.key.toLowerCase();
+    if (key === "r" || key === "к") {
+      if (drag) {
+        drag.rotated = !drag.rotated;
+        const d = def(drag.stack);
+        if (d.w === d.h) drag.rotated = false;
+        // курсор остаётся над той же клеткой предмета
+        [drag.grabX, drag.grabY] = [drag.grabY, drag.grabX];
+      }
+      return;
+    }
+    if (key === "escape" || key === "i" || key === "ш") {
+      e.preventDefault();
+      emit("inv:close");
+    }
+  });
+
+  // -- сервер ----------------------------------------------------------------------
+
+  Open77.on("inv:open", () => {
+    $("root").classList.add("open");
+    render();
+  });
+  Open77.on("inv:close", () => {
+    $("root").classList.remove("open");
+    closeMenu();
+    hideTooltip();
+    $("dialog").style.display = "none";
+    if (drag) { drag.el.classList.remove("dragging"); $("ghost").style.display = "none"; drag = null; }
+  });
+  Open77.on("inv:state", s => {
+    if (s.catalog) catalog = s.catalog;
+    // Пустая Lua-таблица приходит как {}, а не [].
+    s.stacks = Array.isArray(s.stacks) ? s.stacks : [];
+    s.nearby = Array.isArray(s.nearby) ? s.nearby : [];
+    state = s;
+    if (!drag) render();
+  });
+
+  Open77.ready();
+</script>
+</body>
+</html>

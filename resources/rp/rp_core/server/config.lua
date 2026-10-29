@@ -16,6 +16,7 @@ RpConfig = {
     --   rp.ban.permanent     — бессрочный бан и бан дольше maxBanSeconds
     --   rp.unban
     --   rp.money             — выдавать и забирать деньги (rp.givemoney в rp_money)
+    --   rp.items             — выдавать и забирать предметы (rp.giveitem в rp_inventory)
     --   rp.staff.manage      — назначать роли ниже своей
     --   rp.tune              — менять настройки ядра
     staffRoles = {
@@ -23,7 +24,7 @@ RpConfig = {
         { id = "moderator", label = "Модератор", permissions = { "rp.kick", "rp.ban", "rp.whitelist.add" },
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
-          permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money" } },
+          permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 
