@@ -232,16 +232,35 @@ local function occupied(vehicleId)
     return false
 end
 
+-- Заводская окраска для новой машины: { primary, secondary } из VehiclesConfig.colors.
+local function pickPaint()
+    local pair = VehiclesConfig.colors[math.random(#VehiclesConfig.colors)]
+    return pair[1], pair[2]
+end
+
+-- Окраска строки: paint_primary/paint_secondary главнее краски из props.
+local function paintOf(row)
+    if type(row.paint_primary) ~= "string" or row.paint_primary == "" then return nil end
+    return { primary = row.paint_primary, secondary = row.paint_secondary or row.paint_primary }
+end
+
 -- Создать машину строки row на месте spot = { x, y, z, heading, bucket }.
 local function spawnAt(row, spot, locked)
+    local paint = paintOf(row)
     local vehicleId, reason = Open77.vehicles.create({
         record = row.record, position = { x = spot.x, y = spot.y, z = spot.z }, yaw = spot.heading or 0,
-        bucket = spot.bucket or 0,
+        bucket = spot.bucket or 0, paint = paint,
     })
     if not vehicleId then return nil, reason end
     if type(row.props) == "string" and row.props ~= "" then
         local ok, props = pcall(json.decode, row.props)
         if ok and type(props) == "table" then
+            -- Краска строки главнее сохранённой (props с version = 1 — полное описание,
+            -- поэтому подменяем, а не убираем; оттенок фар оставляем).
+            if paint then
+                local hue = type(props.paint) == "table" and props.paint.lightsHue or nil
+                props.paint = { applied = true, primary = paint.primary, secondary = paint.secondary, lightsHue = hue }
+            end
             local applied, why = Open77.vehicles.setProperties(vehicleId, props, { ignoreUnsupported = true })
             if not applied then log("warn", "машина #%s: состояние не применено: %s", tostring(row.id), tostring(why)) end
         end
@@ -338,7 +357,9 @@ local queued, queueReason = Open77.database.ready(function()
             ADD COLUMN IF NOT EXISTS pbucket INT NULL,
             ADD COLUMN IF NOT EXISTS locked TINYINT NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS lock_gen INT NOT NULL DEFAULT 1,
-            ADD COLUMN IF NOT EXISTS garage_id BIGINT UNSIGNED NULL
+            ADD COLUMN IF NOT EXISTS garage_id BIGINT UNSIGNED NULL,
+            ADD COLUMN IF NOT EXISTS paint_primary VARCHAR(7) NULL,
+            ADD COLUMN IF NOT EXISTS paint_secondary VARCHAR(7) NULL
     ]], {})
     local okPoints, errPoints = pcall(Open77.database.query.await, [[
         CREATE TABLE IF NOT EXISTS rp_vehicle_points (
@@ -358,6 +379,12 @@ local queued, queueReason = Open77.database.ready(function()
     end
     -- Машина «в городе» без места (старые записи) — в гараж.
     db("update", "UPDATE rp_vehicles SET state = 'garage' WHERE state = 'out' AND px IS NULL")
+    -- Машинам, купленным до заводской окраски, — выдать её один раз.
+    for _, row in ipairs(db("query", "SELECT id FROM rp_vehicles WHERE paint_primary IS NULL", {}) or {}) do
+        local primary, secondary = pickPaint()
+        db("update", "UPDATE rp_vehicles SET paint_primary = ?, paint_secondary = ? WHERE id = ?",
+            { primary, secondary, row.id })
+    end
     dbReady = true
     loadPoints()
     -- Перезапуск ресурса при игроках в сети: вернуть их машины.
@@ -517,8 +544,10 @@ RegisterNetEvent("rp_vehicles:buy", function(model)
         return result(playerId, false, why == "insufficient_funds" and "Недостаточно денег на счёте."
             or ("Не получилось: " .. tostring(why or "нет свободного номера") .. "."))
     end
-    local id, err = db("insert", "INSERT INTO rp_vehicles (character_id, model, record, plate, garage_id) VALUES (?, ?, ?, ?, ?)",
-        { character.id, model, def.record, plate, home.id })
+    local primary, secondary = pickPaint()
+    local id, err = db("insert", [[INSERT INTO rp_vehicles (character_id, model, record, plate, garage_id,
+        paint_primary, paint_secondary) VALUES (?, ?, ?, ?, ?, ?, ?)]],
+        { character.id, model, def.record, plate, home.id, primary, secondary })
     session.busy = false
     if not id then
         -- Деньги списаны, а строка не записалась: в лог для ручного возврата.
@@ -886,8 +915,10 @@ RegisterCommand("rp.givecar", function(source, args)
         return notify(source, "Использование: rp.givecar <ID игрока> <модель>. Модели: %s", table.concat(models, ", "))
     end
     local plate = newPlate()
-    local id = plate and db("insert", "INSERT INTO rp_vehicles (character_id, model, record, plate) VALUES (?, ?, ?, ?)",
-        { character.id, args[2], def.record, plate })
+    local primary, secondary = pickPaint()
+    local id = plate and db("insert", [[INSERT INTO rp_vehicles (character_id, model, record, plate,
+        paint_primary, paint_secondary) VALUES (?, ?, ?, ?, ?, ?)]],
+        { character.id, args[2], def.record, plate, primary, secondary })
     if not id then return notify(source, "Ошибка БД.") end
     core("audit", "car_give", source and source > 0 and core("account_license", source) or "console",
         tostring(character.id), { model = args[2], plate = plate, id = id })
