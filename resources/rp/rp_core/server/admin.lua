@@ -128,6 +128,42 @@ RegisterCommand("rp.whitelist", function(source, args)
     end
 end, true)
 
+-- rp.tune [ключ значение] — без аргументов показывает настройки ядра.
+-- Те же проверки, что во вкладке Warden → Tuning; значение переживает перезапуск.
+RegisterCommand("rp.tune", function(source, args)
+    local key, raw = args[1], args[2]
+    if not key then
+        local names = {}
+        for name in pairs(RpConfig.tunables) do names[#names + 1] = name end
+        table.sort(names)
+        for _, name in ipairs(names) do Util.reply(source, "%s = %s", name, tostring(Tune[name])) end
+        return
+    end
+    local spec = RpConfig.tunables[key]
+    if not spec or raw == nil then
+        Util.reply(source, "Использование: rp.tune [<ключ> <значение>]. Ключи: rp.tune без аргументов.")
+        return
+    end
+    local value = raw
+    if spec.type == "integer" or spec.type == "number" then
+        value = tonumber(raw)
+        if spec.type == "integer" then value = value and math.tointeger(value) end
+    elseif spec.type == "boolean" then
+        value = (raw == "true" or raw == "1") and true or (raw == "false" or raw == "0") and false or nil
+    end
+    if value == nil then
+        Util.reply(source, "Неверное значение для %s (%s).", key, spec.type)
+        return
+    end
+    local ok, message = Open77.tunables.set(key, value)
+    if not ok then
+        Util.reply(source, "Не изменено: %s", tostring(message))
+        return
+    end
+    Log.audit("tune", actorOf(source), key, { value = value })
+    Util.reply(source, "%s = %s", key, tostring(Tune[key]))
+end, true)
+
 -- rp.characters <id|license>
 RegisterCommand("rp.characters", function(source, args)
     local license = resolveTarget(args[1])
