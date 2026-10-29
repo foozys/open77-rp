@@ -1,0 +1,6 @@
+{
+  // Managed from the Warden panel (Players -> Rights, and the Access tab).
+  // Hand edits are still honoured; the server reloads this file on acl.reload.
+  "version": 1,
+  "principals": []
+}

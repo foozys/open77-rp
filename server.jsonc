@@ -1,0 +1,192 @@
+{
+  "$schema": "./config/server.schema.json",
+  "schemaVersion": 1,
+  "logging": {
+    "verbose": false
+  },
+  "identity": {
+    "name": "test",
+    "description": "test",
+    "locale": "en-US",
+    "tags": [
+      "freeroam",
+      "english"
+    ],
+    "visibility": "unlisted"
+  },
+  "query": {
+    "map": "Night City",
+    "gamemode": ""
+  },
+  "network": {
+    "port": 11778,
+    "publicEndpoint": "127.0.0.1:11778",
+    "maximumPlayers": 32
+  },
+  "simulation": {
+    "tickRate": 30,
+    "snapshotRate": 20,
+    "expectedGameBuild": 25000,
+    "helloTimeoutSeconds": 10,
+    "maximumAiVehiclesPerSimulator": 32,
+    "connectGateTimeoutSeconds": 8,
+    "playerInterestRadius": 0,
+    "playerInterestHysteresis": 60,
+    "playerInterestDeferredBootstrap": false
+  },
+  "combat": {
+    "vehicleHitCreditsDriver": false,
+    "vehicleHitSpeedDamage": false,
+    "vehicleHitDamageFloor": 10,
+    "vehicleHitDamageFloorSpeed": 5,
+    "vehicleHitDamageCap": 90,
+    "vehicleHitDamageCapSpeed": 30,
+    "vehicleHitAudit": false,
+    "handheldDischarges": true,
+    "handheldVehicleDamage": false
+  },
+  "replication": {},
+  "voice": {
+    "enabled": true,
+    "quality": "standard",
+    "proximityDistance": 20,
+    "minimumClientProximityDistance": 1,
+    "maximumClientProximityDistance": 100,
+    "maximumChannelAudience": 128,
+    "maximumSimultaneousTalkers": 32,
+    "maximumTalkersPerRecipient": 8,
+    "globalEgressKbps": 0,
+    "recipientEgressKbps": 0,
+    "ingressRejectLimit": 200,
+    "ingressRejectWindowSeconds": 10,
+    "ingressBackoffMilliseconds": 250
+  },
+  "masterServer": {
+    "enabled": true,
+    "url": "https://master.open2077.net/",
+    "tokenEnvironmentVariable": "OP77_MASTER_TOKEN",
+    "identityFile": ".open77/master-identity.json",
+    "heartbeatIntervalSeconds": 30,
+    "licenseKey": null,
+    "licenseKeyEnvironmentVariable": "OP77_LICENSE_KEY",
+    "requireConnectTicket": true,
+    "publishPlayerList": true,
+    "devLocalAuth": false
+  },
+  "resources": {
+    "enabled": true,
+    "root": "resources",
+    "load": [
+      "polyzone",
+      "open77_contextmenu",
+      "open77_admin",
+      "open77_shell",
+      "open77_pause",
+      "open77_watermark",
+      "open77_chat",
+      "open77_voice",
+      "open-voice",
+      "open77_weather",
+      "open77_nameplates",
+      "open77_blips",
+      "open77_notifications",
+      "open77_death",
+      "open77_appearance",
+      "open77_cyberware",
+      "open77_prediction",
+      "open77_dash",
+      "open77_reflex",
+      "open77_effects",
+      "open77_equipment",
+      "open77_wardrobe",
+      "open77_wardrobe_ui",
+      "open77_perspective",
+      "open77_animations",
+      "open77_prevention",
+      "open77_player_interactions",
+      "open77_vehicles",
+      "open77_vehicle_siren",
+      "open77_traffic",
+      "open77_pedestrians",
+      "open77_elevators",
+      "open77_doors",
+      "open77_weapons",
+      "open77_props",
+      "open77_media",
+      "open77_remote_camera",
+      "open77_interactions",
+      "open77_worldui",
+      "open77_zones"
+    ],
+    "autoStart": true,
+    "watchIntervalMilliseconds": 0,
+    "download": {
+      "enabled": true,
+      "listenUrl": "http://0.0.0.0:11779",
+      "publicBaseUrl": "http://127.0.0.1:11779/",
+      "allowInsecureHttp": true,
+      "cacheDirectory": ".open77/resource-cache",
+      "signingKeyFile": ".open77/resource-signing-key.json",
+      "chunkSizeBytes": 1048576
+    }
+  },
+  "requiredMods": {
+    "enabled": true,
+    "unsecured": false,
+    "packages": []
+  },
+  "accessControl": {
+    "file": "acl.jsonc"
+  },
+  "database": {
+    "enabled": false,
+    "connectionString": "",
+    "connectionStringEnvironmentVariable": "OP77_DATABASE_CONNECTION",
+    "maxRows": 10000
+  },
+  "http": {
+    "enabled": false,
+    "allowedHosts": [],
+    "timeoutSeconds": 10,
+    "maxResponseBytes": 1048576
+  },
+  "httpHandlers": {
+    "enabled": false,
+    "listenUrl": "http://127.0.0.1:11781",
+    "timeoutSeconds": 5
+  },
+  "warden": {
+    "enabled": true,
+    "listenUrl": "http://0.0.0.0:11780"
+  },
+  "rcon": {
+    "enabled": false,
+    "bindAddress": "127.0.0.1",
+    "port": 11782,
+    "passwordEnvironmentVariable": "OP77_RCON_PASSWORD",
+    "allowWardenAccounts": false,
+    "permissions": [
+      "*"
+    ],
+    "allowInsecureRemote": false,
+    "tlsCertificatePasswordEnvironmentVariable": "OP77_RCON_CERT_PASSWORD",
+    "maxConnections": 32,
+    "maxConnectionsPerIp": 8,
+    "maxFrameBytes": 1048576,
+    "maxInFlightRequests": 8,
+    "maxRequestsPerSecond": 30,
+    "authenticationTimeoutSeconds": 10,
+    "requestTimeoutSeconds": 60,
+    "idleTimeoutSeconds": 600,
+    "sessionLifetimeSeconds": 3600,
+    "maxUploadBytes": 67108864
+  },
+  "metrics": {
+    "enabled": false,
+    "listenUrl": "http://127.0.0.1:11783",
+    "tokenEnvironmentVariable": "OP77_METRICS_TOKEN"
+  },
+  "startup": {
+    "commands": []
+  }
+}
