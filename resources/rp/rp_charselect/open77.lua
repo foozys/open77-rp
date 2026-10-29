@@ -5,13 +5,11 @@ auto_start true
 reload_policy "reconnect"
 
 -- network.events: связь с rp_core; camera.script: кадр сцены выбора;
--- puppets.present: манекены персонажей; player.appearance.read + player.cyberware.read
--- + player.equipment.read: снимок внешности для манекена; player.freeze: стоять на месте у экрана;
--- player.equipment.edit: его требует Open77.wardrobe.outfit даже для чтения комплекта (мы только читаем)
+-- puppets.present: манекены персонажей; player.appearance.read + player.cyberware.read:
+-- снимок тела для манекена; player.freeze: стоять на месте у экрана
 permissions {
     "network.events", "camera.script", "puppets.present",
-    "player.appearance.read", "player.cyberware.read", "player.equipment.read", "player.equipment.edit",
-    "player.freeze",
+    "player.appearance.read", "player.cyberware.read", "player.freeze",
 }
 
 client_script "client/main.lua"

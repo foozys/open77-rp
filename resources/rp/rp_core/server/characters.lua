@@ -571,10 +571,31 @@ RegisterNetEvent("rp_core:charselect:requestLook", function(id)
     local row = byId(s, math.tointeger(tonumber(id)))
     if not row then return end
     if not row.has_look then return send(playerId, "rp_charselect:look", row.id, false) end
-    local look, err = Db.scalar("SELECT look FROM rp_characters WHERE id = ? AND license = ?", { row.id, s.license })
+    -- Тело — из нашего снимка, одежда — из open77_appearance: гардероб (F2)
+    -- хранит её там и клиентский реестр экипировки об этом не знает.
+    local look, err = Db.single([[
+        SELECT c.look, p.equipment_json
+        FROM rp_characters c
+        LEFT JOIN open77_character_presentation p ON p.user_id = ? AND p.character_key = ?
+        WHERE c.id = ? AND c.license = ?
+    ]], { s.userId or "", Characters.key(row.id), row.id, s.license })
     if Characters.sessions[playerId] ~= s then return end
     if err then log.error("look #%d: %s", row.id, err) end
-    send(playerId, "rp_charselect:look", row.id, type(look) == "string" and look or false)
+    local text = look and look.look
+    if type(text) == "string" and type(look.equipment_json) == "string" then
+        local okLook, decoded = pcall(json.decode, text)
+        local okEquipment, worn = pcall(json.decode, look.equipment_json)
+        if okLook and type(decoded) == "table" and okEquipment and type(worn) == "table" then
+            local equipment = {}
+            for slot, record in pairs(worn) do
+                if type(record) == "string" then equipment[slot] = record end
+            end
+            decoded.equipment = equipment
+            local merged = json.encode(decoded)
+            if #merged <= LOOK_MAX_BYTES then text = merged end
+        end
+    end
+    send(playerId, "rp_charselect:look", row.id, type(text) == "string" and text or false)
 end)
 
 local function validLook(text)
