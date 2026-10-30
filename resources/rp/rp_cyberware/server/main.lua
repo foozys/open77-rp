@@ -894,6 +894,7 @@ end)
 local LOS_GRACE_MS = 1200   -- сколько хакер может не видеть цель, прежде чем загрузка сорвётся
 local RANGE_SLACK = 1.15    -- запас к дальности скрипта, пока идёт загрузка
 
+local applyHack             -- итог дошедшего скрипта (ниже)
 local uploads = {}          -- [attacker] = { target, scriptId, q, startedAt, endsAt, seenAt, hp, armor }
 
 local function deckOf(s)
@@ -954,18 +955,30 @@ local function pushScan(playerId, extra)
 end
 
 -- Установленная дека должна быть в пустом режиме (старая версия, прошитый скрипт — переставить).
+-- Прошить деку grade (вызывать в потоке: ждёт платформу). Статус скрипта платформа
+-- накладывает, только если у хакера стоит дека с этим grade, — поэтому на время загрузки
+-- дека прошивается скриптом, потом возвращается в IDLE. true, или nil, причина.
+local function armTo(playerId, grade)
+    local s = state[playerId]
+    for _ = 1, 40 do
+        if not s or not s.arming then break end
+        Wait(100)
+    end
+    local def = deckOf(s)
+    if not def then return nil, "нет кибердеки" end
+    if s.armed == grade then return true end
+    s.arming = true
+    local ok, why = platformApply(playerId, def, true, grade)
+    if ok then s.armed = grade end
+    s.arming = false
+    if not ok then log("warn", "дека игрока %d не прошита (%s): %s", playerId, grade, tostring(why)) end
+    return ok, why
+end
+
 Arm = function(playerId)
     local s = state[playerId]
-    if not s or s.arming then return end
-    local def = deckOf(s)
-    if not def or s.armed == IDLE then return end
-    s.arming = true
-    CreateThread(function()
-        local ok, why = platformApply(playerId, def, true, IDLE)
-        if ok then s.armed = IDLE
-        else log("warn", "дека игрока %d не переведена в пустой режим: %s", playerId, tostring(why)) end
-        s.arming = false
-    end)
+    if not s or not deckOf(s) or s.armed == IDLE then return end
+    CreateThread(function() armTo(playerId, IDLE) end)
 end
 
 -- Вставить скрипт из карманов в свободный слот деки.
@@ -1075,24 +1088,32 @@ local function finishUpload(attacker, ok, why)
     send(u.target, "rp_cyberware:incoming", { phase = "end", ok = ok,
         text = ok and ("Взлом прошёл: " .. label) or ("Взлом сорван: " .. tostring(why)) })
     if state[attacker] and state[attacker].scanning then pushScan(attacker) end
-    if not ok then return end
-    -- Итог: урон (несмертельный скрипт не опускает ниже 1) и статус платформы.
+    if not ok then return Arm(attacker) end
+    CreateThread(function() applyHack(attacker, u, t) end)
+end
+
+-- Итог дошедшего скрипта: урон (несмертельный не опускает ниже 1) и статус платформы.
+applyHack = function(attacker, u, t)
+    attacker = math.tointeger(attacker) or attacker
     local damage = tonumber(u.q.grade.damage) or 0
     if damage > 0 and not Open77.players.isDead(u.target) then
         if u.q.grade.nonlethal then
             local hp = healthOf(u.target)
-            damage = math.min(damage, math.max(0, hp - 1))
+            damage = math.floor(math.min(damage, math.max(0, hp - 1)))
         end
         if damage > 0 then
-            local done, whyDamage = Open77.players.damage(u.target, damage, { attacker = attacker, cause = "hacking" })
+            local done, whyDamage = Open77.players.damage(u.target, damage, { attacker = attacker })
             if not done then log("warn", "урон скрипта %s: %s", u.scriptId, tostring(whyDamage)) end
         end
     end
-    local applied, whyStatus = Open77.statuses.apply(attacker, u.target, DECK_ID, u.scriptId)
-    if not applied and whyStatus ~= "status_stacked" then
-        log("warn", "статус скрипта %s игроку %d: %s", u.scriptId, u.target, tostring(whyStatus))
+    if armTo(attacker, u.scriptId) then
+        local applied, whyStatus = Open77.statuses.apply(attacker, u.target, DECK_ID, u.scriptId)
+        if not applied and whyStatus ~= "status_stacked" then
+            log("warn", "статус скрипта %s игроку %d: %s", u.scriptId, u.target, tostring(whyStatus))
+        end
     end
     if t then t.hackedUntil = nowMs() + (tonumber(u.q.grade.recoveryMs) or 0) end
+    armTo(attacker, IDLE)
 end
 
 -- ЛКМ в сканере: начать загрузку выбранного скрипта в цель.
@@ -1139,6 +1160,7 @@ RegisterNetEvent("rp_cyberware:hack", function(targetArg)
                      endsAt = nowMs() + (tonumber(q.grade.uploadMs) or 2000), seenAt = nowMs(), hp = hp, armor = armor }
     uploads[playerId] = upload
     t.incoming = playerId
+    CreateThread(function() armTo(playerId, scriptId) end) -- успеть за время загрузки
     send(playerId, "rp_cyberware:upload", { phase = "start", target = target, label = label, ms = upload.endsAt - upload.startedAt })
     send(target, "rp_cyberware:incoming", { phase = "start", label = label, ms = upload.endsAt - upload.startedAt,
                                             purge = t.slots.purge ~= nil })
