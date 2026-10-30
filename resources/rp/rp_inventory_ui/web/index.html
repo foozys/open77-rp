@@ -38,7 +38,34 @@
   .tab:hover { color: var(--text); }
   .tab.active { color: var(--accent); border-color: var(--line); background: rgba(94, 246, 255, 0.06); }
   /* -- вкладка «Импланты»: тело в центре, слоты по бокам, шкалы по краям -- */
-  #cyberView { display: none; width: 1080px; }
+  #cyberView { display: none; width: 1080px; position: relative; }
+  .cyTile.deckTile { cursor: pointer; }
+  .cyTile .tBadge { position: absolute; left: 6px; bottom: 4px; font-size: 10px; color: var(--accent); }
+  #deckBox { position: absolute; display: none; z-index: 25; left: 50%; top: 92px; transform: translateX(-50%); width: 460px;
+    background: #080a10; border: 1px solid rgba(94, 246, 255, 0.6); border-top: 3px solid var(--accent); padding: 14px 16px;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45); }
+  #deckBox.open { display: block; }
+  #deckBox .dHead { display: flex; justify-content: space-between; align-items: baseline; }
+  #deckBox .dHead b { color: var(--accent); font-size: 16px; letter-spacing: 2px; text-transform: uppercase; }
+  #deckBox .dHead button { background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+  #deckBox .dSub { color: var(--muted); font-size: 12px; margin: 4px 0 10px; }
+  #deckBox .dCap { color: var(--red); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 12px 0 6px; }
+  .dSlots { display: flex; gap: 6px; flex-wrap: wrap; }
+  .dSlot { width: 80px; height: 64px; padding: 5px; position: relative; font-size: 11px; line-height: 1.15;
+    border: 1px solid rgba(94, 246, 255, 0.5); background: rgba(94, 246, 255, 0.07); cursor: pointer; }
+  .dSlot:hover { border-color: var(--warn); }
+  .dSlot .ram { position: absolute; right: 5px; bottom: 3px; color: var(--accent); font-weight: 700; }
+  .dSlot.empty { border-style: dashed; border-color: rgba(255, 97, 88, 0.5); background: none; cursor: default;
+    color: rgba(255, 97, 88, 0.7); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .dRow { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 4px; }
+  .dRow .n { flex: 1; font-size: 13px; }
+  .dRow .n small { display: block; color: var(--muted); font-size: 11px; }
+  .dRow .r { color: var(--accent); font-weight: 700; font-size: 13px; }
+  .dRow button { padding: 4px 10px; background: var(--accent); border: 0; color: #041014; font: inherit; font-size: 12px;
+    font-weight: 600; cursor: pointer; }
+  .dRow button:disabled { opacity: 0.35; cursor: default; }
+  #deckBox .dWarn { color: var(--warn); font-size: 12px; margin-top: 10px; }
+  #deckBox .dEmpty { color: var(--muted); font-size: 12px; }
   #panel.cyber #invView { display: none; }
   #panel.cyber #cyberView { display: block; }
   #panel.cyber { background: radial-gradient(ellipse 60% 70% at 55% 50%, rgba(140, 24, 32, 0.45), transparent 75%), var(--bg);
@@ -269,6 +296,7 @@
           <div class="vNote" id="sanityNote"></div>
         </div>
       </div>
+      <div id="deckBox"></div>
       <div class="cyFoot"><span id="cyCount"></span><span>Снять или заменить имплант — у рипердока</span></div>
     </div>
   </div>
@@ -621,7 +649,7 @@
   // Раскладка слотов по системам организма (только вид; слоты задаёт rp_cyberware).
   const CY_GROUPS = {
     left: [
-      { label: "Операционная система", slots: ["os"] },
+      { label: "Голова", slots: ["eyes", "os"] },
       { label: "Руки", slots: ["arms"] },
       { label: "Скелет", slots: ["skeleton", "tendons"] },
       { label: "Покровы", slots: ["skin"] },
@@ -634,7 +662,7 @@
     ],
   };
   // Какая часть тела подсвечивается для слота.
-  const CY_REGION = { os: "head", ice: "head", purge: "head", arms: "arms", legs: "legs", tendons: "legs",
+  const CY_REGION = { eyes: "head", os: "head", ice: "head", purge: "head", arms: "arms", legs: "legs", tendons: "legs",
     skeleton: "bones", skin: "skin", heart: "heart", blood: "torso", metabolism: "torso" };
 
   let cyber = null;
@@ -658,6 +686,9 @@
     if (it) {
       tip.querySelector(".tipCost").textContent = `−${it.humanity} человечности`;
       tip.querySelector(".tipDesc").textContent = it.description || "";
+      if (slot.id === "os" && cyber && cyber.deck) {
+        tip.querySelector(".tipFoot").textContent = "Нажмите — вставить или вынуть скрипты";
+      }
     }
     tip.style.display = "block";
     const r = tile.getBoundingClientRect();
@@ -679,6 +710,15 @@
     } else {
       el.innerHTML = `<div class="tPlus">+</div><div class="tSlot"></div>`;
       el.querySelector(".tSlot").textContent = slot.label;
+    }
+    // Кибердека: щелчок — окно скриптов.
+    if (slot.id === "os" && slot.implant && cyber && cyber.deck) {
+      el.classList.add("deckTile");
+      const badge = document.createElement("div");
+      badge.className = "tBadge";
+      badge.textContent = `▣ ${cyber.deck.scripts.length}/${cyber.deck.size}`;
+      el.append(badge);
+      el.addEventListener("click", () => { cyHideTip(); deckOpen = true; renderDeck(); });
     }
     el.addEventListener("mouseenter", () => { el.classList.add("sel"); cyLight(slot.id, true); cyShowTip(el, slot, side); });
     el.addEventListener("mouseleave", () => { el.classList.remove("sel"); cyLight(slot.id, false); cyHideTip(); });
@@ -743,6 +783,61 @@
       if (region) region.classList.add("has");
     }
     $("cyCount").innerHTML = `Установлено: <b>${slots.filter(s => s.implant).length}</b> из ${slots.length}`;
+    renderDeck();
+  }
+
+  // Окно кибердеки: слоты скриптов (щелчок — вынуть) и скрипты в карманах (вставить).
+  let deckOpen = false;
+  function renderDeck() {
+    const box = $("deckBox");
+    const d = cyber && cyber.deck;
+    if (!deckOpen || !d) { box.classList.remove("open"); return; }
+    box.innerHTML = `<div class="dHead"><b></b><button title="Закрыть">×</button></div>
+      <div class="dSub"></div><div class="dSlots"></div><div class="dCap">Скрипты в карманах</div><div class="dPocket"></div>`;
+    box.querySelector("b").textContent = shortName(d.label);
+    box.querySelector("button").addEventListener("click", () => { deckOpen = false; renderDeck(); });
+    box.querySelector(".dSub").textContent = `Слотов: ${d.size} · RAM: ${d.ram} · щелчок по скрипту — вынуть в карманы`;
+    const slotsEl = box.querySelector(".dSlots");
+    for (let i = 0; i < d.size; i++) {
+      const sc = d.scripts[i];
+      const el = document.createElement("div");
+      if (sc) {
+        el.className = "dSlot";
+        el.innerHTML = `<span></span><span class="ram"></span>`;
+        el.children[0].textContent = sc.label.replace(/^Скрипт: /, "");
+        el.children[1].textContent = sc.ram;
+        el.title = sc.description;
+        el.addEventListener("click", () => Open77.emit("inv:deckEject", { index: i + 1 }));
+      } else {
+        el.className = "dSlot empty";
+        el.textContent = "+";
+      }
+      slotsEl.append(el);
+    }
+    const pocket = box.querySelector(".dPocket");
+    const full = d.scripts.length >= d.size;
+    const inside = new Set(d.scripts.map(sc => sc.id));
+    if (!d.pocket.length) pocket.innerHTML = `<div class="dEmpty">Скриптов нет — их продают в магазине имплантов.</div>`;
+    for (const sc of d.pocket) {
+      const row = document.createElement("div");
+      row.className = "dRow";
+      row.innerHTML = `<div class="n"><span></span><small></small></div><span class="r"></span><button>Вставить</button>`;
+      row.querySelector(".n span").textContent = sc.label.replace(/^Скрипт: /, "") + (sc.count > 1 ? ` ×${sc.count}` : "");
+      row.querySelector("small").textContent = sc.description;
+      row.querySelector(".r").textContent = `${sc.ram} RAM`;
+      const btn = row.querySelector("button");
+      btn.disabled = full || inside.has(sc.id);
+      if (inside.has(sc.id)) btn.textContent = "Уже в деке";
+      btn.addEventListener("click", () => { btn.disabled = true; Open77.emit("inv:deckInsert", { id: sc.id }); });
+      pocket.append(row);
+    }
+    if (!d.kiroshi) {
+      const warn = document.createElement("div");
+      warn.className = "dWarn";
+      warn.textContent = "Нет оптики Kiroshi: без неё скрипты не отправить (сканер — TAB).";
+      box.append(warn);
+    }
+    box.classList.add("open");
   }
 
   document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {

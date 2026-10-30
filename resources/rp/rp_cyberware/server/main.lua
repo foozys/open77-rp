@@ -6,14 +6,20 @@
 -- строка — для человечности и вкладки. Рывок, удар о землю и Сандевистан — способности
 -- платформы: выдаются при входе и подтверждаются раз в 30 с. Пассивные — наши.
 
-local VERSION = 1 -- версия определений платформы; меняете параметры имплантов — увеличьте
+local VERSION = 2 -- версия определений платформы; меняете параметры имплантов — увеличьте
 local SOURCE_CLINIC = "soc:rp.clinic" -- касса NPC-клиник
+local DECK_ID = "rp.cyberdeck" -- определение кибердеки платформы: grade = прошитый скрипт
+local IDLE = "idle"            -- пустой режим деки: без сканера F8 ничего не шлёт
 
-local state = {}     -- [playerId] = { characterId, slots = { [slot] = implantId }, psychosis, nextEpisode, armor }
+-- [playerId] = { characterId, slots = { [slot] = implantId }, psychosis, nextEpisode, armor,
+--   scripts = { scriptId, ... } (вставлены в деку), ram, ramAt, scanning, selected,
+--   armed (прошитый grade), arming, action (своя загрузка), purgedAt }
+local state = {}
 local clinics = {}   -- [id] = { id, x, y, z, bucket }
 local sessions = {}  -- [playerId] = { pointId, at, busy } — открытое окно клиники
 local tickets = {}   -- [ticket] = result (ждём onCyberwareOperationCompleted)
 local dbReady = false
+local Arm -- прошить деку нужным скриптом (ниже, раздел «Kiroshi и взлом»)
 
 local function log(level, fmt, ...)
     Open77.log[level]("[rp_cyberware] " .. string.format(fmt, ...))
@@ -99,10 +105,31 @@ local function pushPanel(playerId)
         slots[#slots + 1] = { id = slot.id, label = slot.label, implant = def and {
             id = implantId, label = labelOf(implantId), description = def.description, humanity = def.humanity } or false }
     end
+    -- Кибердека: вставленные скрипты и скрипты в карманах (их можно вставить).
+    local deck = false
+    local deckDef = s.slots.os and CyberConfig.implants[s.slots.os]
+    if deckDef and deckDef.deck then
+        local inserted, pocket = {}, {}
+        for i, scriptId in ipairs(s.scripts) do
+            local q = CyberConfig.quickhacks[scriptId]
+            inserted[i] = { id = scriptId, label = labelOf(scriptId), ram = q and q.ram or 0,
+                            description = q and q.description or "" }
+        end
+        local counts = sync("rp_inventory", "counts", playerId) or {}
+        for scriptId, q in pairs(CyberConfig.quickhacks) do
+            if (counts[scriptId] or 0) > 0 then
+                pocket[#pocket + 1] = { id = scriptId, label = labelOf(scriptId), ram = q.ram, description = q.description,
+                                        count = counts[scriptId] }
+            end
+        end
+        table.sort(pocket, function(a, b) return a.label < b.label end)
+        deck = { label = labelOf(s.slots.os), size = deckDef.deck.slots, ram = deckDef.deck.ram,
+                 scripts = inserted, pocket = pocket, kiroshi = s.slots.eyes ~= nil }
+    end
     send(playerId, "rp_cyberware:panel", {
         slots = slots, humanity = humanityOf(s), humanityMax = CyberConfig.humanityMax,
         threshold = CyberConfig.psychosisThreshold, psychosis = math.floor(s.psychosis + 0.5),
-        episodeFrom = CyberConfig.episodeFrom, severeFrom = CyberConfig.severeFrom,
+        episodeFrom = CyberConfig.episodeFrom, severeFrom = CyberConfig.severeFrom, deck = deck,
     })
 end
 
@@ -132,11 +159,38 @@ local function inertGrade(id)
     return { id = id, normalDamage = 0, chargedDamage = 0, knockbackMeters = 0, cooldownMs = 100, chargeMs = 100 }
 end
 
+local function copy(t) local r = {} for k, v in pairs(t) do r[k] = v end return r end
+
+-- Кибердека: пустой режим и по grade на каждый скрипт; у cyberware те же id grade.
+local function defineDeck()
+    local hackGrades = { { id = IDLE, kind = "short_circuit", range = 1, uploadMs = 15000, staminaCost = 0,
+        cooldownMs = 250, damage = 0, statusMs = 0, recoveryMs = 500, nonlethal = true, cosmetic = true } }
+    local wareGrades = { inertGrade(IDLE) }
+    for scriptId, q in pairs(CyberConfig.quickhacks) do
+        local g = copy(q.grade)
+        g.id = scriptId
+        hackGrades[#hackGrades + 1] = g
+        wareGrades[#wareGrades + 1] = inertGrade(scriptId)
+    end
+    local ok, why = Open77.hacking.define({ id = DECK_ID, version = VERSION, grades = hackGrades })
+    if ok then
+        ok, why = Open77.cyberware.define({ id = DECK_ID, version = VERSION, slot = "operating_system",
+                                            profile = "cyberdeck", grades = wareGrades })
+    end
+    if not ok then log("error", "кибердека не определена: %s", tostring(why)) end
+end
+
 local function defineAll()
+    local defined = {}
     for implantId, def in pairs(CyberConfig.implants) do
         local p, ok, why = def.platform, true, nil
-        if def.kind == "cyberware" then
-            if p.hack then
+        if p and defined[p.id] then
+            -- общее определение (две кибердеки) — уже зарегистрировано
+        elseif def.kind == "cyberware" then
+            defined[p.id] = true
+            if p.deck then
+                defineDeck()
+            elseif p.hack then
                 ok, why = Open77.hacking.define({ id = p.id, version = VERSION,
                     grades = { (function() local g = { id = "standard" } for k, v in pairs(p.hack) do g[k] = v end return g end)() } })
             elseif p.ice then
@@ -146,7 +200,7 @@ local function defineAll()
                 local g = { id = "standard" } for k, v in pairs(p.purge) do g[k] = v end
                 ok, why = Open77.hacking.definePurge({ id = p.id, version = VERSION, grades = { g } })
             end
-            if ok then
+            if ok and not p.deck then
                 local grade = p.grade and { id = "standard" } or inertGrade("standard")
                 if p.grade then for k, v in pairs(p.grade) do grade[k] = v end end
                 ok, why = Open77.cyberware.define({ id = p.id, version = VERSION, slot = p.slot, profile = p.profile,
@@ -188,14 +242,14 @@ AddEventHandler("onCyberwareOperationCompleted", function(_, ticket, encoded)
 end)
 
 -- Поставить или снять постоянный имплант платформы.
-local function platformApply(playerId, def, install)
+local function platformApply(playerId, def, install, grade)
     local record, why = Open77.cyberware.current(playerId)
     if not record then return nil, "персонаж ещё не готов (" .. tostring(why) .. ")" end
     local operationId = Open77.cyberware.newOperationId()
     local options = { expectedRevision = record.revision, operationId = operationId }
     local result
     if install then
-        result, why = Open77.cyberware.install(playerId, def.platform.id, "standard", options)
+        result, why = Open77.cyberware.install(playerId, def.platform.id, grade or (def.platform.deck and IDLE or "standard"), options)
     else
         options.slot = def.platform.slot
         result, why = Open77.cyberware.remove(playerId, options)
@@ -256,19 +310,28 @@ local function load(playerId, characterId)
     for _, row in ipairs(rows) do
         if CyberConfig.implants[row.implant_id] then slots[row.slot] = row.implant_id end
     end
-    local saved = db("single", "SELECT psychosis FROM rp_cyber_state WHERE character_id = ?", { characterId })
+    local saved = db("single", "SELECT psychosis, deck_scripts FROM rp_cyber_state WHERE character_id = ?", { characterId })
+    local scripts = {}
+    local okDecode, list = pcall(json.decode, saved and saved.deck_scripts or "[]")
+    for _, scriptId in ipairs(okDecode and type(list) == "table" and list or {}) do
+        if CyberConfig.quickhacks[scriptId] then scripts[#scripts + 1] = scriptId end
+    end
     state[playerId] = { characterId = characterId, slots = slots, psychosis = tonumber(saved and saved.psychosis) or 0,
-                        nextEpisode = Open77.time.unix() + CyberConfig.episodeMinutes * 60 }
+                        nextEpisode = Open77.time.unix() + CyberConfig.episodeMinutes * 60,
+                        scripts = scripts, ramAt = Open77.time.unix(), selected = 1 }
     applyPassives(playerId)
     ensureAbilities(playerId)
     pushPanel(playerId)
+    -- Дека могла остаться прошитой скриптом (или старой версией) — вернуть в пустой режим.
+    Arm(playerId)
 end
 
 local function saveState(playerId)
     local s = state[playerId]
     if not s then return end
-    db("update", [[INSERT INTO rp_cyber_state (character_id, psychosis) VALUES (?, ?)
-        ON DUPLICATE KEY UPDATE psychosis = VALUES(psychosis)]], { s.characterId, s.psychosis })
+    db("update", [[INSERT INTO rp_cyber_state (character_id, psychosis, deck_scripts) VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE psychosis = VALUES(psychosis), deck_scripts = VALUES(deck_scripts)]],
+        { s.characterId, s.psychosis, json.encode(s.scripts or {}) })
 end
 
 AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
@@ -328,6 +391,7 @@ local function install(patient, implantId, price, payTo)
         end
     end
     s.slots[def.slot] = implantId
+    if def.deck then s.armed, s.ram, s.ramAt = IDLE, def.deck.ram, Open77.time.unix() end
     db("update", "REPLACE INTO rp_implants (character_id, slot, implant_id) VALUES (?, ?, ?)", { s.characterId, def.slot, implantId })
     if ABILITY[def.kind] then ensureAbilities(patient) end
     applyPassives(patient)
@@ -360,6 +424,15 @@ local function remove(patient, slot, price, payTo)
     end
     s.slots[slot] = nil
     db("update", "DELETE FROM rp_implants WHERE character_id = ? AND slot = ?", { s.characterId, slot })
+    if def.deck then
+        -- Скрипты вынимаются вместе с декой и возвращаются в карманы.
+        for _, scriptId in ipairs(s.scripts) do
+            local back, whyBack = await("rp_inventory", "give", patient, scriptId, 1)
+            if not back then log("error", "скрипт %s игроку %d не выдан: %s", scriptId, patient, tostring(whyBack)) end
+        end
+        s.scripts, s.armed, s.scanning = {}, nil, false
+        saveState(patient)
+    end
     applyPassives(patient)
     local given, why = await("rp_inventory", "give", patient, implantId, 1)
     if not given then log("error", "снятый %s игроку %d не выдан: %s", implantId, patient, tostring(why)) end
@@ -621,6 +694,284 @@ CreateThread(function()
     end
 end)
 
+-- -- тяжёлые импланты: применение бьёт по рассудку ---------------------------------------
+
+local function sanityCost(playerId, implantId)
+    local s = state[playerId]
+    local def = CyberConfig.implants[implantId]
+    if not s or not def or not def.sanityPerUse or s.slots[def.slot] ~= implantId then return end
+    s.psychosis = math.min(100, s.psychosis + def.sanityPerUse)
+    pushPanel(playerId)
+end
+
+-- Сандевистан: платформа приняла активацию (заряд и перезарядка списаны).
+AddEventHandler("onReflexChanged", function(playerArg, payload)
+    local playerId = tonumber(playerArg)
+    local ok, value = pcall(json.decode, payload)
+    if playerId and ok and type(value) == "table" and value.phase == "accepted" then
+        sanityCost(playerId, "implant_sandevistan")
+    end
+end)
+
+-- -- Kiroshi и взлом ---------------------------------------------------------------------
+-- Платформа шлёт только тот скрипт, которым дека «прошита» (grade установленной деки).
+-- Вне сканера дека в пустом режиме (IDLE), и F8 ничего не делает. Открыт сканер — сервер
+-- прошивает выбранный скрипт; ЛКМ — Open77.hacking.start. RAM списывается при начале
+-- любой загрузки с деки, не хватает — загрузка отменяется.
+
+local function deckOf(s)
+    local def = s and s.slots.os and CyberConfig.implants[s.slots.os]
+    return def and def.deck and def or nil
+end
+
+local function ramOf(s)
+    local def = deckOf(s)
+    if not def then return 0, 0 end
+    local now = Open77.time.unix()
+    s.ram = math.min(def.deck.ram, (s.ram or def.deck.ram) + (now - (s.ramAt or now)) * def.deck.ramRegen)
+    s.ramAt = now
+    return s.ram, def.deck.ram
+end
+
+local function isDowned(playerId) return sync("rp_medical", "is_downed", playerId) == true end
+
+local function selectedScript(s)
+    if #s.scripts == 0 then return nil end
+    s.selected = math.max(1, math.min(#s.scripts, s.selected or 1))
+    return s.scripts[s.selected]
+end
+
+-- Кто рядом может быть целью (клиент сам выбирает по прицелу через Open77.hacking.observe).
+local function candidatesNear(playerId)
+    local place, list = placeOf(playerId), {}
+    if not place then return list end
+    for _, key in ipairs(GetPlayers() or {}) do
+        local id = math.tointeger(tonumber(key))
+        if id and id ~= playerId and state[id] then
+            local other = placeOf(id)
+            if other and other.bucket == place.bucket and distance(place, other) <= CyberConfig.scanRange then
+                list[#list + 1] = id
+            end
+        end
+    end
+    return list
+end
+
+local function pushScan(playerId, extra)
+    local s = state[playerId]
+    if not s then return end
+    local ram, ramMax = ramOf(s)
+    local scripts = {}
+    for i, scriptId in ipairs(s.scripts) do
+        local q = CyberConfig.quickhacks[scriptId]
+        scripts[i] = { id = scriptId, label = labelOf(scriptId):gsub("^Скрипт: ", ""), ram = q.ram,
+                       description = q.description, range = q.grade.range }
+    end
+    local payload = { open = s.scanning == true, deck = deckOf(s) ~= nil, scripts = scripts, selected = s.selected or 1,
+        ram = math.floor(ram * 10) / 10, ramMax = ramMax, armed = s.armed == selectedScript(s),
+        busy = s.action ~= nil, candidates = candidatesNear(playerId), range = CyberConfig.scanRange }
+    for k, v in pairs(extra or {}) do payload[k] = v end
+    send(playerId, "rp_cyberware:scanState", payload)
+end
+
+-- Довести прошивку деки до нужной: выбранный скрипт при открытом сканере, иначе IDLE.
+-- Пока идёт своя загрузка, не трогаем (переустановка могла бы её оборвать).
+Arm = function(playerId)
+    local s = state[playerId]
+    if not s or s.arming then return end
+    s.arming = true
+    CreateThread(function()
+        for _ = 1, 5 do
+            local def = deckOf(s)
+            if not def or s.action or state[playerId] ~= s then break end
+            local want = s.scanning and selectedScript(s) or IDLE
+            if s.armed == want then break end
+            local ok, why = platformApply(playerId, def, true, want)
+            if not ok then
+                log("warn", "дека игрока %d не прошита (%s): %s", playerId, want, tostring(why))
+                break
+            end
+            s.armed = want
+        end
+        s.arming = false
+        if s.scanning then pushScan(playerId) end
+    end)
+end
+
+-- Вставить скрипт из карманов в свободный слот деки.
+RegisterNetEvent("rp_cyberware:deckInsert", function(scriptId)
+    local playerId = tonumber(source)
+    local s = playerId and state[playerId]
+    local def = deckOf(s)
+    if not def or type(scriptId) ~= "string" or not CyberConfig.quickhacks[scriptId] then return end
+    if s.deckBusy then return end
+    if #s.scripts >= def.deck.slots then return notify(playerId, "В деке нет свободных слотов.") end
+    for _, have in ipairs(s.scripts) do
+        if have == scriptId then return notify(playerId, "Этот скрипт уже в деке.") end
+    end
+    s.deckBusy = true
+    local taken, why = await("rp_inventory", "take", playerId, scriptId, 1)
+    if taken then
+        s.scripts[#s.scripts + 1] = scriptId
+        saveState(playerId)
+    else
+        notify(playerId, "Скрипт не взят из карманов: %s", tostring(why))
+    end
+    s.deckBusy = false
+    pushPanel(playerId)
+end)
+
+-- Вынуть скрипт из деки обратно в карманы.
+RegisterNetEvent("rp_cyberware:deckEject", function(index)
+    local playerId = tonumber(source)
+    local s = playerId and state[playerId]
+    index = math.tointeger(tonumber(index))
+    local scriptId = s and index and s.scripts[index]
+    if not scriptId or s.deckBusy then return end
+    if s.action then return notify(playerId, "Дождитесь окончания загрузки.") end
+    if sync("rp_inventory", "fits", playerId, scriptId, 1) == false then return notify(playerId, "Карманы полны.") end
+    s.deckBusy = true
+    table.remove(s.scripts, index)
+    local given, why = await("rp_inventory", "give", playerId, scriptId, 1)
+    if not given then
+        table.insert(s.scripts, index, scriptId)
+        notify(playerId, "Скрипт не вынут: %s", tostring(why))
+    end
+    saveState(playerId)
+    s.deckBusy = false
+    pushPanel(playerId)
+    if s.armed == scriptId then Arm(playerId) end
+end)
+
+-- TAB зажат / отпущен. open = true повторяется раз в пару секунд (новые цели рядом, RAM).
+RegisterNetEvent("rp_cyberware:scan", function(open)
+    local playerId = tonumber(source)
+    local s = playerId and state[playerId]
+    if not s then return end
+    if not open then
+        s.scanning = false
+        Arm(playerId)
+        return
+    end
+    if not s.slots.eyes then
+        s.scanning = false
+        return send(playerId, "rp_cyberware:scanState", { open = false, text = "Нужна оптика Kiroshi (имплант «Глаза»)." })
+    end
+    if Open77.players.isDead(playerId) or isDowned(playerId) then
+        s.scanning = false
+        return send(playerId, "rp_cyberware:scanState", { open = false })
+    end
+    local was = s.scanning
+    s.scanning = true
+    if not was then Arm(playerId) end
+    pushScan(playerId)
+end)
+
+-- Колесо мыши в сканере: выбрать скрипт.
+RegisterNetEvent("rp_cyberware:scanSelect", function(step)
+    local playerId = tonumber(source)
+    local s = playerId and state[playerId]
+    step = math.tointeger(tonumber(step))
+    if not s or not s.scanning or not step or #s.scripts == 0 then return end
+    s.selected = ((s.selected or 1) - 1 + step) % #s.scripts + 1
+    pushScan(playerId)
+    Arm(playerId)
+end)
+
+-- Что Kiroshi видит о цели.
+RegisterNetEvent("rp_cyberware:scanInfo", function(targetArg)
+    local playerId, target = tonumber(source), math.tointeger(tonumber(targetArg))
+    local s, t = playerId and state[playerId], target and state[target]
+    if not s or not s.scanning or not t or target == playerId then return end
+    local mine, theirs = placeOf(playerId), placeOf(target)
+    if not mine or not theirs or mine.bucket ~= theirs.bucket then return end
+    local count = 0
+    for _ in pairs(t.slots) do count = count + 1 end
+    local def = deckOf(t)
+    send(playerId, "rp_cyberware:scanInfo", { target = target, distance = math.floor(distance(mine, theirs) * 10) / 10,
+        implants = count, ice = t.slots.ice ~= nil, deck = def ~= nil, purge = t.slots.purge ~= nil,
+        unstable = t.psychosis >= CyberConfig.episodeFrom, downed = Open77.players.isDead(target) or isDowned(target) })
+end)
+
+-- ЛКМ в сканере: отправить выбранный скрипт в цель.
+RegisterNetEvent("rp_cyberware:hack", function(targetArg)
+    local playerId, target = tonumber(source), math.tointeger(tonumber(targetArg))
+    local s = playerId and state[playerId]
+    if not s or not s.scanning or not target or target == playerId or not state[target] then return end
+    local def, scriptId = deckOf(s), selectedScript(s)
+    local reply = function(text) pushScan(playerId, { text = text }) end
+    if not def then return reply("Нет кибердеки.") end
+    if not scriptId then return reply("В деке нет скриптов: вставьте их во вкладке «Импланты» (I).") end
+    if s.action then return reply("Загрузка уже идёт.") end
+    if s.armed ~= scriptId then
+        Arm(playerId)
+        return reply("Скрипт ещё загружается в деку…")
+    end
+    local q = CyberConfig.quickhacks[scriptId]
+    if ramOf(s) < q.ram then return reply(("Мало RAM: нужно %d."):format(q.ram)) end
+    local mine, theirs = placeOf(playerId), placeOf(target)
+    if not mine or not theirs or mine.bucket ~= theirs.bucket or distance(mine, theirs) > q.grade.range then
+        return reply(("Цель дальше %d м."):format(q.grade.range))
+    end
+    if Open77.players.isDead(target) or isDowned(target) then return reply("Цель без сознания.") end
+    local result, why = Open77.hacking.start(playerId, target, DECK_ID, scriptId,
+        { operationId = ("rphack:%d:%d:%d"):format(playerId, target, GetGameTimer()) })
+    if not result then return reply("Отказ: " .. tostring(why)) end
+    s.action = result.actionId
+    reply(nil)
+    -- Если платформа так и не сообщит конец загрузки — освободить через 20 с.
+    local actionId = result.actionId
+    SetTimeout(20000, function()
+        if s.action == actionId then s.action = nil Arm(playerId) end
+    end)
+end)
+
+local TERMINAL = { completed = true, interrupted = true, blocked = true, cancelled = true }
+
+AddEventHandler("onHackingTransition", function(encoded)
+    local ok, t = pcall(json.decode, encoded)
+    if not ok or type(t) ~= "table" then return end
+    local attacker, target = math.tointeger(tonumber(t.attacker)), math.tointeger(tonumber(t.target))
+
+    -- Purge (тяжёлый имплант): снят статус или оборвана загрузка на себе.
+    if target and state[target] and (t.phase == "status_purged"
+        or (t.phase == "interrupted" and tostring(t.reason or ""):find("purge"))) then
+        local s = state[target]
+        local now = Open77.time.unix()
+        if not s.purgedAt or now - s.purgedAt >= 3 then
+            s.purgedAt = now
+            sanityCost(target, "implant_purge")
+        end
+    end
+
+    if t.definition ~= DECK_ID then return end
+    local s = attacker and state[attacker]
+    if t.phase == "challenge" or t.phase == "upload_started" then
+        if t.grade == IDLE then
+            Open77.hacking.cancel(t.actionId) -- пустая дека (F8 без сканера) — ничего не шлём
+            return
+        end
+    end
+    if not s then return end
+    if t.phase == "upload_started" then
+        local q = CyberConfig.quickhacks[t.grade]
+        if q then
+            if ramOf(s) < q.ram then
+                Open77.hacking.cancel(t.actionId)
+                notify(attacker, "Мало RAM для «%s».", labelOf(t.grade))
+            else
+                s.ram = s.ram - q.ram
+            end
+        end
+        s.action = t.actionId
+        if s.scanning then pushScan(attacker) end
+    elseif TERMINAL[t.phase] and s.action == t.actionId then
+        s.action = nil
+        Arm(attacker)
+        if s.scanning then pushScan(attacker) end
+    end
+end)
+
 -- -- старт -------------------------------------------------------------------------------
 
 local queued, queueReason = Open77.database.ready(function()
@@ -635,8 +986,10 @@ local queued, queueReason = Open77.database.ready(function()
         [[CREATE TABLE IF NOT EXISTS rp_cyber_state (
             character_id BIGINT UNSIGNED NOT NULL,
             psychosis    DOUBLE NOT NULL DEFAULT 0,
+            deck_scripts TEXT NULL,
             PRIMARY KEY (character_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci]],
+        "ALTER TABLE rp_cyber_state ADD COLUMN IF NOT EXISTS deck_scripts TEXT NULL",
         [[CREATE TABLE IF NOT EXISTS rp_cyber_clinics (
             id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             x DOUBLE NOT NULL, y DOUBLE NOT NULL, z DOUBLE NOT NULL,

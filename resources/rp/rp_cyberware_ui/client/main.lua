@@ -73,6 +73,119 @@ end)
 
 AddEventHandler("open77:pauseKey", close)
 
+-- -- сканер Kiroshi (TAB) и отправка скриптов -------------------------------------------
+-- Сервер решает, можно ли сканировать (есть глаза, жив, не ранен), и шлёт список людей
+-- рядом. Цель — тот, на кого смотрит камера (Open77.hacking.observe). Колесо — выбор
+-- скрипта, ЛКМ — отправка; на время сканирования оружие не стреляет и не переключается.
+
+local scan = { held = false, open = false, candidates = {}, range = 50, target = nil, lastSent = 0 }
+local SCAN_CONE = 0.18     -- радиан от центра экрана
+local BLOCKED = { "NextWeapon", "Attack", "Melee" }
+
+local function block(on)
+    for _, action in ipairs(BLOCKED) do
+        local ok, why = Open77.input.setActionBlocked(action, on)
+        if not ok and on then print("[rp_cyberware_ui] блокировка " .. action .. ": " .. tostring(why)) end
+    end
+end
+
+local function scanHide()
+    if not scan.open then return end
+    scan.open, scan.target = false, nil
+    block(false)
+    send("scan:hide")
+end
+
+local function scanStop()
+    scan.held = false
+    scanHide()
+    TriggerServerEvent("rp_cyberware:scan", false)
+end
+
+-- Кто под прицелом: ближайший к центру экрана видимый человек в радиусе.
+local function pickTarget()
+    local best, bestAngle, bestDistance = nil, SCAN_CONE, nil
+    for _, id in ipairs(scan.candidates) do
+        local seen = Open77.hacking.observe(id)
+        if seen and seen.streamed and seen.visible and seen.distance <= scan.range and seen.angle < bestAngle then
+            best, bestAngle, bestDistance = id, seen.angle, seen.distance
+        end
+    end
+    return best, bestDistance
+end
+
+local function scanLoop()
+    CreateThread(function()
+        local tick = 0
+        while scan.open do
+            local target, dist = pickTarget()
+            if target ~= scan.target then
+                scan.target = target
+                if target then TriggerServerEvent("rp_cyberware:scanInfo", target) end
+            end
+            send("scan:target", { target = target or false, distance = dist and math.floor(dist * 10) / 10 or false })
+            tick = tick + 1
+            if tick % 20 == 0 then
+                TriggerServerEvent("rp_cyberware:scan", true) -- новые люди рядом, RAM
+                if target then TriggerServerEvent("rp_cyberware:scanInfo", target) end
+            end
+            Wait(100)
+        end
+    end)
+end
+
+RegisterNetEvent("rp_cyberware:scanState", function(p)
+    if type(p) ~= "table" then return end
+    if not p.open then
+        if p.text then send("scan:toast", { text = p.text }) end
+        scanHide()
+        return
+    end
+    if not scan.held then return end -- TAB уже отпущен
+    scan.candidates = type(p.candidates) == "table" and p.candidates or {}
+    scan.range = tonumber(p.range) or scan.range
+    if not scan.open then
+        scan.open = true
+        block(true)
+        send("scan:show")
+        scanLoop()
+    end
+    send("scan:state", p)
+end)
+
+RegisterNetEvent("rp_cyberware:scanInfo", function(p)
+    if type(p) == "table" and scan.open and p.target == scan.target then send("scan:info", p) end
+end)
+
+local function mapping(id, label, key, pressed, released)
+    local ok, why
+    if released then ok, why = RegisterKeyMapping(id, label, key, pressed, released)
+    else ok, why = RegisterKeyMapping(id, label, key, pressed) end
+    if not ok then print("[rp_cyberware_ui] клавиша " .. id .. ": " .. tostring(why)) end
+end
+
+mapping("rp_scan", "Сканер Kiroshi (зажать)", "TAB", function()
+    if isOpen or scan.held then return end
+    scan.held = true
+    TriggerServerEvent("rp_cyberware:scan", true)
+end, scanStop)
+mapping("rp_scan_next", "Сканер: следующий скрипт", "MOUSEWHEELDOWN", function()
+    if scan.open then TriggerServerEvent("rp_cyberware:scanSelect", 1) end
+end)
+mapping("rp_scan_prev", "Сканер: предыдущий скрипт", "MOUSEWHEELUP", function()
+    if scan.open then TriggerServerEvent("rp_cyberware:scanSelect", -1) end
+end)
+mapping("rp_scan_hack", "Сканер: отправить скрипт", "MOUSE1", function()
+    if not scan.open then return end
+    if not scan.target then return send("scan:toast", { text = "Наведите взгляд на человека." }) end
+    local now = GetGameTimer()
+    if now - scan.lastSent < 600 then return end
+    scan.lastSent = now
+    TriggerServerEvent("rp_cyberware:hack", scan.target)
+end)
+
 AddEventHandler("onClientResourceStop", function(name)
-    if name == GetCurrentResourceName() and page then page:setFocus(false, false) end
+    if name ~= GetCurrentResourceName() then return end
+    if page then page:setFocus(false, false) end
+    if scan.open then block(false) end
 end)

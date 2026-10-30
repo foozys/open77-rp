@@ -32,6 +32,59 @@
   #message { min-height: 22px; margin-top: 12px; font-size: 14px; }
   #message.ok { color: var(--ok); } #message.bad { color: var(--warn); }
   .hint { margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+  /* -- сканер Kiroshi -- */
+  #scan { display: none; position: absolute; inset: 0; pointer-events: none; --k: #f3e600; --q: #5ef6ff; }
+  #scan.open { display: block; }
+  #scan .tint { position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(243, 230, 0, 0.02) 30%, rgba(30, 24, 0, 0.55) 100%),
+      repeating-linear-gradient(0deg, rgba(243, 230, 0, 0.035) 0 1px, transparent 1px 4px); }
+  #scan .sweep { position: absolute; left: 0; right: 0; height: 120px; top: -120px;
+    background: linear-gradient(transparent, rgba(243, 230, 0, 0.07), transparent); animation: sweep 3.2s linear infinite; }
+  @keyframes sweep { to { top: 100%; } }
+  #scan .brand { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); color: var(--k);
+    font-size: 13px; letter-spacing: 6px; text-transform: uppercase; opacity: 0.85; }
+  #scan .brand b { color: #fff; font-weight: 400; }
+  #reticle { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; transform: translate(-50%, -50%); transition: all 0.15s; }
+  #reticle i { position: absolute; width: 22px; height: 22px; border: 2px solid var(--k); }
+  #reticle i:nth-child(1) { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+  #reticle i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+  #reticle i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; }
+  #reticle i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+  #reticle.lock { width: 90px; height: 90px; }
+  #reticle.lock i { border-color: var(--warn); }
+  #reticle .dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: var(--k); }
+  #scanSide { position: absolute; left: calc(50% + 110px); top: calc(50% - 170px); width: 360px; }
+  .card { background: rgba(12, 10, 2, 0.82); border: 1px solid rgba(243, 230, 0, 0.45); border-left: 4px solid var(--k);
+    padding: 10px 14px; margin-bottom: 10px; }
+  .card .cap { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--k); }
+  .card .big { font-size: 22px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin: 2px 0 6px; }
+  .card .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+  .card .kv span:first-child { color: var(--muted); }
+  .card .bad { color: var(--warn); } .card .good { color: var(--ok); }
+  .card.none { color: var(--muted); font-size: 13px; border-left-color: rgba(243, 230, 0, 0.4); }
+  .qh { border-left-color: var(--q); border-color: rgba(94, 246, 255, 0.45); }
+  .qh .cap { color: var(--q); display: flex; justify-content: space-between; }
+  #ram { display: flex; gap: 3px; margin: 8px 0 8px; }
+  #ram i { flex: 1; height: 10px; border: 1px solid rgba(94, 246, 255, 0.6); }
+  #ram i.full { background: var(--q); }
+  #ram i.part { background: linear-gradient(90deg, rgba(94, 246, 255, 0.55) var(--p), transparent var(--p)); }
+  #ram i.cost { box-shadow: inset 0 0 0 2px #fff; }
+  .script { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: 14px;
+    border: 1px solid transparent; }
+  .script .r { font-weight: 700; color: var(--q); }
+  .script.sel { background: rgba(94, 246, 255, 0.16); border-color: var(--q); }
+  .script.sel::before { content: "▶"; color: var(--q); margin-right: 6px; font-size: 10px; }
+  .script.poor { opacity: 0.4; }
+  .script .n { flex: 1; }
+  #scriptDesc { font-size: 12px; color: var(--muted); min-height: 16px; margin-top: 6px; }
+  #scanStatus { font-size: 12px; margin-top: 6px; color: var(--q); }
+  #scanStatus.wait { color: var(--k); }
+  #scanToast { position: absolute; left: 50%; top: calc(50% + 90px); transform: translateX(-50%); padding: 6px 14px;
+    background: rgba(12, 10, 2, 0.85); border: 1px solid var(--warn); color: var(--warn); font-size: 14px; display: none; }
+  #scanToast.show { display: block; }
+  #scanHelp { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--k);
+    letter-spacing: 1px; opacity: 0.8; }
 </style>
 </head>
 <body>
@@ -47,6 +100,23 @@
     <div id="message"></div>
     <div class="hint">Импланты покупают в магазине имплантов. Esc — закрыть.</div>
   </div>
+</div>
+<div id="scan">
+  <div class="tint"></div><div class="sweep"></div>
+  <div class="brand">Kiroshi <b>// сканирование</b></div>
+  <div id="reticle"><i></i><i></i><i></i><i></i><div class="dot"></div></div>
+  <div id="scanSide">
+    <div class="card none" id="targetCard">Наведите взгляд на человека.</div>
+    <div class="card qh" id="qhCard">
+      <div class="cap"><span>Скрипты</span><span id="ramText"></span></div>
+      <div id="ram"></div>
+      <div id="scripts"></div>
+      <div id="scriptDesc"></div>
+      <div id="scanStatus"></div>
+    </div>
+  </div>
+  <div id="scanToast"></div>
+  <div id="scanHelp">Колесо — выбор скрипта · ЛКМ — отправить · отпустите TAB — выход</div>
 </div>
 <script>
   const $ = id => document.getElementById(id);
@@ -101,6 +171,103 @@
   Open77.on("cyb:clinic", p => { render(p); $("root").classList.add("open"); });
   Open77.on("cyb:result", p => message(p.text, p.ok));
   Open77.on("cyb:close", () => { $("root").classList.remove("open"); message(""); });
+
+  // -- сканер Kiroshi --------------------------------------------------------------------
+  let scanState = null, scanInfo = null, scanTarget = null, toastTimer = null;
+
+  function toast(text) {
+    $("scanToast").textContent = text;
+    $("scanToast").classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $("scanToast").classList.remove("show"), 2500);
+  }
+
+  function kv(parent, key, value, cls) {
+    const row = document.createElement("div");
+    row.className = "kv";
+    row.innerHTML = "<span></span><span></span>";
+    row.children[0].textContent = key;
+    row.children[1].textContent = value;
+    if (cls) row.children[1].className = cls;
+    parent.append(row);
+  }
+
+  function renderTarget(distance) {
+    const card = $("targetCard");
+    $("reticle").classList.toggle("lock", !!scanTarget);
+    if (!scanTarget) {
+      card.className = "card none";
+      card.textContent = "Наведите взгляд на человека.";
+      return;
+    }
+    card.className = "card";
+    card.replaceChildren();
+    card.innerHTML = `<div class="cap">Цель</div><div class="big"></div>`;
+    card.querySelector(".big").textContent = `Объект #${scanTarget}`;
+    kv(card, "Дистанция", distance ? `${distance} м` : "—");
+    const i = scanInfo && scanInfo.target === scanTarget ? scanInfo : null;
+    if (!i) { kv(card, "Анализ", "…"); return; }
+    kv(card, "Киберимпланты", String(i.implants));
+    kv(card, "Self-ICE", i.ice ? "обнаружен" : "нет", i.ice ? "bad" : "good");
+    kv(card, "Кибердека", i.deck ? "есть" : "нет", i.deck ? "bad" : "");
+    kv(card, "Purge", i.purge ? "есть" : "нет");
+    kv(card, "Нейросостояние", i.unstable ? "нестабильно" : "стабильно", i.unstable ? "bad" : "good");
+    if (i.downed) kv(card, "Состояние", "без сознания", "bad");
+  }
+
+  function renderScripts() {
+    const p = scanState;
+    if (!p) return;
+    const card = $("qhCard");
+    if (!p.deck) {
+      card.style.display = "none";
+      $("scanHelp").textContent = "Кибердеки нет — только сканирование · отпустите TAB — выход";
+      return;
+    }
+    card.style.display = "";
+    $("scanHelp").textContent = "Колесо — выбор скрипта · ЛКМ — отправить · отпустите TAB — выход";
+    const scripts = Array.isArray(p.scripts) ? p.scripts : [];
+    const sel = scripts[(p.selected || 1) - 1];
+    $("ramText").textContent = `RAM ${Math.floor(p.ram)} / ${p.ramMax}`;
+    const ram = $("ram");
+    ram.replaceChildren();
+    for (let n = 0; n < p.ramMax; n++) {
+      const cell = document.createElement("i");
+      if (p.ram >= n + 1) cell.className = "full";
+      else if (p.ram > n) { cell.className = "part"; cell.style.setProperty("--p", `${(p.ram - n) * 100}%`); }
+      // Клетки, которые съест выбранный скрипт.
+      if (sel && n >= Math.floor(p.ram) - sel.ram && n < Math.floor(p.ram)) cell.classList.add("cost");
+      ram.append(cell);
+    }
+    const list = $("scripts");
+    list.replaceChildren();
+    if (!scripts.length) list.innerHTML = `<div class="script poor"><span class="n">Дека пуста — вставьте скрипты в инвентаре (I → Импланты)</span></div>`;
+    scripts.forEach((s, i) => {
+      const row = document.createElement("div");
+      row.className = "script" + (i === (p.selected || 1) - 1 ? " sel" : "") + (s.ram > p.ram ? " poor" : "");
+      row.innerHTML = `<span class="n"></span><span class="r"></span>`;
+      row.querySelector(".n").textContent = s.label;
+      row.querySelector(".r").textContent = s.ram;
+      list.append(row);
+    });
+    $("scriptDesc").textContent = sel ? `${sel.description} · до ${sel.range} м` : "";
+    const status = $("scanStatus");
+    if (p.busy) { status.textContent = "Идёт загрузка…"; status.className = "wait"; }
+    else if (sel && !p.armed) { status.textContent = "Скрипт загружается в деку…"; status.className = "wait"; }
+    else if (sel) { status.textContent = "Готов: ЛКМ — отправить"; status.className = ""; }
+    else status.textContent = "";
+  }
+
+  Open77.on("scan:show", () => { scanTarget = null; scanInfo = null; renderTarget(); $("scan").classList.add("open"); });
+  Open77.on("scan:hide", () => $("scan").classList.remove("open"));
+  Open77.on("scan:state", p => { scanState = p; renderScripts(); if (p.text) toast(p.text); });
+  Open77.on("scan:info", p => { scanInfo = p; renderTarget(p.distance); });
+  Open77.on("scan:target", p => {
+    const target = p.target || null;
+    if (target !== scanTarget) { scanTarget = target; scanInfo = null; }
+    renderTarget(p.distance);
+  });
+  Open77.on("scan:toast", p => toast(p.text));
 
   Open77.ready();
 </script>

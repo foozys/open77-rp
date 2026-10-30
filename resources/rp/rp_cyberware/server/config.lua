@@ -5,6 +5,7 @@
 --
 -- slot — место в теле: в одном слоте один имплант (кибердека и Сандевистан делят
 -- операционную систему, как в игре). humanity — сколько человечности стоит имплант.
+-- sanityPerUse — тяжёлый имплант: каждое применение добавляет столько психоза.
 -- price — плата за установку у рипердока-игрока; в NPC-клинике умножается на
 -- clinicPriceFactor. kind:
 --   cyberware — постоянный имплант платформы (руки, ноги, кибердека, Self-ICE, Purge);
@@ -37,6 +38,7 @@ CyberConfig = {
 
     -- Слоты по порядку показа во вкладке «Импланты».
     slots = {
+        { id = "eyes", label = "Глаза" },
         { id = "os", label = "Операционная система" },
         { id = "arms", label = "Руки" },
         { id = "legs", label = "Ноги" },
@@ -61,17 +63,26 @@ CyberConfig = {
             platform = { id = "rp.jump_legs", slot = "legs", profile = "double_jump",
                 grade = { normalDamage = 0, chargedDamage = 0, knockbackMeters = 0, cooldownMs = 800, chargeMs = 650,
                           jumpStaminaCost = 15, maxAirborneMs = 10000, maxFallSpeed = 30 } } },
-        implant_deck = { slot = "os", humanity = 15, price = 3000, kind = "cyberware", hack = true,
-            description = "Квикхак «Короткое замыкание»: зажать F8, прицелившись в игрока",
-            platform = { id = "rp.cyberdeck", slot = "operating_system", profile = "cyberdeck",
-                hack = { range = 20, uploadMs = 2500, staminaCost = 20, cooldownMs = 8000, damage = 25,
-                         statusMs = 750, recoveryMs = 6000, nonlethal = true } } },
+        -- Кибердека: deck.slots — сколько скриптов вставить, ram — запас RAM, ramRegen — RAM в секунду.
+        -- Скрипты (CyberConfig.quickhacks) шлются в режиме Kiroshi — нужны глаза implant_kiroshi.
+        implant_deck = { slot = "os", humanity = 15, price = 3000, kind = "cyberware",
+            description = "Кибердека Militech: 3 слота скриптов, 8 RAM",
+            deck = { slots = 3, ram = 8, ramRegen = 0.4 },
+            platform = { id = "rp.cyberdeck", slot = "operating_system", profile = "cyberdeck", deck = true } },
+        implant_deck_pro = { slot = "os", humanity = 20, price = 4500, kind = "cyberware",
+            description = "Кибердека Netwatch: 5 слотов скриптов, 12 RAM, быстрее восстанавливает RAM",
+            deck = { slots = 5, ram = 12, ramRegen = 0.7 },
+            platform = { id = "rp.cyberdeck", slot = "operating_system", profile = "cyberdeck", deck = true } },
+        implant_kiroshi = { slot = "eyes", humanity = 3, price = 1000, kind = "passive",
+            description = "Сканер: зажать TAB. С кибердекой — выбор скрипта колесом, отправка ЛКМ",
+            passive = { scanner = true } },
         implant_ice = { slot = "ice", humanity = 4, price = 800, kind = "cyberware", hack = true,
             description = "Отражает одну загрузку квикхака, перезарядка 30 с",
             platform = { id = "rp.self_ice", slot = "self_ice", profile = "self_ice",
                 ice = { charges = 1, rechargeMs = 30000 } } },
         implant_purge = { slot = "purge", humanity = 4, price = 800, kind = "cyberware", hack = true,
-            description = "INSERT — сбросить взлом с себя",
+            description = "INSERT — сбросить взлом с себя. Тяжёлый: каждое применение бьёт по рассудку",
+            sanityPerUse = 3,
             platform = { id = "rp.purge", slot = "purge", profile = "active_purge",
                 purge = { staminaCost = 15, cooldownMs = 10000, allowSelf = true, allowAlly = false, range = 10,
                           cancelUploads = true, removeStatuses = true } } },
@@ -85,7 +96,8 @@ CyberConfig = {
                 cosmetic = false, nonlethal = true, staminaCost = 25, cooldownMs = 8000, radius = 4,
                 impactEffect = "impact.ground_slam", impactSound = "w_cyb_strongarms_hit_back" } } },
         implant_sandevistan = { slot = "os", humanity = 25, price = 5000, kind = "reflex",
-            description = "Замедление времени (X), 6 с, перезарядка 30 с",
+            description = "Ускорение рефлексов (X), 6 с, перезарядка 30 с. Тяжёлый: каждое применение бьёт по рассудку",
+            sanityPerUse = 5,
             platform = { id = "rp.sandevistan", config = { tier = "reflex", inputKey = "x", presentation = "native",
                 durationMs = 6000, cooldownMs = 30000, maxCharges = 1, chargeRegenMs = 30000,
                 staminaCost = 25, heatCost = 0 } } },
@@ -98,6 +110,32 @@ CyberConfig = {
         implant_metabolic = { slot = "metabolism", humanity = 3, price = 800, kind = "passive",
             description = "Еда и вода расходуются вдвое медленнее", passive = { hungerRate = 0.5 } },
     },
+
+    -- Скрипты взлома (предметы с теми же id). ram — цена отправки; grade — параметры платформы
+    -- (Open77.hacking, вид kind: short_circuit, overheat, malfunction, cripple, reboot_optics,
+    -- weapon_glitch). range — дальность в метрах, uploadMs — время загрузки, cooldownMs — перезарядка.
+    quickhacks = {
+        qh_short_circuit = { ram = 3, description = "Электроудар 25 и короткое оглушение",
+            grade = { kind = "short_circuit", range = 20, uploadMs = 2000, staminaCost = 10, cooldownMs = 8000,
+                      damage = 25, statusMs = 750, recoveryMs = 6000, nonlethal = true } },
+        qh_overheat = { ram = 4, description = "Удар 10 и горение: 30 урона за 5 с",
+            grade = { kind = "overheat", range = 20, uploadMs = 2500, staminaCost = 10, cooldownMs = 15000,
+                      damage = 10, recoveryMs = 6000, nonlethal = true,
+                      burn = { totalDamage = 30, durationMs = 5000, tickMs = 500 } } },
+        qh_malfunction = { ram = 4, description = "8 с не работают рывок, удар о землю, руки и взлом",
+            grade = { kind = "malfunction", range = 20, uploadMs = 3000, staminaCost = 10, cooldownMs = 20000,
+                      damage = 0, recoveryMs = 9000, nonlethal = true, malfunction = { durationMs = 8000 } } },
+        qh_cripple = { ram = 3, description = "6 с цель медленнее, без рывков и двойного прыжка",
+            grade = { kind = "cripple", range = 20, uploadMs = 2500, staminaCost = 10, cooldownMs = 15000,
+                      damage = 0, recoveryMs = 7000, nonlethal = true, cripple = { durationMs = 6000 } } },
+        qh_optics = { ram = 3, description = "6 с цель ослеплена помехами",
+            grade = { kind = "reboot_optics", range = 20, uploadMs = 2500, staminaCost = 10, cooldownMs = 15000,
+                      damage = 0, recoveryMs = 7000, nonlethal = true, optics = { durationMs = 6000 } } },
+        qh_weapon = { ram = 3, description = "6 с оружие цели не стреляет",
+            grade = { kind = "weapon_glitch", range = 20, uploadMs = 2500, staminaCost = 10, cooldownMs = 15000,
+                      damage = 0, recoveryMs = 7000, nonlethal = true, glitch = { durationMs = 6000 } } },
+    },
+    scanRange = 50,          -- кого Kiroshi видит как цель (м)
 
     baseMaxHealth = 100,     -- здоровье без «второго сердца»
     armorRestoreSeconds = 60, -- броня восстанавливается до полной раз в столько секунд

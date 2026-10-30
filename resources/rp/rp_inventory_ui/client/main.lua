@@ -70,6 +70,13 @@ AddEventHandler("onClientResourceStart", function(name)
         TriggerServerEvent("rp_inventory:lootMove", p.from, p.index, p.item, p.a, p.b, p.c)
     end)
     page:on("inv:lootSearch", function() TriggerServerEvent("rp_inventory:lootSearch") end)
+    -- Кибердека (вкладка «Импланты»): вставить скрипт из карманов, вынуть по номеру слота.
+    page:on("inv:deckInsert", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_cyberware:deckInsert", tostring(p.id)) end
+    end)
+    page:on("inv:deckEject", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_cyberware:deckEject", tonumber(p.index)) end
+    end)
 
     -- Пока окно держит ввод, привязки молчат: закрывает сама страница (I, Esc).
     local ok, why = RegisterKeyMapping("rp_inventory", "Инвентарь", "I", function()
