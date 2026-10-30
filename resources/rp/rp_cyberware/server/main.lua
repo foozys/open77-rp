@@ -673,6 +673,29 @@ local function episode(playerId, severe)
     log("info", "приступ у игрока %d (%s)", playerId, severe and "тяжёлый" or "лёгкий")
 end
 
+-- ТЕСТ: rp.mantistest [запись] — выдать себе клинки богомола как оружие в слот 3 и достать.
+-- Платформа не поддерживает их как имплант; проверяем, примет ли их API оружия.
+local mantisTests = {} -- [requestId] = playerId
+RegisterCommand("rp.mantistest", function(source, args)
+    if not allowed(source, "rp.cyber") then return end
+    if not source or source < 1 then return notify(source, "Только в игре.") end
+    local record = args[1] or "Items.AdvancedMantisBladesBase"
+    local requestId, why = Open77.weapons.assign(source, record, 3, { active = true })
+    if not requestId then return notify(source, "Отказ сразу: %s", tostring(why)) end
+    mantisTests[requestId] = source
+    notify(source, "Запрос отправлен (%s), ждём ответа платформы…", record)
+end, false)
+
+AddEventHandler("open77:weapons:completed", function(playerId, requestId, operation, accepted, reason, result)
+    local target = mantisTests[requestId]
+    if not target then return end
+    mantisTests[requestId] = nil
+    notify(target, "Клинки: %s (%s)%s", accepted and "ПРИНЯТО" or "отказ", tostring(reason),
+        type(result) == "table" and (" " .. json.encode(result)) or "")
+    log("info", "mantistest игрок %s: accepted=%s reason=%s result=%s", tostring(playerId), tostring(accepted),
+        tostring(reason), type(result) == "table" and json.encode(result) or tostring(result))
+end)
+
 -- rp.episode <ID> [severe] — вызвать приступ сейчас (проверка эффектов и голосов; право rp.heal).
 RegisterCommand("rp.episode", function(source, args)
     if not allowed(source, "rp.heal") then return end
