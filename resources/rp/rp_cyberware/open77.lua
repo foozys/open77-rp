@@ -11,8 +11,6 @@ dependency "rp_jobs"
 -- постоянные импланты и хакерские
 dependency "open77_cyberware"
 dependency "open77_hacking"
--- ТЕСТ rp.mantistest: клинки богомола как оружие
-dependency "open77_weapons >=0.1.0"
 
 -- players.cyberware.*: определения, запись, установка и снятие постоянных имплантов;
 -- players.hacking.define/read: кибердека, Self-ICE, Purge; activate/cancel: отправка скрипта из сканера Kiroshi
