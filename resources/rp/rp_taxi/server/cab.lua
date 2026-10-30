@@ -46,7 +46,10 @@ local function driveTo(cab, target, arrival, seconds, radius, watch)
         position = { x = target.x, y = target.y, z = target.z }, speed = C.speed, behavior = C.behavior,
         arrivalRadius = arrival, timeoutMilliseconds = math.floor(seconds * 1000),
     })
-    if not task then return false, tostring(why) end
+    if not task then
+        log("warn", "автопилот такси %s: задача не принята: %s", tostring(cab), tostring(why))
+        return false, tostring(why)
+    end
     local deadline = GetGameTimer() + seconds * 1000 + 5000
     while GetGameTimer() < deadline do
         Wait(500)
@@ -61,6 +64,9 @@ local function driveTo(cab, target, arrival, seconds, radius, watch)
         end
         if status == "failed" or status == "cancelled" or status == "detached" then
             if at and distance2d(at, target) <= radius then return true end
+            log("warn", "автопилот такси %s: status=%s reason=%s phase=%s execution=%s owner=%s, до цели %.0f м",
+                tostring(cab), tostring(status), tostring(state.reason), tostring(state.phase),
+                tostring(state.execution), tostring(state.owner), at and distance2d(at, target) or -1)
             return false, tostring(state.reason or status)
         end
     end
@@ -107,7 +113,15 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
     end
     active[cab] = true
     Open77.vehicles.setLocked(cab, true) -- садятся только по вызову
-    local attached, reason = Open77.vehicles.ai.attachDriver(cab)
+    -- Зажигание — до автопилота: сам он двигатель не включает (как в open77_traffic), и
+    -- машина с выключенным двигателем стоит, пока задача не упадёт с no_route.
+    local engine, engineWhy = Open77.vehicles.setEngine(cab, true)
+    if not engine then log("warn", "такси игрока %d: двигатель не включён: %s", playerId, tostring(engineWhy)) end
+    -- admissionPlayerId — чей клиент ведёт машину (игрок рядом с ней).
+    local attached, reason = Open77.vehicles.ai.attachDriver(cab, { admissionPlayerId = playerId })
+    if not attached and tostring(reason):find("ai_simulator_limit", 1, true) then
+        attached, reason = Open77.vehicles.ai.attachDriver(cab) -- слоты игрока заняты — пусть выберет платформа
+    end
     if not attached then
         log("warn", "автопилот такси игрока %d: %s", playerId, tostring(reason))
         dismiss(cab, true)
