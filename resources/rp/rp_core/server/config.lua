@@ -32,8 +32,6 @@ RpConfig = {
     --   rp.shops             — ставить и убирать магазины
     -- rp_vehicles:
     --   rp.vehicles          — автосалоны и гаражи (rp.dealer, rp.garage), выдать машину (rp.givecar)
-    -- rp_airtaxi:
-    --   rp.airtaxi           — ставить и убирать площадки аэротакси (rp.airpad)
     -- (жалобы /report видит и отвечает на них rp.pm каждый с правом rp.staff)
     staffRoles = {
         { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view", "rp.teleport" } },
@@ -42,7 +40,7 @@ RpConfig = {
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
-                          "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber", "rp.airtaxi" } },
+                          "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 

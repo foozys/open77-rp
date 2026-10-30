@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Такси Деламейна</title>
+<style>
+  :root {
+    --bg: rgba(10, 12, 18, 0.94);
+    --line: rgba(120, 200, 255, 0.3);
+    --accent: #78c8ff;
+    --money: #f3e600;
+    --warn: #ff5e6c;
+    --text: #e8f1f2;
+    --muted: #8fa3a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 16px/1.35 "Segoe UI", Arial, sans-serif; user-select: none; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+  button { padding: 7px 14px; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    font: inherit; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+  button:hover { background: rgba(120, 200, 255, 0.12); }
+  button.muted { border-color: var(--muted); color: var(--muted); }
+
+  #offer { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+  #offer.open { display: block; }
+  #offer .box { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px;
+    padding: 22px 24px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  #offer .rows { margin: 14px 0 18px; }
+  #offer .rows div { display: flex; justify-content: space-between; padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+  #offer .rows .sum b { color: var(--money); font-size: 18px; }
+  #offer .note { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  #offer .buttons { display: flex; gap: 10px; justify-content: flex-end; }
+
+  #bar { display: none; position: absolute; left: 50%; top: 60px; transform: translateX(-50%); min-width: 380px;
+    padding: 10px 16px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  #bar.on { display: block; }
+  #bar .tag { color: var(--accent); letter-spacing: 3px; font-size: 12px; text-transform: uppercase; }
+  #bar .what { font-size: 17px; margin-top: 4px; }
+  #bar small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  #scene { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 1s ease;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #scene.on { opacity: 1; }
+  #scene .tag { color: var(--accent); letter-spacing: 6px; font-size: 14px; text-transform: uppercase; }
+  #scene .track { width: 420px; height: 3px; margin-top: 20px; background: rgba(255, 255, 255, 0.1); }
+  #scene .fill { height: 100%; width: 0; background: var(--accent); }
+
+  #toast { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); padding: 8px 16px;
+    background: var(--bg); border: 1px solid var(--line); color: var(--accent); font-size: 15px; display: none; }
+  #toast.on { display: block; }
+  #toast.bad { color: var(--warn); }
+</style>
+</head>
+<body>
+<div id="offer">
+  <div class="box">
+    <h1>Такси Деламейна</h1>
+    <div class="rows">
+      <div><span>Куда</span><b>метка на карте</b></div>
+      <div><span>Расстояние по прямой</span><b id="oKm"></b></div>
+      <div class="sum"><span>Цена (со счёта после поездки)</span><b id="oPrice"></b></div>
+    </div>
+    <div class="note">Такси подъедет по дороге. Ждите на месте — уйдёте дальше 30 м, и оно уедет.</div>
+    <div class="buttons"><button class="muted" id="oNo">Отмена</button><button id="oYes">Вызвать</button></div>
+  </div>
+</div>
+<div id="bar"><div class="tag">Деламейн</div><div class="what" id="bWhat"></div><small id="bNote"></small></div>
+<div id="scene"><div class="tag">Деламейн · в пути</div><div class="track"><div class="fill"></div></div></div>
+<div id="toast"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const money = n => `${String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} €$`;
+  const meters = m => m >= 1000 ? `${(m / 1000).toFixed(1)} км` : `${Math.round(m)} м`;
+
+  let toastTimer = null;
+  function toast(text, ok) {
+    const node = $("toast");
+    node.textContent = text;
+    node.className = ok ? "on" : "on bad";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { node.className = ""; }, 4000);
+  }
+
+  function answer(accept) {
+    $("offer").classList.remove("open");
+    Open77.emit("taxi:answer", { accept });
+  }
+  $("oYes").addEventListener("click", () => answer(true));
+  $("oNo").addEventListener("click", () => answer(false));
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && $("offer").classList.contains("open")) { e.preventDefault(); answer(false); }
+  });
+
+  Open77.on("taxi:state", p => {
+    $("offer").classList.remove("open");
+    if (p.stage === "offer") {
+      $("bar").classList.remove("on");
+      $("oKm").textContent = `${p.km} км`;
+      $("oPrice").textContent = money(p.price || 0);
+      $("offer").classList.add("open");
+    } else if (p.stage === "arriving" || p.stage === "riding") {
+      $("bWhat").textContent = p.stage === "arriving" ? "Такси едет к вам" : "Едем к метке";
+      $("bNote").textContent = p.meters != null
+        ? (p.stage === "arriving" ? `в ${meters(p.meters)} · ждите на месте` : `осталось ${meters(p.meters)} по прямой`)
+        : "";
+      $("bar").classList.add("on");
+    } else {
+      $("bar").classList.remove("on");
+      $("scene").classList.remove("on");
+    }
+    if (p.text) toast(p.text, p.ok);
+  });
+
+  Open77.on("taxi:scene", p => {
+    $("bar").classList.remove("on");
+    const fill = document.querySelector("#scene .fill");
+    fill.style.transition = "none";
+    fill.style.width = "0";
+    $("scene").classList.add("on");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      fill.style.transition = `width ${Math.max(0, p.ms || 0)}ms linear`;
+      fill.style.width = "100%";
+    }));
+  });
+
+  Open77.ready();
+</script>
+</body>
+</html>
