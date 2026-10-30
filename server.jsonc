@@ -20,7 +20,8 @@
   },
   "network": {
     "port": 11778,
-    "publicEndpoint": "127.0.0.1:11778",
+    // Адрес в Tailscale: так подключаются и друзья из tailnet, и сам хост.
+    "publicEndpoint": "100.90.118.2:11778",
     "maximumPlayers": 32
   },
   "simulation": {
@@ -148,7 +149,7 @@
     "download": {
       "enabled": true,
       "listenUrl": "http://0.0.0.0:11779",
-      "publicBaseUrl": "http://127.0.0.1:11779/",
+      "publicBaseUrl": "http://100.90.118.2:11779/",
       "allowInsecureHttp": true,
       "cacheDirectory": ".open77/resource-cache",
       "signingKeyFile": ".open77/resource-signing-key.json",
