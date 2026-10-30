@@ -1,16 +1,24 @@
 # Голоса психоза
 
-Голоса в голове при приступе (`rp_cyberware_ui/audio/voice_N.wav`, `voice_N_severe.wav`).
+Голоса в голове при приступе (`rp_cyberware_ui/audio/voice_N.wav`, `voice_N_severe.wav`), одни для всех персонажей.
+Сейчас — живая запись `audio.mp3`.
 
-1. Синтез фраз голосами Windows OneCore (список фраз — в `tts.ps1`):
-   ```powershell
-   .\tts.ps1 -OutDir raw_pavel -Voice "Microsoft Pavel"
-   .\tts.ps1 -OutDir raw_irina -Voice "Microsoft Irina"
-   ```
-2. Обработка в хор: основной голос, он же ниже, второй голос тихо сверху, мягкий шёпот, эхо между ушами:
-   ```powershell
-   node voices.js raw_pavel ..\..\resources\rp\rp_cyberware_ui\audio raw_irina
-   ```
+## Своя запись
 
-Вместо синтеза можно положить свои записи (`v1.wav` … `v8.wav`, PCM 16 бит, моно) в папку и прогнать их через `voices.js`.
-После замены файлов — `refresh` на сервере и перезаход.
+1. Запишите фразы подряд, с паузой между ними (от ~0,3 с), в MP3. Положите сюда как `audio.mp3`.
+2. Нарезать по паузам (нужен декодер: `npm install mpg123-decoder` в любой временной папке, оттуда и запускать):
+   ```powershell
+   node split.mjs C:\open77-rp\tools\voices\audio.mp3 C:\temp\phrases
+   ```
+   Третий аргумент `analyze` — только показать найденные фразы. Порог паузы — `minGap` в `split.mjs`.
+3. Обработка в хор (тот же голос ниже, мягкий шёпот, эхо между ушами; `_severe` — грубее):
+   ```powershell
+   node voices.js C:\temp\phrases C:\open77-rp\resources\rp\rp_cyberware_ui\audio
+   ```
+4. Количество фраз — `VOICES` в `rp_cyberware_ui/client/main.lua` и список `files` в `rp_cyberware_ui/open77.lua`.
+5. `refresh` на сервере и перезаход.
+
+## Синтез вместо записи
+
+`tts.ps1 -OutDir raw -Voice "Microsoft Pavel"` (голоса Windows OneCore), дальше `voices.js` как выше;
+третьим аргументом `voices.js` можно дать папку со вторым голосом — он ляжет тихим слоем сверху.

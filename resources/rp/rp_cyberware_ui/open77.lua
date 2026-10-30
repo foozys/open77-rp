@@ -16,7 +16,7 @@ permissions { "network.events", "world.query", "input.actions", "player.reflex.o
 
 client_script "client/main.lua"
 web_file "web/index.html"
--- Голоса при приступе: синтез речи + обработка (эхо, шёпот, сдвиг высоты); _severe — тяжёлый приступ.
+-- Голоса при приступе: живая запись, нарезанная на фразы, + обработка (эхо, шёпот, сдвиг высоты); _severe — тяжёлый приступ.
 files {
     "audio/voice_1.wav", "audio/voice_1_severe.wav",
     "audio/voice_2.wav", "audio/voice_2_severe.wav",
@@ -25,5 +25,7 @@ files {
     "audio/voice_5.wav", "audio/voice_5_severe.wav",
     "audio/voice_6.wav", "audio/voice_6_severe.wav",
     "audio/voice_7.wav", "audio/voice_7_severe.wav",
-    "audio/voice_8.wav", "audio/voice_8_severe.wav"
+    "audio/voice_8.wav", "audio/voice_8_severe.wav",
+    "audio/voice_9.wav", "audio/voice_9_severe.wav",
+    "audio/voice_10.wav", "audio/voice_10_severe.wav"
 }
