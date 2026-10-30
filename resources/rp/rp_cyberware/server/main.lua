@@ -1118,13 +1118,10 @@ local function psychoDeath(playerId)
     for _, scriptId in ipairs(s.scripts) do items[scriptId] = (items[scriptId] or 0) + 1 end
     s.scripts, s.armed = {}, nil
     db("update", "DELETE FROM rp_implants WHERE character_id = ?", { s.characterId })
-    local lost = nil -- куча не создалась — импланты вернутся в карманы после больницы
+    -- Куча на месте смерти; не легло в кучу — хром остаётся у психа в карманах (drop_pile).
     if place and next(items) then
         local pile, why = await("rp_inventory", "drop_pile", place, items, "Хром киберпсиха", "Cyberpsycho chrome", playerId)
-        if not pile then
-            log("error", "киберпсих %d: куча с имплантами не создана: %s", playerId, tostring(why))
-            lost = items
-        end
+        if not pile then log("error", "киберпсих %d: куча с имплантами не создана: %s", playerId, tostring(why)) end
     end
     s.psychosis = cfg.psychosisAfter
     s.zeroWarned = false
@@ -1142,11 +1139,6 @@ local function psychoDeath(playerId)
     if state[playerId] ~= s then return end
     reconcilePlatform(playerId) -- наша запись уже пуста: снять всё с платформы (с повторами)
     applyPassives(playerId)
-    for itemId, count in pairs(lost or {}) do
-        local given, why = await("rp_inventory", "give", playerId, itemId, count)
-        if not given then log("error", "киберпсих %d: %s ×%d не возвращён: %s", playerId, itemId, count, tostring(why)) end
-    end
-    if lost then notify(playerId, "Извлечённый хром вам вернули в больнице (куча на месте не создалась).") end
 end
 
 AddEventHandler("rp_medical:flatlined", function(playerIdArg)

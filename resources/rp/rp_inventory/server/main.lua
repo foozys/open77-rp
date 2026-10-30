@@ -574,49 +574,63 @@ exports("give", function(playerId, itemId, count)
     return true
 end)
 
--- Куча на земле с предметами из ниоткуда (выпускаются из SOURCE), только rp_*: добыча с тела
--- киберпсиха. position = { x, y, z, bucket }, items = { [itemId] = количество } (не уникальные),
--- player — игрок у кучи (куча проверяет досягаемость). Вызывать в потоке. id кучи, или nil, reason.
+-- Куча на земле с предметами из ниоткуда, только rp_*: добыча с тела киберпсиха.
+-- position = { x, y, z, bucket }, items = { [itemId] = количество } (не уникальные),
+-- player — игрок у кучи. Выпуск сразу в кучу правило выпуска не пропускает (mint_denied),
+-- поэтому в два шага: выпуск игроку в карманы (как give), затем перенос в кучу (как drop).
+-- Не легло в кучу — вещи остаются у игрока (третье значение true). Вызывать в потоке.
+-- id кучи, или nil, reason[, true].
 exports("drop_pile", function(position, items, label, labelEn, player)
     local caller = GetInvokingResource()
     if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
-    if type(position) ~= "table" or type(items) ~= "table" then return nil, "invalid_argument" end
-    local lines, weight = {}, 100
+    player = math.tointeger(tonumber(player))
+    if type(position) ~= "table" or type(items) ~= "table" or not player then return nil, "invalid_argument" end
+    local state, problem = ensure(player)
+    if not state then return nil, problem end
+    local minted, moved, weight = {}, {}, 100
     for itemId, count in pairs(items) do
         local def = InvConfig.items[itemId]
         count = math.tointeger(tonumber(count)) or 0
         if def and not def.unique and count > 0 then
-            lines[#lines + 1] = { item = itemId, count = count, from = SOURCE }
+            minted[#minted + 1] = { item = itemId, count = count, from = SOURCE, to = state.account }
+            moved[#moved + 1] = { item = itemId, count = count, from = state.account }
             weight = weight + def.weightG * count
         end
     end
-    if #lines == 0 then return nil, "empty" end
-    local pile, why = Store.boxes("create", {
+    if #minted == 0 then return nil, "empty" end
+    for _ = 1, 20 do
+        if not state.busy then break end
+        Wait(100)
+    end
+    state.busy = true
+    local opId = Store.newOpId("rppile")
+    local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.pile.mint", reason = caller, lines = minted })
+    state.busy = false
+    if not receipt then return nil, why or "store_unavailable" end
+
+    local pile
+    pile, why = Store.boxes("create", {
         kind = "pile", position = { x = position.x, y = position.y, z = position.z }, bucket = position.bucket or 0,
         label = tostring(label or "Вещи"), capacityG = math.max(1000, weight), ttlMs = InvConfig.dropTtlMs,
         prompt = { label = "Pick up: " .. tostring(labelEn or "items"), key = "E" },
     })
-    if not pile then return nil, why end
-    for _, line in ipairs(lines) do line.to = pile.id end
-    local opId = Store.newOpId("rppile")
-    if not opId then
-        Store.boxes("close", pile.id)
-        return nil, "store_unavailable"
+    if not pile then
+        refresh(player)
+        return nil, why, true -- третье значение: вещи уже у игрока
     end
-    local spec = { opId = opId, kind = "rp.pile", reason = caller, player = math.tointeger(tonumber(player)), lines = lines }
-    local receipt, info
-    for attempt = 1, 5 do
-        receipt, why, info = Store.boxes("transfer", spec)
-        if receipt or not (type(info) == "table" and info.retryable) then break end
-        Wait(500 * attempt)
-    end
+    for _, line in ipairs(moved) do line.to = pile.id end
+    opId = Store.newOpId("rppile")
+    state.busy = true
+    receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.pile", reason = caller, player = player,
+                                             lines = moved }, "containers")
+    state.busy = false
+    refresh(player)
     if not receipt then
-        log("warn", "куча %s от %s: предметы не положены: %s %s", pile.id, caller, tostring(why),
-            type(info) == "table" and json.encode(info) or "")
+        log("warn", "куча %s от %s: вещи остались у игрока %d: %s", pile.id, caller, player, tostring(why))
         Store.boxes("close", pile.id)
-        return nil, why or "busy"
+        return nil, why or "busy", true
     end
-    log("info", "куча %s от %s: %d строк", pile.id, caller, #lines)
+    log("info", "куча %s от %s: %d строк", pile.id, caller, #moved)
     return pile.id
 end)
 
