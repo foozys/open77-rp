@@ -71,6 +71,13 @@
   #waiting.on { display: block; }
   #waiting .t { color: var(--accent); font-size: 22px; font-weight: 600; }
   #waiting small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+  #botBar { display: none; position: absolute; left: 50%; top: 60px; transform: translateX(-50%); width: 420px;
+    padding: 10px 16px 12px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  #botBar.on { display: block; }
+  #botBar .tag { color: var(--accent); letter-spacing: 3px; font-size: 12px; text-transform: uppercase; }
+  #botBar .what { font-size: 17px; margin: 4px 0 8px; }
+  #botBar .track { height: 3px; background: rgba(255, 255, 255, 0.1); }
+  #botBar .fill { height: 100%; width: 0; background: var(--accent); }
   #toast { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); padding: 8px 16px;
     background: var(--bg); border: 1px solid var(--line); color: var(--accent); font-size: 15px; display: none; }
   #toast.on { display: block; }
@@ -111,6 +118,8 @@
 </div>
 <div id="waiting">АВ прибудет через <span class="t" id="wLeft"></span> с
   <small id="wNote"></small></div>
+<div id="botBar"><div class="tag">Аэротакси</div><div class="what" id="botWhat"></div>
+  <div class="track"><div class="fill"></div></div></div>
 <div id="toast"></div>
 
 <script>
@@ -231,8 +240,24 @@
       fill.style.width = "100%";
     }));
   });
+  Open77.on("air:bot", p => {
+    $("root").classList.remove("open");
+    stopWaiting();
+    $("botWhat").textContent = p.stage === "arriving" ? "АВ заходит на посадку рядом с вами"
+      : `Полёт: ${p.to || ""}`;
+    const fill = document.querySelector("#botBar .fill");
+    fill.style.transition = "none";
+    fill.style.width = "0";
+    $("botBar").classList.add("on");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      fill.style.transition = `width ${Math.max(0, (p.seconds || 0) * 1000)}ms linear`;
+      fill.style.width = "100%";
+    }));
+  });
+
   Open77.on("air:arrive", p => {
     $("flight").classList.remove("on");
+    $("botBar").classList.remove("on");
     if (p.text) toast(p.text, p.ok);
   });
 

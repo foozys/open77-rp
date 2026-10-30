@@ -93,6 +93,18 @@ RegisterNetEvent("rp_airtaxi:depart", function(payload)
     send("air:depart", payload)
 end)
 
+-- Полёт на АВ-боте: плашка с этапом (arriving — АВ садится за вами, flying — в полёте).
+RegisterNetEvent("rp_airtaxi:bot", function(payload)
+    if type(payload) ~= "table" then return end
+    if isOpen then
+        isOpen = false
+        if page then page:setFocus(false, false) end
+        send("air:close")
+    end
+    flying = true
+    send("air:bot", payload)
+end)
+
 RegisterNetEvent("rp_airtaxi:arrive", function(payload)
     if type(payload) ~= "table" then return end
     flying = false

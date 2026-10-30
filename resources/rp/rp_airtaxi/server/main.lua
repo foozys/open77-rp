@@ -192,12 +192,24 @@ local function cannotPay(playerId, price)
     if money < price then return "Недостаточно денег на счёте." end
 end
 
--- Полёт: затемнение → перенос в свой bucket к месту прилёта → оплата → время полёта →
--- bucket места прилёта, экран светлеет. Перенос не удался — денег не берём.
--- from = { name, bucket }, to = { name, x, y, z (куда встать), heading, bucket }.
-local function fly(playerId, from, to, price, ms)
+-- Списать за рейс (после посадки). Списанная сумма (0 — не прошло).
+local function charge(playerId, price, from, to)
     local bank = bankOf(playerId)
-    sessions[playerId] = nil
+    local opId = newOpId("rpair")
+    local receipt, why = bank and opId and transfer({ opId = opId, kind = "rp.airtaxi", reason = "airtaxi",
+        lines = { { money = price, from = bank, to = MONEY_SINK } } })
+    if receipt then
+        log("info", "игрок %d: %s → %s за %d (%s)", playerId, from.name, to.name, price, opId)
+        return price
+    end
+    log("warn", "игрок %d: %s → %s, оплата %d не прошла: %s", playerId, from.name, to.name, price, tostring(why))
+    return 0
+end
+
+-- Полёт без АВ (запасной): затемнение → перенос в свой bucket к месту прилёта → оплата →
+-- время полёта → bucket места прилёта, экран светлеет. Перенос не удался — денег не берём.
+-- from = { name, bucket }, to = { name, x, y, z (куда встать), heading, bucket }.
+local function flyScene(playerId, from, to, price, ms)
     TriggerClientEvent("rp_airtaxi:depart", playerId, { from = from.name, to = to.name, ms = ms })
     departSound(playerId)
     Wait(1200) -- экран успевает потемнеть
@@ -211,19 +223,24 @@ local function fly(playerId, from, to, price, ms)
         TriggerClientEvent("rp_airtaxi:arrive", playerId, { ok = false, text = "Рейс отменён, деньги не списаны." })
         return
     end
-    local opId = newOpId("rpair")
-    local receipt, why = opId and transfer({ opId = opId, kind = "rp.airtaxi", reason = "airtaxi",
-        lines = { { money = price, from = bank, to = MONEY_SINK } } })
-    if receipt then
-        log("info", "игрок %d: %s → %s за %d (%s)", playerId, from.name, to.name, price, opId)
-    else
-        log("warn", "игрок %d: %s → %s, оплата %d не прошла: %s", playerId, from.name, to.name, price, tostring(why))
-    end
+    local paid = charge(playerId, price, from, to)
     Wait(math.max(0, ms - 1200))
     if not Open77.players.get(playerId) then return end -- вышел в полёте: при входе bucket ставит rp_core
     Open77.routingBuckets.setPlayer(playerId, to.bucket)
     TriggerClientEvent("rp_airtaxi:arrive", playerId, { ok = true,
-        text = ("Прибыли: %s. Списано %d €$."):format(to.name, receipt and price or 0) })
+        text = ("Прибыли: %s. Списано %d €$."):format(to.name, paid) })
+end
+
+-- Полёт: АВ-бот (server/bot.lua) — прилетает, игрок садится, летит, садится у точки. Не
+-- вышло поднять АВ или посадить игрока — запасная сцена с затемнением.
+local function fly(playerId, from, to, price, ms)
+    sessions[playerId] = nil
+    local pick = placeOf(playerId)
+    if AirTaxiConfig.bot.enabled and pick and pick.bucket == to.bucket then
+        local outcome = AvBot.fly(playerId, pick, to, function() return charge(playerId, price, from, to) end)
+        if outcome ~= "fallback" then return end
+    end
+    flyScene(playerId, from, to, price, ms)
 end
 
 RegisterNetEvent("rp_airtaxi:fly", function(toId)
