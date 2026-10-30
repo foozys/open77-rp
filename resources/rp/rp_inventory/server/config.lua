@@ -107,6 +107,8 @@ InvConfig = {
                            weapon = { record = "Items.Preset_Carnage_Default", mags = { "mag_sg12" } }, meta = {} },
         wpn_knife      = { label = "Нож",                  labelEn = "Knife",      w = 1, h = 2, weightG = 300,  stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Knife_Default" }, meta = {} },
+        wpn_katana     = { label = "Катана",               labelEn = "Katana",     w = 1, h = 4, weightG = 1500, stack = 1, color = "#3d4652", unique = true,
+                           weapon = { record = "Items.Preset_Katana_Default" }, meta = {} },
         wpn_bat        = { label = "Бейсбольная бита",     labelEn = "Baseball bat", w = 1, h = 4, weightG = 1100, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Baseball_Bat_Default" }, meta = {} },
     },

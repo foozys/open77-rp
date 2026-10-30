@@ -152,7 +152,10 @@ local function refresh(playerId)
     end
     state.weightG, state.instances = weight, instances
     if Grid.reconcile(state.stacks, items, instances) then Store.saveLayout(state.characterId, state.stacks) end
-    if Gear then Gear.sync(playerId, state) end
+    if Gear then
+        local ok, err = pcall(Gear.sync, playerId, state)
+        if not ok then log("error", "снаряжение игрока %d: %s", playerId, tostring(err)) end
+    end
     push(playerId)
     -- Кто сейчас обыскивает этого игрока — видит его карманы свежими.
     for officer, session in pairs(loot) do
@@ -236,7 +239,9 @@ RegisterNetEvent("rp_inventory:open", function()
     end
     refresh(playerId) -- окно ещё закрыто: только сверка, без отправки
     state.open = true
-    push(playerId, true)
+    local ok, err = pcall(push, playerId, true)
+    if not ok then log("error", "окно инвентаря игроку %d: %s", playerId, tostring(err))
+    else log("info", "окно инвентаря игроку %d: %d стопок", playerId, #state.stacks) end
 end)
 
 RegisterNetEvent("rp_inventory:close", function()

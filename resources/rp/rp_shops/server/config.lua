@@ -34,7 +34,7 @@ ShopsConfig = {
         weapons = {
             label = "Оружейный магазин", labelEn = "Gun Store",
             items = {
-                wpn_knife = 300, wpn_bat = 400,
+                wpn_knife = 300, wpn_bat = 400, wpn_katana = 2500,
                 wpn_lexington = 2500, wpn_unity = 3000, wpn_overture = 4500,
                 wpn_saratoga = 6500, wpn_pulsar = 7000,
                 wpn_ajax = 12000, wpn_copperhead = 11000, wpn_carnage = 9500,
