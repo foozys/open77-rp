@@ -118,6 +118,10 @@ AddEventHandler("onClientResourceStart", function(name)
         local okKey, whyKey = RegisterKeyMapping(id, label, default, fn)
         if not okKey then print("[rp_inventory_ui] клавиша " .. id .. ": " .. tostring(whyKey)) end
     end
+    -- R: родная перезарядка игры идёт сама; сервер в этот момент меняет магазины в данных.
+    key("rp_reload", "Перезарядка (магазин с пояса)", "R", function()
+        if not isOpen then TriggerServerEvent("rp_inventory:reloadStart") end
+    end)
     for n = 1, 5 do
         key("rp_belt" .. n, "Пояс: ячейка " .. n, tostring(n + 3), function()
             if not isOpen then TriggerServerEvent("rp_inventory:belt", n) end
