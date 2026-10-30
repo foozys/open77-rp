@@ -143,7 +143,9 @@
       "rp/rp_police",
       "rp/rp_police_ui",
       "rp/rp_cyberware",
-      "rp/rp_cyberware_ui"
+      "rp/rp_cyberware_ui",
+      "rp/rp_airtaxi",
+      "rp/rp_airtaxi_ui"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,
