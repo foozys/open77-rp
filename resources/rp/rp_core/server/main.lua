@@ -146,3 +146,16 @@ RegisterCommand("rp.status", function(source)
     Util.reply(source, "БД готова: %s, схема rp_core v%d, уровень лога: %s, аудит: %s",
         tostring(Core.dbReady), Core.schemaVersion, Tune.logLevel, tostring(Tune.auditLog))
 end, false)
+
+-- Урон между игроками. Платформа по умолчанию его не даёт (и кулакам, и оружию, и взлому —
+-- отказ combat_veto), включает его игровой режим. Настройка pvpEnabled, меняется без рестарта.
+local function applyPvp()
+    local ok, why = Open77.combat.setFriendlyFire(Tune.pvpEnabled == true)
+    if not ok then Log.scope("combat").warn("урон между игроками не настроен: %s", tostring(why)) end
+end
+
+CreateThread(applyPvp)
+
+AddEventHandler("onTunableChanged", function(key)
+    if key == "pvpEnabled" then applyPvp() end
+end)

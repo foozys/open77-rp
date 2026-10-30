@@ -12,6 +12,8 @@ permissions {
     "database.access", "players.life.read", "players.gate", "players.disconnect", "acl.read",
     "network.events", "players.teleport",
     "players.damage.read", "players.stats.read", "players.damage.apply", "players.stats.apply",
+    -- combat.config: урон между игроками (настройка pvpEnabled)
+    "combat.config",
 }
 
 -- Порядок важен: каждый файл использует глобалы предыдущих.
