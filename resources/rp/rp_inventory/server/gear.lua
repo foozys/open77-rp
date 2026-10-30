@@ -433,9 +433,20 @@ local function reloadStart(playerId)
     if not weapon then return end
     local nxt, nxtRounds = nextMag(state, InvConfig.items[weapon.i], live)
     if not nxt then return end
+    local oldRounds = live.rounds
+    -- Сразу, до записи: перезарядка идёт, в игре 0 и запас = ровно новый магазин — анимация
+    -- с самого начала работает с этими числами, а рост патронов не примется за автоперезарядку.
+    live.inserting, live.committing, live.sawEmpty, live.insertingAt = true, true, false, GetGameTimer()
+    live.next, live.reserve, live.native = nil, nxtRounds, 0
+    request(playerId, slot, live.u, "insert", { magazine = 0, reserve = nxtRounds })
+    local function undo(text)
+        live.inserting, live.committing = false, false
+        applyAmmo(playerId, state, slot)
+        if text then C.notify(playerId, "%s", text) end
+    end
     local old = insertedOf(state, weapon)
     local opId = Store.newOpId("rpreload")
-    if not opId then return end
+    if not opId then return undo("Перезарядка не удалась: склад недоступен.") end
     local lines = {
         { instance = nxt.u, from = state.account, to = SOURCE },
         { instance = weapon.u, at = state.account, metaPatch = { mag = { item = nxt.i, rounds = nxtRounds } } },
@@ -444,20 +455,18 @@ local function reloadStart(playerId)
     if old then
         oldId = newInstanceId(old.item, opId)
         lines[#lines + 1] = { instance = oldId, item = old.item, from = SOURCE, to = state.account,
-                              meta = { rounds = live.rounds } }
+                              meta = { rounds = oldRounds } }
     end
     state.busy = true
     local receipt, why = Store.transfer({ opId = opId, kind = "rp.reload", reason = "reload", lines = lines })
     state.busy = false
-    if not receipt then return C.notify(playerId, "Перезарядка не удалась: %s.", C.explain(why or "busy")) end
+    if not receipt then return undo("Перезарядка не удалась: " .. C.explain(why or "busy") .. ".") end
     if oldId then nxt.i, nxt.u = old.item, oldId
     else
         for i, st in ipairs(state.stacks) do if st == nxt then table.remove(state.stacks, i) break end end
     end
     Store.saveLayout(state.characterId, state.stacks)
-    live.rounds, live.dirty, live.preferred, live.inserting = nxtRounds, false, nil, true
-    live.sawEmpty, live.insertingAt = false, GetGameTimer()
-    applyAmmo(playerId, state, slot)
+    live.rounds, live.dirty, live.preferred, live.committing = nxtRounds, false, nil, false
     C.refresh(playerId)
 end
 
@@ -516,7 +525,7 @@ CreateThread(function()
                 local slot = activeSlot(state, w)
                 local live = slot and state.gear[slot]
                 local mag = w and tonumber(w.magazine)
-                if live and live.inserting and mag then
+                if live and live.inserting and mag and not live.committing then
                     -- Вставка нового магазина: ждём, пока игра покажет 0 (наша команда дошла), затем
                     -- рост — анимация закончилась. Не показала 0 за 6 с — закончить по таймауту.
                     if mag == 0 then live.sawEmpty = true end
@@ -524,7 +533,7 @@ CreateThread(function()
                         live.inserting, live.sawEmpty, live.native = false, false, mag
                         applyAmmo(playerId, state, slot)
                     end
-                elseif live and not live.melee and live.ready and mag and w.drawn and not state.busy then
+                elseif live and not live.inserting and not live.melee and live.ready and mag and w.drawn and not state.busy then
                     if mag < live.native then
                         live.rounds = math.max(0, live.rounds - (live.native - mag))
                         live.dirty = true
