@@ -732,8 +732,15 @@ local function odBurst(playerId, effect, ttlMs)
 end
 
 local function odSound(playerId, event)
-    Open77.effects.sound({ kind = "player", id = tostring(playerId) }, event,
-        { duration = 2, actionId = ("rpod:%d:%s:%d"):format(playerId, event, GetGameTimer()) })
+    local ok, why = Open77.effects.sound({ kind = "player", id = tostring(playerId) }, event,
+        { duration = 2, actionId = ("rpod:%d:%s:%d"):format(math.floor(playerId), event, math.floor(GetGameTimer())) })
+    if not ok then log("warn", "звук %s игроку %d: %s", event, playerId, tostring(why)) end
+end
+
+-- Подача (искры, звук, свечение) не должна ломать сам переключатель.
+local function present(fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok then log("warn", "сандевистан, эффект: %s", tostring(err)) end
 end
 
 local function odClearBody(s)
@@ -764,14 +771,14 @@ local function setOverdrive(playerId, on, text)
         -- Каждое включение тоже стоит рассудка: иначе выгодно щёлкать X чаще, чем раз в 5 с.
         s.psychosis = math.min(100, s.psychosis + (def.overdrive.activationSanity or 0))
         pushPanel(playerId)
-        odBurst(playerId, "sparks.burst.large", 900)
-        odSound(playerId, "w_cyb_berserker_activate")
-        odBody(playerId, s, def)
+        present(odBurst, playerId, "sparks.burst.large", 900)
+        present(odSound, playerId, "w_cyb_berserker_activate")
+        present(odBody, playerId, s, def)
     elseif was and not s.overdrive then
-        odClearBody(s)
+        present(odClearBody, s)
         if Open77.players.get(playerId) and not Open77.players.isDead(playerId) then
-            odBurst(playerId, "sparks.burst.small", 700)
-            odSound(playerId, "w_cyb_berserker_deactivate")
+            present(odBurst, playerId, "sparks.burst.small", 700)
+            present(odSound, playerId, "w_cyb_berserker_deactivate")
         end
     end
     send(playerId, "rp_cyberware:overdrive", { on = s.overdrive, tier = def and def.overdrive.tier or nil, text = text })
@@ -807,7 +814,7 @@ CreateThread(function()
                     setOverdrive(playerId, false, "Импланты выведены из строя.")
                 else
                     s.overdriveSeconds = s.overdriveSeconds + 1
-                    if s.overdriveSeconds % 55 == 0 then odBody(playerId, s, def) end
+                    if s.overdriveSeconds % 55 == 0 then present(odBody, playerId, s, def) end
                     if s.overdriveSeconds % def.overdrive.sanitySeconds == 0 then
                         s.psychosis = math.min(100, s.psychosis + def.overdrive.sanityAmount)
                         pushPanel(playerId)
@@ -1019,7 +1026,7 @@ RegisterNetEvent("rp_cyberware:hack", function(targetArg)
     end
     if Open77.players.isDead(target) or isDowned(target) then return reply("Цель без сознания.") end
     local result, why = Open77.hacking.start(playerId, target, DECK_ID, scriptId,
-        { operationId = ("rphack:%d:%d:%d"):format(playerId, target, GetGameTimer()) })
+        { operationId = ("rphack:%d:%d:%d"):format(math.floor(playerId), target, math.floor(GetGameTimer())) })
     if not result then return reply("Отказ: " .. tostring(why)) end
     s.action = result.actionId
     reply(nil)
