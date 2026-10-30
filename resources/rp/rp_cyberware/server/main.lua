@@ -20,6 +20,7 @@ local sessions = {}  -- [playerId] = { pointId, at, busy } — открытое 
 local tickets = {}   -- [ticket] = result (ждём onCyberwareOperationCompleted)
 local dbReady = false
 local Arm -- прошить деку нужным скриптом (ниже, раздел «Kiroshi и взлом»)
+local startPsycho -- начать киберпсихоз (ниже, раздел «Киберпсихоз»)
 
 local function log(level, fmt, ...)
     Open77.log[level]("[rp_cyberware] " .. string.format(fmt, ...))
@@ -98,6 +99,13 @@ end
 local function pushPanel(playerId)
     local s = state[playerId]
     if not s then return end
+    -- Рассудок впервые упал до нуля — предупредить: дальше любой тяжёлый приступ может стать срывом.
+    if s.psychosis >= 100 and not s.zeroWarned then
+        s.zeroWarned = true
+        notify(playerId, "Вы чувствуете, как что-то внутри ломается. Рассудок на нуле: следующий приступ может стать киберпсихозом.")
+    elseif s.psychosis < 100 then
+        s.zeroWarned = false
+    end
     local slots = {}
     for _, slot in ipairs(CyberConfig.slots) do
         local implantId = s.slots[slot.id]
@@ -326,7 +334,7 @@ local function load(playerId, characterId)
     for _, row in ipairs(rows) do
         if CyberConfig.implants[row.implant_id] then slots[row.slot] = row.implant_id end
     end
-    local saved = db("single", "SELECT psychosis, deck_scripts FROM rp_cyber_state WHERE character_id = ?", { characterId })
+    local saved = db("single", "SELECT psychosis, deck_scripts, psycho_pending FROM rp_cyber_state WHERE character_id = ?", { characterId })
     local scripts = {}
     local okDecode, list = pcall(json.decode, saved and saved.deck_scripts or "[]")
     for _, scriptId in ipairs(okDecode and type(list) == "table" and list or {}) do
@@ -341,14 +349,25 @@ local function load(playerId, characterId)
     pushPanel(playerId)
     -- Дека могла остаться прошитой скриптом (или старой версией) — вернуть в пустой режим.
     Arm(playerId)
+    -- Вышел посреди киберпсихоза — срыв продолжается после входа.
+    if saved and tonumber(saved.psycho_pending) == 1 then
+        local s = state[playerId]
+        SetTimeout(15000, function()
+            if state[playerId] == s and not s.psycho then
+                notify(playerId, "Срыв не закончился.")
+                startPsycho(playerId)
+            end
+        end)
+    end
 end
 
 local function saveState(playerId)
     local s = state[playerId]
     if not s then return end
-    db("update", [[INSERT INTO rp_cyber_state (character_id, psychosis, deck_scripts) VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE psychosis = VALUES(psychosis), deck_scripts = VALUES(deck_scripts)]],
-        { s.characterId, s.psychosis, json.encode(s.scripts or {}) })
+    db("update", [[INSERT INTO rp_cyber_state (character_id, psychosis, deck_scripts, psycho_pending) VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE psychosis = VALUES(psychosis), deck_scripts = VALUES(deck_scripts),
+        psycho_pending = VALUES(psycho_pending)]],
+        { s.characterId, s.psychosis, json.encode(s.scripts or {}), s.psycho and 1 or 0 })
 end
 
 AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
@@ -662,6 +681,12 @@ local function episodeGlitch(playerId, severe)
 end
 
 local function episode(playerId, severe)
+    local s = state[playerId]
+    if s and s.psycho then return end -- срыв уже идёт
+    -- Рассудок 0: тяжёлый приступ с шансом становится киберпсихозом.
+    if s and severe and s.psychosis >= 100 and math.random() < CyberConfig.psycho.chance then
+        return startPsycho(playerId)
+    end
     -- Голоса в голове и помехи на экране — у самого игрока (rp_cyberware_ui): помехи идут
     -- ровно столько, сколько звучат голоса.
     send(playerId, "rp_cyberware:voices", { severe = severe })
@@ -688,6 +713,7 @@ AddEventHandler("rp_inventory:used", function(playerIdArg, itemId)
     local playerId = tonumber(playerIdArg)
     local s = playerId and state[playerId]
     if not s then return end
+    if s.psycho then return notify(playerId, "Нейроблокатор уже не помогает.") end
     s.psychosis = math.max(0, s.psychosis - CyberConfig.neuroblockerRelief)
     s.nextEpisode = math.max(s.nextEpisode, Open77.time.unix() + CyberConfig.episodeMinutes * 60)
     send(playerId, "rp_cyberware:calm") -- оборвать идущий приступ: голоса и помехи
@@ -709,7 +735,7 @@ CreateThread(function()
                     Open77.players.heal(playerId, s.regen)
                 end
             end
-            if tick % math.max(1, math.floor(CyberConfig.armorRestoreSeconds / 10)) == 0 and (s.armor or 0) > 0 then
+            if tick % math.max(1, math.floor(CyberConfig.armorRestoreSeconds / 10)) == 0 and (s.armor or 0) > 0 and not s.psycho then
                 Open77.players.setArmor(playerId, s.armor)
             end
             if tick % 3 == 0 then ensureAbilities(playerId) end
@@ -761,6 +787,10 @@ local function overdriveDef(s)
     end
 end
 
+-- В срыве ускорение есть у любого, тяжёлое, без цены рассудком, и выключить его нельзя.
+local PSYCHO_OD = { overdrive = { tier = CyberConfig.psycho.tier, sanitySeconds = 5, sanityAmount = 0, activationSanity = 0 } }
+local function odDefOf(s) return s.psycho and PSYCHO_OD or overdriveDef(s) end
+
 -- Как его видят все: слои и звуки те же, что у платформенного рефлекса
 -- (open77_reflex/server/presentation.lua, проверены там на расстоянии): вспышка искр
 -- и звук включения, синее свечение вокруг тела, искры и следы у ступней, пока включён.
@@ -811,7 +841,7 @@ end
 local function setOverdrive(playerId, on, text)
     local s = state[playerId]
     if not s then return end
-    local def = on and overdriveDef(s)
+    local def = on and odDefOf(s)
     local was = s.overdrive == true
     s.overdrive = def and true or false
     s.overdriveSeconds = 0
@@ -853,6 +883,8 @@ RegisterNetEvent("rp_cyberware:overdrive", function(on)
     local playerId = tonumber(source)
     local s = playerId and state[playerId]
     if not s then return end
+    if s.psycho then return send(playerId, "rp_cyberware:overdrive", { on = true, tier = PSYCHO_OD.overdrive.tier,
+                                                                          text = "Вы не контролируете себя." }) end
     if not on then return setOverdrive(playerId, false) end
     if not overdriveDef(s) then return setOverdrive(playerId, false, "Сандевистан не установлен.") end
     if Open77.players.isDead(playerId) or isDowned(playerId) then return setOverdrive(playerId, false) end
@@ -881,10 +913,10 @@ CreateThread(function()
                 end
             end
             if s.overdrive then
-                local def = overdriveDef(s)
+                local def = odDefOf(s)
                 if not def or Open77.players.isDead(playerId) or isDowned(playerId) then
                     setOverdrive(playerId, false)
-                elseif implantsSuspended(playerId) then
+                elseif implantsSuspended(playerId) and not s.psycho then
                     setOverdrive(playerId, false, "Импланты выведены из строя.")
                 else
                     s.overdriveSeconds = s.overdriveSeconds + 1
@@ -897,6 +929,202 @@ CreateThread(function()
             end
         end
     end
+end)
+
+-- -- Киберпсихоз ---------------------------------------------------------------------------
+-- Срыв (CyberConfig.psycho): тяжёлый Сандевистан сам и не выключается, броня +armorBonus,
+-- искры и дым на теле, надпись «КИБЕРПСИХ» над головой у всех, крик в радиусе, полиции —
+-- тревога с меткой. Клиент психа: красный экран, голоса, таймер; оружие не убрать, в
+-- машину не сесть (высаживаем), инвентарь, OOC и вызов медиков закрыты.
+-- Конец — смерть без ранения (rp_medical flatline): убили или вышло время. Импланты и
+-- скрипты из деки — кучей на месте смерти, рассудок 50, через несколько секунд больница.
+
+local PSYCHO_LAYERS = {
+    { effect = "electric.arc", slot = "RightHand" },
+    { effect = "electric.arc", slot = "LeftHand" },
+    { effect = "electric.industrial_arm", slot = "Chest" },
+    { effect = "fire.tiny", slot = "Chest" },
+    { effect = "smoke.steam", slot = "Chest" },
+    { effect = "sparks.welding", slot = "LeftFoot" },
+    { effect = "sparks.welding", slot = "RightFoot" },
+}
+
+local function psychoBody(playerId, ttlMs)
+    local handles = {}
+    for _, layer in ipairs(PSYCHO_LAYERS) do
+        local handle = Open77.effects.attach({ kind = "player", id = tostring(playerId) }, layer.effect,
+            { slot = layer.slot, ttlMs = ttlMs, streamingRadius = 90, streamingHysteresis = 20 })
+        if handle then handles[#handles + 1] = handle end
+    end
+    return handles
+end
+
+-- Всем в радиусе — строка о крике; самому психу ничего.
+local function psychoNearby(playerId, text)
+    local place = placeOf(playerId)
+    if not place then return end
+    for _, key in ipairs(GetPlayers() or {}) do
+        local id = math.tointeger(tonumber(key))
+        local other = id and id ~= playerId and placeOf(id)
+        if other and other.bucket == place.bucket and distance(place, other) <= CyberConfig.psycho.alertRadius then
+            notify(id, "%s", text)
+        end
+    end
+end
+
+local function psychoMark(playerId, on)
+    TriggerClientEvent("rp_cyberware:psychoMark", -1, { player = playerId, on = on })
+end
+
+startPsycho = function(playerId)
+    local s = state[playerId]
+    if not s or s.psycho or Open77.players.isDead(playerId) then return end
+    local cfg = CyberConfig.psycho
+    s.psycho = { endsAt = Open77.time.unix() + cfg.seconds, tick = 0 }
+    saveState(playerId) -- вышел посреди срыва — продолжится после входа
+    sync("rp_medical", "flatline", playerId, true)
+    if isDowned(playerId) then sync("rp_medical", "raise", playerId, 1.0) end
+    -- Тяжёлое ускорение вместо своего (если Сандевистан был включён — переключить на тяжёлый).
+    s.overdrive = false
+    setOverdrive(playerId, true)
+    Open77.players.setArmor(playerId, (s.armor or 0) + cfg.armorBonus)
+    local ok, handles = pcall(psychoBody, playerId, (cfg.seconds + 5) * 1000)
+    s.psycho.handles = ok and handles or {}
+    psychoMark(playerId, true)
+    send(playerId, "rp_cyberware:psycho", { on = true, seconds = cfg.seconds })
+    notify(playerId, "Хром берёт верх. Вы больше не контролируете себя: киберпсихоз.")
+    psychoNearby(playerId, "Где-то рядом кричат. Хром искрит — киберпсих! Уходите или стреляйте.")
+    log("info", "КИБЕРПСИХОЗ у игрока %d (#%d)", playerId, s.characterId)
+end
+
+-- Снять внешние следы срыва (свечение, надпись, экран, ускорение, броня).
+local function stopPsychoPresentation(playerId, s)
+    for _, handle in ipairs(s.psycho and s.psycho.handles or {}) do Open77.effects.remove(handle) end
+    psychoMark(playerId, false)
+    send(playerId, "rp_cyberware:psycho", { on = false })
+end
+
+-- Смерть психа: импланты кучей, рассудок 50, больница.
+local function psychoDeath(playerId)
+    local s = state[playerId]
+    if not s or not s.psycho then return end
+    local cfg = CyberConfig.psycho
+    local place = placeOf(playerId)
+    stopPsychoPresentation(playerId, s)
+    s.psycho = nil
+    setOverdrive(playerId, false)
+
+    -- Импланты из тела и скрипты из деки — добыча на месте смерти.
+    -- Постоянные импланты платформы снимаются, когда тело снова живо (после больницы).
+    local items, platformDefs = {}, {}
+    for slot, implantId in pairs(s.slots) do
+        local def = CyberConfig.implants[implantId]
+        if def and def.kind == "cyberware" then
+            platformDefs[#platformDefs + 1] = def
+        elseif def and ABILITY[def.kind] then
+            ABILITY[def.kind].revoke(playerId)
+        end
+        items[implantId] = (items[implantId] or 0) + 1
+        s.slots[slot] = nil
+    end
+    for _, scriptId in ipairs(s.scripts) do items[scriptId] = (items[scriptId] or 0) + 1 end
+    s.scripts, s.armed = {}, nil
+    db("update", "DELETE FROM rp_implants WHERE character_id = ?", { s.characterId })
+    if place and next(items) then
+        local pile, why = await("rp_inventory", "drop_pile", place, items, "Хром киберпсиха", "Cyberpsycho chrome")
+        if not pile then log("error", "киберпсих %d: куча с имплантами не создана: %s", playerId, tostring(why)) end
+    end
+    s.psychosis = cfg.psychosisAfter
+    s.zeroWarned = false
+    saveState(playerId)
+    pushPanel(playerId)
+    log("info", "киберпсих %d (#%d) мёртв: импланты на земле, больница", playerId, s.characterId)
+
+    -- Тело лежит, потом — больница.
+    Wait(6000)
+    if state[playerId] ~= s then return end
+    sync("rp_medical", "hospitalize", playerId, cfg.hospitalPrice,
+        "Вы очнулись в больнице. Хром из вас вырезали. Последние сутки — провал в памяти (RP: вы их не помните).")
+    -- После подъёма — снять импланты на платформе, вернуть здоровье и броню без имплантов.
+    Wait(8000)
+    if state[playerId] ~= s then return end
+    local done = {}
+    for _, def in ipairs(platformDefs) do
+        local slot = def.platform.slot
+        if not done[slot] then -- две кибердеки — одно определение и один слот платформы
+            done[slot] = true
+            local ok, why = platformApply(playerId, def, false)
+            if not ok then log("warn", "киберпсих %d: имплант в слоте %s не снят на платформе: %s", playerId, slot, tostring(why)) end
+        end
+    end
+    applyPassives(playerId)
+end
+
+AddEventHandler("rp_medical:flatlined", function(playerIdArg)
+    local playerId = tonumber(playerIdArg)
+    if playerId and state[playerId] and state[playerId].psycho then
+        CreateThread(function() psychoDeath(playerId) end)
+    end
+end)
+
+-- Ход срыва раз в секунду: из машины — вон, полиции — метка, время вышло — сердце.
+CreateThread(function()
+    while true do
+        Wait(1000)
+        for playerId, s in pairs(state) do
+            local p = s.psycho
+            if p and not p.dying then
+                p.tick = p.tick + 1
+                local read = Open77.players.get(playerId)
+                if read and read.inVehicle then
+                    Open77.vehicles.forcePlayerOutOfVehicle(playerId, read.vehicleId)
+                end
+                if p.tick % CyberConfig.psycho.policeEverySeconds == 1 then
+                    local place = placeOf(playerId)
+                    if place then
+                        sync("rp_police", "dispatch", place, "КИБЕРПСИХОЗ",
+                            "Вооружён и опасен. Обезвредить — только насмерть.",
+                            CyberConfig.psycho.policeEverySeconds + 2, "psycho:" .. playerId .. ":" .. p.tick)
+                    end
+                end
+                if Open77.time.unix() >= p.endsAt then
+                    p.dying = true
+                    notify(playerId, "Сердце не выдерживает.")
+                    local ok, why = Open77.players.kill(playerId)
+                    if not ok then
+                        log("warn", "киберпсих %d не убит: %s", playerId, tostring(why))
+                        CreateThread(function() psychoDeath(playerId) end)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Вышел посреди срыва: отметка в БД (saveState), срыв продолжится после входа.
+AddEventHandler("onPlayerDisconnected", function(playerIdArg)
+    local playerId = tonumber(playerIdArg)
+    local s = playerId and state[playerId]
+    if s and s.psycho then
+        psychoMark(playerId, false)
+        log("info", "киберпсих %d вышел посреди срыва — продолжится при входе", playerId)
+    end
+end)
+
+-- rp.cyberpsycho <ID> — начать срыв (ивент, проверка; право rp.cyber).
+RegisterCommand("rp.cyberpsycho", function(source, args)
+    if not allowed(source, "rp.cyber") then return end
+    local id = math.tointeger(tonumber(args[1]))
+    if not id or not state[id] then return notify(source, "Использование: rp.cyberpsycho <ID игрока в сети>") end
+    if state[id].psycho then return notify(source, "У игрока %d срыв уже идёт.", id) end
+    startPsycho(id)
+    notify(source, "Киберпсихоз у игрока %d.", id)
+end, false)
+
+-- Для других rp_* (инвентарь, чат, медики): идёт ли у игрока срыв.
+exports("psycho", function(playerId)
+    local s = state[math.tointeger(tonumber(playerId)) or 0]
+    return s ~= nil and s.psycho ~= nil
 end)
 
 -- -- Kiroshi и взлом ---------------------------------------------------------------------
@@ -1314,6 +1542,7 @@ local queued, queueReason = Open77.database.ready(function()
             PRIMARY KEY (character_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci]],
         "ALTER TABLE rp_cyber_state ADD COLUMN IF NOT EXISTS deck_scripts TEXT NULL",
+        "ALTER TABLE rp_cyber_state ADD COLUMN IF NOT EXISTS psycho_pending TINYINT NOT NULL DEFAULT 0",
         [[CREATE TABLE IF NOT EXISTS rp_cyber_clinics (
             id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             x DOUBLE NOT NULL, y DOUBLE NOT NULL, z DOUBLE NOT NULL,

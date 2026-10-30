@@ -15,7 +15,9 @@ dependency "open77_interactions >=0.2.0"
 -- помехи на экране, пока они звучат
 permissions { "network.events", "world.query", "input.actions", "player.reflex.overdrive", "audio.play", "vfx.screen", "world.effects",
     -- player.hacking.project: ванильная полоса и звуки взлома во время загрузки скрипта
-    "player.hacking.project" }
+    "player.hacking.project",
+    -- ui.nameplates + network.client (свой ID): надпись «КИБЕРПСИХ» над игроком в срыве
+    "ui.nameplates", "network.client" }
 
 client_script "client/main.lua"
 web_file "web/index.html"

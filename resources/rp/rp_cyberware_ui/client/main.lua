@@ -82,9 +82,11 @@ local scan = { held = false, open = false, candidates = {}, range = 50, target =
 local SCAN_CONE = 0.18     -- радиан от центра экрана
 local BLOCKED = { "NextWeapon", "Attack", "Melee" }
 
+local psy = { active = false } -- киберпсихоз: оружие не убрать (NextWeapon держим и после сканера)
+
 local function block(on)
     for _, action in ipairs(BLOCKED) do
-        local ok, why = Open77.input.setActionBlocked(action, on)
+        local ok, why = Open77.input.setActionBlocked(action, on or (psy.active and action == "NextWeapon"))
         if not ok and on then print("[rp_cyberware_ui] блокировка " .. action .. ": " .. tostring(why)) end
     end
 end
@@ -340,6 +342,7 @@ end
 
 -- Приступ: одна фраза, помехи на всё время её звучания.
 RegisterNetEvent("rp_cyberware:voices", function(p)
+    if psy.active then return end
     local severe = type(p) == "table" and p.severe == true
     episodeRun = episodeRun + 1
     local run = episodeRun
@@ -353,7 +356,55 @@ RegisterNetEvent("rp_cyberware:voices", function(p)
 end)
 
 -- Нейроблокатор: приступ обрывается сразу.
+-- -- киберпсихоз -------------------------------------------------------------------------
+-- Срыв: красный экран с таймером, голоса без перерыва, сильный глитч, оружие не убрать.
+-- Остальным — надпись «КИБЕРПСИХ» над психом.
+
+local function psychoVoices()
+    episodeRun = episodeRun + 1
+    local run = episodeRun
+    CreateThread(function()
+        while psy.active and episodeRun == run do
+            local file = ("audio/voice_%d_severe.wav"):format(math.random(VOICES))
+            glitch(true, false) -- лёгкий глитч: психу нужно видеть, с кем драться
+            playVoice(file, 1.0)
+            waitVoice(file, run)
+            Wait(400)
+        end
+    end)
+end
+
+RegisterNetEvent("rp_cyberware:psycho", function(p)
+    if type(p) ~= "table" then return end
+    if p.on and not psy.active then
+        psy.active = true
+        Open77.input.setActionBlocked("NextWeapon", true)
+        send("psy:on", { seconds = tonumber(p.seconds) or 90 })
+        psychoVoices()
+    elseif not p.on and psy.active then
+        psy.active = false
+        episodeRun = episodeRun + 1
+        for _, handle in pairs(voiceHandles) do Open77.audio.stop(handle) end
+        glitch(false)
+        if not scan.open then Open77.input.setActionBlocked("NextWeapon", false) end
+        send("psy:off")
+    end
+end)
+
+RegisterNetEvent("rp_cyberware:psychoMark", function(p)
+    if type(p) ~= "table" then return end
+    local id = math.tointeger(tonumber(p.player))
+    local session = Open77.network.status()
+    if not id or (session and tonumber(session.playerId) == id) then return end
+    if p.on then
+        Open77.nameplates.set(id, { label = "КИБЕРПСИХ", color = "#FF2A3A", maxDistance = 150 })
+    else
+        Open77.nameplates.remove(id)
+    end
+end)
+
 RegisterNetEvent("rp_cyberware:calm", function()
+    if psy.active then return end
     episodeRun = episodeRun + 1
     for _, handle in pairs(voiceHandles) do Open77.audio.stop(handle) end
     glitch(false)
@@ -386,7 +437,11 @@ end
 RegisterNetEvent("rp_cyberware:overdrive", function(p)
     if type(p) ~= "table" then return end
     if p.text then send("scan:toast", { text = p.text }) end
-    if p.on and not od.on then
+    if p.on and od.on then
+        -- уже включён: сменить уровень (срыв — тяжёлое ускорение); продление подхватит его
+        local tier = p.tier == "reflex_heavy" and "reflex_heavy" or "reflex"
+        if tier ~= od.tier then od.tier = tier Open77.reflex.clear() end
+    elseif p.on and not od.on then
         od.on, od.tier, od.lastWhy = true, p.tier == "reflex_heavy" and "reflex_heavy" or "reflex", nil
         send("od:on")
         overdriveLoop()

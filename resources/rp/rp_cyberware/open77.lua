@@ -29,6 +29,8 @@ permissions {
     "players.abilities.define", "players.abilities.manage", "players.abilities.read",
     "players.stats.apply", "players.damage.apply", "players.stats.read", "players.damage.read",
     "players.life.read", "players.motion.control", "world.effects",
+    -- players.life.kill + world.vehicles: киберпсихоз (смерть по таймеру, высадка из машины)
+    "players.life.kill", "world.vehicles",
     "database.access", "network.events",
 }
 

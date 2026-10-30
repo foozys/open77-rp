@@ -102,6 +102,21 @@
   #hackMsg.ok { border: 1px solid var(--ok); color: var(--ok); }
   #hackMsg.bad { border: 1px solid var(--warn); color: var(--warn); }
 
+  /* -- киберпсихоз: красный экран и таймер -- */
+  #psy { display: none; position: absolute; inset: 0; pointer-events: none; }
+  #psy.on { display: block; }
+  #psy .red { position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 65% at center, rgba(255, 0, 20, 0.10) 35%, rgba(150, 0, 10, 0.62) 100%);
+    animation: psyPulse 0.9s ease-in-out infinite; }
+  @keyframes psyPulse { 50% { opacity: 0.7; } }
+  #psy .title { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); color: #ff3344;
+    font-size: 34px; font-weight: 800; letter-spacing: 12px; text-shadow: 3px 0 rgba(0, 255, 255, 0.6), -3px 0 rgba(255, 0, 80, 0.8);
+    animation: psyShake 0.25s steps(2) infinite; }
+  @keyframes psyShake { 50% { transform: translateX(calc(-50% + 3px)) skewX(-4deg); } }
+  #psy .timer { position: absolute; top: 122px; left: 50%; transform: translateX(-50%); color: #ffd0d4; font-size: 15px;
+    letter-spacing: 2px; text-align: center; text-shadow: 0 0 8px rgba(255, 0, 30, 0.9); }
+  #psy .timer b { color: #fff; font-size: 20px; }
+
   /* -- приступ психоза: резкий глитч, пока звучит голос -- */
   #ep { display: none; position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   #ep.on { display: block; }
@@ -158,6 +173,8 @@
   <div class="track"><div class="fill" id="incFill"></div></div>
   <div class="tip" id="incTip"></div></div>
 <div id="hackMsg"></div>
+<div id="psy"><div class="red"></div><div class="title">КИБЕРПСИХОЗ</div>
+  <div class="timer">Сердце остановится через <b id="psyTime"></b><br>Вы не контролируете себя</div></div>
 <div id="ep"><div class="edge"></div><div id="epBars"></div><div class="scan"></div><div class="flash" id="epFlash"></div></div>
 <div id="od"><div class="glow"></div><div class="lines"></div><div class="ghost"></div>
   <div class="label">Sandevistan<small id="odTime"></small></div></div>
@@ -362,6 +379,21 @@
   });
   Open77.on("inc:end", p => { stopBar("inc"); hackMsg(p.text, !p.ok); });
   Open77.on("inc:note", p => hackMsg(p.text, false));
+
+  // -- киберпсихоз ------------------------------------------------------------------------
+  let psyTimer = null;
+  Open77.on("psy:on", p => {
+    const ends = Date.now() + (p.seconds || 90) * 1000;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((ends - Date.now()) / 1000));
+      $("psyTime").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    };
+    tick();
+    clearInterval(psyTimer);
+    psyTimer = setInterval(tick, 250);
+    $("psy").classList.add("on");
+  });
+  Open77.on("psy:off", () => { clearInterval(psyTimer); $("psy").classList.remove("on"); });
 
   // -- приступ психоза: глитч ------------------------------------------------------------
   // Полосы «разорванного» сигнала: каждые 70 мс новые места, ширина и цвета.

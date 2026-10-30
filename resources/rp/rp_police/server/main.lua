@@ -542,6 +542,23 @@ RegisterCommand("911", function(source, args)
     log("info", "911 от %d: %s", source, text)
 end, false)
 
+-- Тревога от других rp_*: метка и строка всем сотрудникам на смене (как /911).
+-- place = { x, y, z }, title — кто/что, text — описание, seconds — сколько держать метку,
+-- id — свой ключ метки (повтор с новым id — новая метка). Число сотрудников на смене.
+exports("dispatch", function(place, title, text, seconds, id)
+    if type(place) ~= "table" or not tonumber(place.x) then return 0 end
+    local count = 0
+    for _, officer in ipairs(onlinePlayers()) do
+        if onDuty(officer, PoliceConfig.callPermission) then
+            count = count + 1
+            send(officer, "rp_police:call", { id = tostring(id or (tostring(title) .. ":" .. Open77.time.unix())),
+                caller = tostring(title or "?"), text = tostring(text or ""):sub(1, 200),
+                x = place.x, y = place.y, z = place.z, seconds = tonumber(seconds) or PoliceConfig.callBlipSeconds })
+        end
+    end
+    return count
+end)
+
 -- -- вход, выход, перезапуск -----------------------------------------------------------
 
 AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)

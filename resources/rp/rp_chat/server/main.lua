@@ -157,7 +157,18 @@ command("try", "<действие> — попытка, удачно или не�
     })
 end)
 
+-- Киберпсихоз (rp_cyberware): персонаж не в себе — OOC закрыт, говорить можно только IC.
+local function inPsychosis(playerId)
+    local ok, value = pcall(Open77.exports.callSync, "rp_cyberware", "psycho", playerId)
+    if ok and value == true then
+        system(playerId, "Вы не в себе: OOC недоступен, пока длится киберпсихоз.")
+        return true
+    end
+    return false
+end
+
 command("b", "<текст> — OOC рядом", function(playerId, text)
+    if inPsychosis(playerId) then return end
     local name = characterName(playerId) or accountName(playerId)
     logLine("b", playerId, text)
     local color = ChatConfig.colors.ooc
@@ -167,6 +178,7 @@ command("b", "<текст> — OOC рядом", function(playerId, text)
 end)
 
 command("ooc", "<текст> — общий OOC", function(playerId, text)
+    if inPsychosis(playerId) then return end
     local staff = core("can", playerId, "rp.staff") == true
     if not ChatTune.globalOocEnabled and not staff then
         system(playerId, "Общий OOC выключен. Рядом — /b.")

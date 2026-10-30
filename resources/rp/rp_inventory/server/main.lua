@@ -213,6 +213,12 @@ end
 
 RegisterNetEvent("rp_inventory:open", function()
     local playerId = tonumber(source)
+    -- Киберпсихоз (rp_cyberware): персонаж не в себе, в карманы не лезет.
+    local okPsycho, psycho = pcall(Open77.exports.callSync, "rp_cyberware", "psycho", playerId)
+    if okPsycho and psycho == true then
+        TriggerClientEvent("rp_inventory:closed", playerId)
+        return notify(playerId, "Вы не в себе.")
+    end
     local state, problem = ensure(playerId)
     if not state then
         TriggerClientEvent("rp_inventory:closed", playerId)
@@ -566,6 +572,41 @@ exports("give", function(playerId, itemId, count)
     if not receipt then return nil, why or "busy" end
     refresh(playerId)
     return true
+end)
+
+-- Куча на земле с предметами из ниоткуда (выпускаются из SOURCE), только rp_*: добыча с тела
+-- киберпсиха. position = { x, y, z, bucket }, items = { [itemId] = количество } (не уникальные).
+-- Вызывать в потоке. id кучи, или nil, reason.
+exports("drop_pile", function(position, items, label, labelEn)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    if type(position) ~= "table" or type(items) ~= "table" then return nil, "invalid_argument" end
+    local lines, weight = {}, 100
+    for itemId, count in pairs(items) do
+        local def = InvConfig.items[itemId]
+        count = math.tointeger(tonumber(count)) or 0
+        if def and not def.unique and count > 0 then
+            lines[#lines + 1] = { item = itemId, count = count, from = SOURCE }
+            weight = weight + def.weightG * count
+        end
+    end
+    if #lines == 0 then return nil, "empty" end
+    local pile, why = Store.boxes("create", {
+        kind = "pile", position = { x = position.x, y = position.y, z = position.z }, bucket = position.bucket or 0,
+        label = tostring(label or "Вещи"), capacityG = math.max(1000, weight), ttlMs = InvConfig.dropTtlMs,
+        prompt = { label = "Pick up: " .. tostring(labelEn or "items"), key = "E" },
+    })
+    if not pile then return nil, why end
+    for _, line in ipairs(lines) do line.to = pile.id end
+    local opId = Store.newOpId("rppile")
+    local receipt
+    receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.pile", reason = caller, lines = lines }, "containers")
+    if not receipt then
+        Store.boxes("close", pile.id)
+        return nil, why or "busy"
+    end
+    log("info", "куча %s от %s: %d строк", pile.id, caller, #lines)
+    return pile.id
 end)
 
 -- Обыск: открыть officer его окно с двумя сетками — своя и карманы target (только rp_*).

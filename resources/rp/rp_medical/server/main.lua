@@ -218,8 +218,23 @@ local function realDeath(playerId)
     return life ~= nil and life.cause ~= "script"
 end
 
+-- Смерть без ранения (киберпсихоз, rp_cyberware): такой игрок умирает по-настоящему,
+-- ресурс, поставивший отметку, получает rp_medical:flatlined и сам решает, что дальше.
+local flatline = {} -- [playerId] = true
+
+exports("flatline", function(playerId, on)
+    local id = math.tointeger(tonumber(playerId))
+    if id then flatline[id] = on and true or nil end
+    return true
+end)
+
 AddEventHandler("onPlayerLifeStateChanged", function(playerIdArg)
     local playerId = tonumber(playerIdArg)
+    if playerId and flatline[playerId] and Open77.players.isDead(playerId) then
+        flatline[playerId] = nil
+        TriggerEvent("rp_medical:flatlined", playerId)
+        return
+    end
     if not playerId or not dbReady or not realDeath(playerId) then return end
     if downed[playerId] then
         -- Раненый всё же умер (неуязвимость не от всего спасает) — снова уложить.
@@ -298,6 +313,35 @@ local function goHospital(playerId)
     log("info", "игрок %d в больнице #%s, оплата %d", playerId, hospital and tostring(hospital.id) or "-", paid)
 end
 
+-- Очнуться в ближайшей больнице после смерти без ранения: поднять, перенести, взять плату.
+-- Для других rp_*: hospitalize(playerId, price, text). Работает в своём потоке.
+exports("hospitalize", function(playerIdArg, price, text)
+    local playerId = math.tointeger(tonumber(playerIdArg))
+    price = math.tointeger(tonumber(price)) or MedicalConfig.hospitalPrice
+    if not playerId then return false end
+    CreateThread(function()
+        local place = placeOf(playerId)
+        if Open77.players.isDead(playerId) then
+            local ok, why = Open77.players.revive(playerId, { health = MedicalConfig.hospitalHealth, graceMs = 3000 })
+            if not ok then return log("warn", "игрок %d не поднят в больнице: %s", playerId, tostring(why)) end
+            for _ = 1, 20 do
+                if not Open77.players.isDead(playerId) then break end
+                Wait(250)
+            end
+        end
+        local hospital = place and nearestHospital(place)
+        if hospital then
+            local pending, why = Open77.players.teleport(playerId, { x = hospital.x, y = hospital.y, z = hospital.z },
+                { heading = hospital.heading, bucket = hospital.bucket, dismount = true })
+            if pending then pending:await() else log("warn", "игрок %d не перенесён в больницу: %s", playerId, tostring(why)) end
+        end
+        local paid = price > 0 and charge(playerId, price, "rp.medical.hospital") or 0
+        notify(playerId, "%s %s", tostring(text or "Вы очнулись в больнице."), price > 0 and paidText(paid, price) or "")
+        log("info", "игрок %d в больнице после смерти, оплата %d из %d", playerId, paid, price)
+    end)
+    return true
+end)
+
 RegisterNetEvent("rp_medical:call", function() local id = tonumber(source) if id then callMedics(id) end end)
 RegisterNetEvent("rp_medical:hospital", function() local id = tonumber(source) if id then goHospital(id) end end)
 RegisterNetEvent("rp_medical:request", function() local id = tonumber(source) if id then status(id) end end)
@@ -347,7 +391,7 @@ end, false)
 AddEventHandler("onPlayerDisconnected", function(playerIdArg)
     local playerId = tonumber(playerIdArg)
     if not playerId then return end
-    reviving[playerId] = nil
+    reviving[playerId], flatline[playerId] = nil, nil
     -- Отметка в БД остаётся: при входе — больница.
     finish(playerId, true)
 end)

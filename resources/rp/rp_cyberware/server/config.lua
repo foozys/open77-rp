@@ -141,6 +141,21 @@ CyberConfig = {
     },
     scanRange = 50,          -- кого Kiroshi видит как цель (м)
 
+    -- Киберпсихоз: при рассудке 0 каждый тяжёлый приступ с шансом chance превращается в срыв.
+    -- Срыв длится seconds: тяжёлый Сандевистан сам, броня +armorBonus, видно всем, полиции —
+    -- тревога с меткой раз в policeEverySeconds. Конец — смерть без ранения: импланты кучей на
+    -- месте смерти, больница за hospitalPrice, психоз становится psychosisAfter (рассудок 50).
+    psycho = {
+        chance = 0.25,
+        seconds = 90,
+        armorBonus = 100,
+        tier = "reflex_heavy",
+        alertRadius = 100,
+        policeEverySeconds = 5,
+        hospitalPrice = 5000,
+        psychosisAfter = 50,
+    },
+
     baseMaxHealth = 100,     -- здоровье без «второго сердца»
     armorRestoreSeconds = 60, -- броня восстанавливается до полной раз в столько секунд
 }
