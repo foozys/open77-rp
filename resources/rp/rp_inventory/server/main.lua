@@ -514,6 +514,60 @@ exports("give_instance", function(playerId, itemId, meta, price)
     return lines[1].instance
 end)
 
+-- Сколько каких предметов в карманах игрока: { [itemId] = количество }, или nil, reason.
+exports("counts", function(playerId)
+    playerId = math.tointeger(tonumber(playerId))
+    local state, problem = playerId and ensure(playerId)
+    if not state then return nil, problem or "invalid_argument" end
+    local counts = {}
+    for _, stack in ipairs(state.stacks) do counts[stack.i] = (counts[stack.i] or 0) + stack.n end
+    return counts
+end)
+
+-- Забрать у игрока count штук предмета itemId (сгорают в SOURCE), только rp_*: имплант
+-- уходит в тело. true, или nil, reason ("insufficient_items", …).
+exports("take", function(playerId, itemId, count)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    playerId, count = math.tointeger(tonumber(playerId)), math.tointeger(tonumber(count)) or 1
+    if not playerId or not InvConfig.items[itemId] or count < 1 then return nil, "invalid_argument" end
+    local state, problem = ensure(playerId)
+    if not state then return nil, problem end
+    if state.busy then return nil, "busy" end
+    local opId = Store.newOpId("rptake")
+    if not opId then return nil, "store_unavailable" end
+    state.busy = true
+    local receipt, why = Store.transfer({ opId = opId, kind = "rp.take", reason = caller,
+        lines = { { item = itemId, count = count, from = state.account, to = SOURCE } } })
+    state.busy = false
+    if not receipt then return nil, why or "busy" end
+    refresh(playerId)
+    return true
+end)
+
+-- Выдать игроку count штук предмета itemId (из SOURCE), только rp_*: снятый имплант.
+-- true, или nil, reason ("no_space", …).
+exports("give", function(playerId, itemId, count)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    playerId, count = math.tointeger(tonumber(playerId)), math.tointeger(tonumber(count)) or 1
+    local def = InvConfig.items[itemId]
+    if not playerId or not def or def.unique or count < 1 then return nil, "invalid_argument" end
+    local state, problem = ensure(playerId)
+    if not state then return nil, problem end
+    if state.busy then return nil, "busy" end
+    if not Grid.fits(state.stacks, itemId, count) then return nil, "no_space" end
+    local opId = Store.newOpId("rpgive")
+    if not opId then return nil, "store_unavailable" end
+    state.busy = true
+    local receipt, why = Store.transfer({ opId = opId, kind = "rp.give.item", reason = caller,
+        lines = { { item = itemId, count = count, from = SOURCE, to = state.account } } })
+    state.busy = false
+    if not receipt then return nil, why or "busy" end
+    refresh(playerId)
+    return true
+end)
+
 -- Обыск: открыть officer его окно с двумя сетками — своя и карманы target (только rp_*).
 -- check — имя экспорта вызывающего ресурса: check(officer, target) == true перед каждым
 -- переносом (на смене, держит задержанного, рядом). true, или nil, reason.

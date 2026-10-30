@@ -22,7 +22,16 @@ local function open()
     send("inv:open")
     page:setFocus(true, true)
     TriggerServerEvent("rp_inventory:open")
+    TriggerServerEvent("rp_cyberware:panel") -- вкладка «Импланты»
 end
+
+-- Вкладка «Импланты»: слоты, человечность, рассудок (присылает rp_cyberware).
+local cyber = nil
+RegisterNetEvent("rp_cyberware:panel", function(payload)
+    if type(payload) ~= "table" then return end
+    cyber = payload
+    send("inv:cyber", payload)
+end)
 
 local function forward(event, server)
     page:on(event, function(p)
@@ -45,6 +54,7 @@ AddEventHandler("onClientResourceStart", function(name)
     page:on("ui:ready", function()
         pageReady = true
         if pendingState then send("inv:state", pendingState) end
+        if cyber then send("inv:cyber", cyber) end
     end)
     page:on("inv:close", close)
     -- a, b, c, d — аргументы действия: move (x, y, rotated, target), split (count),
@@ -80,6 +90,7 @@ RegisterNetEvent("rp_inventory:openWindow", function()
     isOpen = true
     send("inv:open")
     page:setFocus(true, true)
+    TriggerServerEvent("rp_cyberware:panel")
 end)
 
 -- Сервер отказал (персонаж не выбран и т.п.): закрыть окно.

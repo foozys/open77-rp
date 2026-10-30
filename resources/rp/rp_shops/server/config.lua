@@ -20,7 +20,7 @@ ShopsConfig = {
         },
         pharmacy = {
             label = "Аптека", labelEn = "Pharmacy",
-            items = { bandage = 40, medkit = 250, water = 20 },
+            items = { bandage = 40, medkit = 250, water = 20, neuroblocker = 150 },
         },
         electronics = {
             label = "Электроника", labelEn = "Electronics",
@@ -29,6 +29,16 @@ ShopsConfig = {
         hardware = {
             label = "Хозтовары", labelEn = "Hardware Store",
             items = { toolbox = 450, lighter = 5, notebook = 15 },
+        },
+        -- Импланты — предметы; ставит рипердок (rp_cyberware), установка оплачивается отдельно.
+        implants = {
+            label = "Импланты", labelEn = "Cyberware Store",
+            items = {
+                implant_biomonitor = 2500, implant_metabolic = 1500, implant_ice = 2000, implant_purge = 2000,
+                implant_heart = 6000, implant_subdermal = 4000, implant_legs = 5000, implant_dash = 4500,
+                implant_deck = 9000, implant_gorilla = 8000, implant_slam = 7000, implant_sandevistan = 15000,
+                neuroblocker = 150,
+            },
         },
         -- Ставится у автомата игры: сами автоматы движок различить не даёт
         -- (у всех устройств класс gameDeviceBase).

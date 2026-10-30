@@ -253,6 +253,15 @@
       { title: "Список точек КПЗ", desc: "", perm: "rp.police", cmd: () => ["rp.jailpoint", "list"] },
       { title: "Касса NCPD", desc: "Штрафы идут сюда", perm: "rp.jobs", cmd: () => ["rp.society", "ncpd"] },
     ]},
+    { id: "cyber", label: "Импланты", actions: [
+      { title: "Импланты игрока", desc: "Слоты, человечность, психоз", perm: "rp.view", fields: [F.player()],
+        cmd: v => ["rp.implants", v.id] },
+      { title: "Выставить психоз", desc: "0 — здоров, 100 — киберпсихоз", perm: "rp.heal",
+        fields: [F.player(), F.number("value", "Психоз 0–100", { value: 0 })], cmd: v => ["rp.psychosis", v.id, v.value] },
+      { title: "Поставить клинику", desc: "NPC-рипердок там, где вы стоите", perm: "rp.cyber", cmd: () => ["rp.clinic", "add"] },
+      { title: "Убрать клинику", desc: "Ближайшую (до 8 м)", perm: "rp.cyber", cmd: () => ["rp.clinic", "remove"], danger: true },
+      { title: "Список клиник", desc: "", perm: "rp.cyber", cmd: () => ["rp.clinic", "list"] },
+    ]},
     { id: "shops", label: "Магазины", actions: [
       { title: "Поставить магазин", desc: "Точка там, где вы стоите", perm: "rp.shops",
         fields: [F.select("type", "Тип", "shopTypes")], cmd: v => ["rp.shop", "add", v.type] },

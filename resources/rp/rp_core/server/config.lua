@@ -40,7 +40,7 @@ RpConfig = {
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
-                          "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles", "rp.medical", "rp.police" } },
+                          "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 

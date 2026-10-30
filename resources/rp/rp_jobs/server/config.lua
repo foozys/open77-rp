@@ -44,6 +44,16 @@ JobsConfig = {
                 { label = "Владелец", salary = 500, permissions = { "job.manage" } },
             },
         },
+        -- Рипердоки (rp_cyberware): на смене ставят и снимают импланты другим игрокам с их
+        -- согласия; плата за установку — в кассу soc:ripperdoc.
+        ripperdoc = {
+            label = "Клиника рипердоков", payFrom = "society",
+            ranks = {
+                { label = "Ассистент", salary = 200, permissions = { "cyber.inspect" } },
+                { label = "Рипердок", salary = 400, permissions = { "cyber.install" } },
+                { label = "Главный рипердок", salary = 600, permissions = { "job.manage" } },
+            },
+        },
     },
 }
 

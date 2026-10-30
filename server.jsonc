@@ -120,6 +120,7 @@
       "open77_transactions",
       "open77_containers",
       "open77_rp_basics",
+      "open77_hacking",
       "rp/rp_core",
       "rp/rp_charselect",
       "rp/rp_chat",
@@ -138,7 +139,9 @@
       "rp/rp_medical",
       "rp/rp_medical_ui",
       "rp/rp_police",
-      "rp/rp_police_ui"
+      "rp/rp_police_ui",
+      "rp/rp_cyberware",
+      "rp/rp_cyberware_ui"
     ],
     "autoStart": true,
     "watchIntervalMilliseconds": 0,

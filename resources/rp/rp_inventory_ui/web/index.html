@@ -29,6 +29,29 @@
   #weightBar { height: 4px; margin-top: 4px; background: rgba(255, 255, 255, 0.08); }
   #weightFill { height: 100%; background: var(--accent); width: 0; }
 
+  #panel { display: flex; gap: 22px; }
+  #tabs { display: flex; flex-direction: column; gap: 6px; padding-right: 18px; border-right: 1px solid var(--line); }
+  .tab { writing-mode: vertical-rl; transform: rotate(180deg); padding: 14px 8px; background: transparent; color: var(--muted);
+    border: 1px solid transparent; font: inherit; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-color: var(--line); background: rgba(94, 246, 255, 0.06); }
+  #cyberView { display: none; width: 720px; min-height: 460px; }
+  #panel.cyber #invView { display: none; }
+  #panel.cyber #cyberView { display: block; }
+  .meter { margin: 14px 0; }
+  .meterHead { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .meterHead b { color: var(--text); }
+  .meterBar { position: relative; height: 8px; margin-top: 5px; background: rgba(255, 255, 255, 0.08); }
+  .meterFill { height: 100%; background: var(--accent); }
+  .meterMark { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--warn); }
+  .meterNote { font-size: 12px; color: var(--muted); margin-top: 4px; min-height: 16px; }
+  #slotList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .slot { padding: 9px 12px; border: 1px solid rgba(255, 255, 255, 0.08); min-height: 58px; }
+  .slot .slotName { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .slot .impl { font-weight: 600; margin-top: 2px; }
+  .slot .impl.none { color: rgba(255, 255, 255, 0.25); font-weight: 400; }
+  .slot small { display: block; color: var(--muted); font-size: 12px; }
+  .slot.filled { border-color: rgba(200, 120, 255, 0.45); background: rgba(200, 120, 255, 0.05); }
   #grids { display: flex; gap: 28px; align-items: flex-start; }
   #lootBox { display: none; }
   #lootBox.visible { display: block; }
@@ -88,6 +111,11 @@
 <body>
 <div id="root">
   <div id="panel">
+    <div id="tabs">
+      <button class="tab active" data-tab="inv">Инвентарь</button>
+      <button class="tab" data-tab="cyber">Импланты</button>
+    </div>
+    <div id="invView">
     <header>
       <div>
         <h1>Инвентарь</h1>
@@ -105,6 +133,18 @@
         <div class="lootTitle">Обыск<span id="lootName"></span><button id="lootSearch" hidden>Обыскать</button></div>
         <div id="lootGrid"></div>
       </div>
+    </div>
+    </div>
+    <div id="cyberView">
+      <h1>Импланты</h1>
+      <div class="hint">Ставит и снимает рипердок. Нейроблокатор (аптека) снижает психоз.</div>
+      <div class="meter"><div class="meterHead"><span>Человечность</span><b id="humValue"></b></div>
+        <div class="meterBar"><div class="meterFill" id="humFill"></div><div class="meterMark" id="humMark"></div></div>
+        <div class="meterNote" id="humNote"></div></div>
+      <div class="meter"><div class="meterHead"><span>Рассудок</span><b id="sanityValue"></b></div>
+        <div class="meterBar"><div class="meterFill" id="sanityFill"></div></div>
+        <div class="meterNote" id="sanityNote"></div></div>
+      <div id="slotList"></div>
     </div>
   </div>
   <div id="ghost"><div class="name"></div></div>
@@ -449,6 +489,52 @@
       emit("inv:close");
     }
   });
+
+  // -- вкладка «Импланты» ------------------------------------------------------------
+
+  let cyber = null;
+  function renderCyber() {
+    if (!cyber) return;
+    const max = cyber.humanityMax || 100;
+    $("humValue").textContent = `${cyber.humanity} / ${max}`;
+    $("humFill").style.width = `${Math.max(0, cyber.humanity) / max * 100}%`;
+    $("humFill").style.background = cyber.humanity < cyber.threshold ? "var(--warn)" : "var(--accent)";
+    $("humMark").style.left = `${cyber.threshold / max * 100}%`;
+    $("humNote").textContent = cyber.humanity < cyber.threshold
+      ? "Ниже порога — психоз растёт, пока вы в игре." : `Порог психоза — ${cyber.threshold}.`;
+    const sanity = Math.max(0, 100 - cyber.psychosis);
+    $("sanityValue").textContent = `${sanity} / 100`;
+    $("sanityFill").style.width = `${sanity}%`;
+    $("sanityFill").style.background = cyber.psychosis >= cyber.severeFrom ? "var(--warn)"
+      : cyber.psychosis >= cyber.episodeFrom ? "#f3a600" : "var(--ok)";
+    $("sanityNote").textContent = cyber.psychosis >= cyber.severeFrom ? "Киберпсихоз: тяжёлые приступы, теряете контроль."
+      : cyber.psychosis >= cyber.episodeFrom ? "Приступы: голоса, помехи. Примите нейроблокатор." : "Рассудок в порядке.";
+    const list = $("slotList");
+    list.replaceChildren();
+    for (const slot of (Array.isArray(cyber.slots) ? cyber.slots : [])) {
+      const el = document.createElement("div");
+      el.className = "slot" + (slot.implant ? " filled" : "");
+      el.innerHTML = `<div class="slotName"></div><div class="impl"></div><small></small>`;
+      el.querySelector(".slotName").textContent = slot.label;
+      const impl = el.querySelector(".impl");
+      if (slot.implant) {
+        impl.textContent = slot.implant.label.replace(/^Имплант: /, "");
+        el.querySelector("small").textContent = `${slot.implant.description} · −${slot.implant.humanity} человечности`;
+      } else {
+        impl.textContent = "пусто";
+        impl.classList.add("none");
+      }
+      list.append(el);
+    }
+  }
+
+  document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b === btn));
+    $("panel").classList.toggle("cyber", btn.dataset.tab === "cyber");
+    renderCyber();
+  }));
+
+  Open77.on("inv:cyber", p => { cyber = p; renderCyber(); });
 
   // -- сервер ----------------------------------------------------------------------
 

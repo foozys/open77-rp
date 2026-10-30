@@ -147,8 +147,9 @@ CreateThread(function()
             if not character or character.id ~= state.characterId then
                 needs[playerId] = nil
             elseif NeedsTune.enabled and life and life.phase == "alive" then
-                state.hunger = clamp(state.hunger - 100 / NeedsTune.hungerMinutes * (TICK_SECONDS / 60))
-                state.thirst = clamp(state.thirst - 100 / NeedsTune.thirstMinutes * (TICK_SECONDS / 60))
+                local rate = state.rate or 1 -- метаболический имплант (rp_cyberware) замедляет расход
+                state.hunger = clamp(state.hunger - 100 / NeedsTune.hungerMinutes * (TICK_SECONDS / 60) * rate)
+                state.thirst = clamp(state.thirst - 100 / NeedsTune.thirstMinutes * (TICK_SECONDS / 60) * rate)
                 state.dirty = true
                 warn(playerId, state, "hunger")
                 warn(playerId, state, "thirst")
@@ -223,6 +224,14 @@ exports("add", function(playerId, hunger, thirst)
     state.thirst = clamp(state.thirst + (tonumber(thirst) or 0))
     state.dirty = true
     push(id)
+    return true
+end)
+
+-- Множитель расхода еды и воды (1 — обычный, 0.5 — вдвое медленнее). rp_cyberware.
+exports("set_rate", function(playerId, rate)
+    local state = needs[math.tointeger(tonumber(playerId)) or 0]
+    if not state then return nil end
+    state.rate = math.max(0, math.min(2, tonumber(rate) or 1))
     return true
 end)
 

@@ -43,5 +43,21 @@ InvConfig = {
         notebook   = { label = "Блокнот",           labelEn = "Notebook",     w = 1, h = 1, weightG = 150,  stack = 1,  color = "#7f6a4e" },
         toolbox    = { label = "Набор инструментов", labelEn = "Toolbox",   w = 3, h = 2, weightG = 3500, stack = 1,  color = "#b8860b" },
         scrap      = { label = "Металлолом",        labelEn = "Scrap metal",  w = 1, h = 1, weightG = 400,  stack = 10, color = "#6d7b8d" },
+
+        -- Импланты (rp_cyberware): ставит рипердок; снятый имплант снова предмет.
+        implant_gorilla    = { label = "Имплант: руки Gorilla Arms",   labelEn = "Gorilla Arms",        w = 2, h = 2, weightG = 2500, stack = 1, color = "#9b59b6" },
+        implant_legs       = { label = "Имплант: усиленные ноги",       labelEn = "Fortified Ankles",    w = 1, h = 2, weightG = 1800, stack = 1, color = "#9b59b6" },
+        implant_dash       = { label = "Имплант: сухожилия (рывок)",    labelEn = "Reinforced Tendons",  w = 1, h = 2, weightG = 900,  stack = 1, color = "#9b59b6" },
+        implant_slam       = { label = "Имплант: усиленный скелет",     labelEn = "Bionic Skeleton",     w = 2, h = 2, weightG = 3000, stack = 1, color = "#9b59b6" },
+        implant_sandevistan= { label = "Имплант: Сандевистан",          labelEn = "Sandevistan",         w = 2, h = 1, weightG = 700,  stack = 1, color = "#e74c3c" },
+        implant_deck       = { label = "Имплант: кибердека",            labelEn = "Cyberdeck",           w = 2, h = 1, weightG = 700,  stack = 1, color = "#16a085" },
+        implant_ice        = { label = "Имплант: Self-ICE",             labelEn = "Self-ICE",            w = 1, h = 1, weightG = 200,  stack = 1, color = "#16a085" },
+        implant_purge      = { label = "Имплант: очистка (Purge)",      labelEn = "Purge",               w = 1, h = 1, weightG = 200,  stack = 1, color = "#16a085" },
+        implant_subdermal  = { label = "Имплант: подкожная броня",      labelEn = "Subdermal Armor",     w = 2, h = 2, weightG = 2000, stack = 1, color = "#7f8c8d" },
+        implant_heart      = { label = "Имплант: второе сердце",        labelEn = "Second Heart",        w = 1, h = 1, weightG = 600,  stack = 1, color = "#c0392b" },
+        implant_biomonitor = { label = "Имплант: биомонитор",           labelEn = "Biomonitor",          w = 1, h = 1, weightG = 150,  stack = 1, color = "#27ae60" },
+        implant_metabolic  = { label = "Имплант: метаболический модуль", labelEn = "Metabolic Editor",   w = 1, h = 1, weightG = 150,  stack = 1, color = "#d35400" },
+        neuroblocker       = { label = "Нейроблокатор",                 labelEn = "Neuroblocker",        w = 1, h = 1, weightG = 30,   stack = 10, color = "#5ef6ff",
+                               use = "consume", useLabel = "Принять" }, -- снижает психоз (rp_cyberware)
     },
 }
