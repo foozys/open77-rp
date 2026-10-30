@@ -8,6 +8,7 @@
 !/server.jsonc
 !/acl.jsonc
 !/Start-Logged.cmd
+!/tools/
 
 !/resources/
 /resources/*
