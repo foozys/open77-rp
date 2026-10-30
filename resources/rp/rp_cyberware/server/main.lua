@@ -210,8 +210,6 @@ local function defineAll()
             ok, why = Open77.dash.define({ id = p.id, version = VERSION, profile = "dash", config = p.config })
         elseif def.kind == "slam" then
             ok, why = Open77.abilities.define({ id = p.id, version = VERSION, profile = "ground_slam", config = p.config })
-        elseif def.kind == "reflex" then
-            ok, why = Open77.reflex.define({ id = p.id, version = VERSION, profile = "reflex_overdrive", config = p.config })
         end
         if not ok then log("error", "имплант %s не определён: %s", implantId, tostring(why)) end
     end
@@ -258,14 +256,12 @@ local function platformApply(playerId, def, install, grade)
     return waitTicket(result)
 end
 
--- Способности (рывок, удар, Сандевистан): выдать или забрать.
+-- Способности (рывок, удар о землю): выдать или забрать.
 local ABILITY = {
     dash = { grant = function(p, id) return Open77.dash.grant(p, id) end, revoke = function(p) return Open77.dash.revoke(p) end,
              current = function(p) return Open77.dash.current(p) end },
     slam = { grant = function(p, id) return Open77.abilities.grant(p, id) end, revoke = function(p) return Open77.abilities.revoke(p) end,
              current = function(p) return Open77.abilities.current(p) end },
-    reflex = { grant = function(p, id) return Open77.reflex.grant(p, id) end, revoke = function(p) return Open77.reflex.revoke(p) end,
-               current = function(p) return Open77.reflex.current(p) end },
 }
 
 -- Выдать недостающие способности (после входа, смерти, рестарта ресурса).
@@ -696,6 +692,8 @@ end)
 
 -- -- тяжёлые импланты: применение бьёт по рассудку ---------------------------------------
 
+local function isDowned(playerId) return sync("rp_medical", "is_downed", playerId) == true end
+
 local function sanityCost(playerId, implantId)
     local s = state[playerId]
     local def = CyberConfig.implants[implantId]
@@ -704,12 +702,63 @@ local function sanityCost(playerId, implantId)
     pushPanel(playerId)
 end
 
--- Сандевистан: платформа приняла активацию (заряд и перезарядка списаны).
-AddEventHandler("onReflexChanged", function(playerArg, payload)
-    local playerId = tonumber(playerArg)
-    local ok, value = pcall(json.decode, payload)
-    if playerId and ok and type(value) == "table" and value.phase == "accepted" then
-        sanityCost(playerId, "implant_sandevistan")
+-- Сандевистан — переключатель. Платформенный рефлекс ограничен 15 с и перезарядкой не
+-- короче действия, поэтому включённый режим держит клиент (rp_cyberware_ui продлевает
+-- Open77.reflex.overdrive), а сервер решает, можно ли, и списывает рассудок.
+
+local function overdriveDef(s)
+    for _, implantId in pairs(s.slots) do
+        local def = CyberConfig.implants[implantId]
+        if def and def.kind == "overdrive" then return def end
+    end
+end
+
+local function setOverdrive(playerId, on, text)
+    local s = state[playerId]
+    if not s then return end
+    local def = on and overdriveDef(s)
+    s.overdrive = def and true or false
+    s.overdriveSeconds = 0
+    send(playerId, "rp_cyberware:overdrive", { on = s.overdrive, tier = def and def.overdrive.tier or nil, text = text })
+end
+
+local function implantsSuspended(playerId)
+    local h = Open77.hacking.state(playerId)
+    return type(h) == "table" and ((tonumber(h.cyberwareSuspendedMs) or 0) > 0 or (tonumber(h.crippledMs) or 0) > 0)
+end
+
+RegisterNetEvent("rp_cyberware:overdrive", function(on)
+    local playerId = tonumber(source)
+    local s = playerId and state[playerId]
+    if not s then return end
+    if not on then return setOverdrive(playerId, false) end
+    if not overdriveDef(s) then return setOverdrive(playerId, false, "Сандевистан не установлен.") end
+    if Open77.players.isDead(playerId) or isDowned(playerId) then return setOverdrive(playerId, false) end
+    if implantsSuspended(playerId) then return setOverdrive(playerId, false, "Импланты выведены из строя.") end
+    setOverdrive(playerId, true)
+end)
+
+-- Раз в секунду: включённый Сандевистан тратит рассудок; смерть, ранение, взлом или
+-- снятый имплант выключают его.
+CreateThread(function()
+    while true do
+        Wait(1000)
+        for playerId, s in pairs(state) do
+            if s.overdrive then
+                local def = overdriveDef(s)
+                if not def or Open77.players.isDead(playerId) or isDowned(playerId) then
+                    setOverdrive(playerId, false)
+                elseif implantsSuspended(playerId) then
+                    setOverdrive(playerId, false, "Импланты выведены из строя.")
+                else
+                    s.overdriveSeconds = s.overdriveSeconds + 1
+                    if s.overdriveSeconds % def.overdrive.sanitySeconds == 0 then
+                        s.psychosis = math.min(100, s.psychosis + def.overdrive.sanityAmount)
+                        pushPanel(playerId)
+                    end
+                end
+            end
+        end
     end
 end)
 
@@ -733,7 +782,6 @@ local function ramOf(s)
     return s.ram, def.deck.ram
 end
 
-local function isDowned(playerId) return sync("rp_medical", "is_downed", playerId) == true end
 
 local function selectedScript(s)
     if #s.scripts == 0 then return nil end

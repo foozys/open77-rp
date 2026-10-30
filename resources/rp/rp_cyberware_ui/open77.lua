@@ -9,8 +9,9 @@ reload_policy "reconnect"
 dependency "open77_interactions >=0.2.0"
 
 -- network.events: связь с rp_cyberware; world.query: цель сканера (Open77.hacking.observe);
--- input.actions: клавиши сканера и блокировка оружия, пока он открыт
-permissions { "network.events", "world.query", "input.actions" }
+-- input.actions: клавиши сканера и блокировка оружия, пока он открыт;
+-- player.reflex.overdrive: ускорение Сандевистана, пока он включён
+permissions { "network.events", "world.query", "input.actions", "player.reflex.overdrive" }
 
 client_script "client/main.lua"
 web_file "web/index.html"

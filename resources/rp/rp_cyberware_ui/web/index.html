@@ -83,6 +83,24 @@
   #scanToast { position: absolute; left: 50%; top: calc(50% + 90px); transform: translateX(-50%); padding: 6px 14px;
     background: rgba(12, 10, 2, 0.85); border: 1px solid var(--warn); color: var(--warn); font-size: 14px; display: none; }
   #scanToast.show { display: block; }
+  /* -- Сандевистан: зелёный экран, пока включён -- */
+  #od { display: none; position: absolute; inset: 0; pointer-events: none; }
+  #od.on { display: block; animation: odIn 0.35s ease-out; }
+  @keyframes odIn { from { opacity: 0; filter: brightness(2.5); } to { opacity: 1; filter: none; } }
+  #od .glow { position: absolute; inset: 0;
+    background: radial-gradient(ellipse 75% 70% at center, rgba(60, 255, 140, 0.06) 40%, rgba(20, 220, 110, 0.42) 100%);
+    animation: odPulse 1.6s ease-in-out infinite; }
+  @keyframes odPulse { 50% { opacity: 0.75; } }
+  #od .lines { position: absolute; inset: 0; opacity: 0.35;
+    background: repeating-linear-gradient(0deg, rgba(120, 255, 170, 0.10) 0 2px, transparent 2px 6px);
+    animation: odLines 0.5s linear infinite; }
+  @keyframes odLines { to { background-position: 0 12px; } }
+  #od .ghost { position: absolute; inset: 0; border: 2px solid rgba(90, 255, 150, 0.45);
+    box-shadow: inset 0 0 80px rgba(40, 255, 130, 0.35); }
+  #od .label { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); color: #6dff9e;
+    font-size: 14px; letter-spacing: 8px; text-transform: uppercase; text-shadow: 0 0 10px rgba(60, 255, 140, 0.8); }
+  #od .label small { display: block; text-align: center; letter-spacing: 1px; font-size: 12px; color: rgba(160, 255, 200, 0.8);
+    margin-top: 4px; text-transform: none; }
   #scanHelp { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--k);
     letter-spacing: 1px; opacity: 0.8; }
 </style>
@@ -101,6 +119,8 @@
     <div class="hint">Импланты покупают в магазине имплантов. Esc — закрыть.</div>
   </div>
 </div>
+<div id="od"><div class="glow"></div><div class="lines"></div><div class="ghost"></div>
+  <div class="label">Sandevistan<small id="odTime"></small></div></div>
 <div id="scan">
   <div class="tint"></div><div class="sweep"></div>
   <div class="brand">Kiroshi <b>// сканирование</b></div>
@@ -268,6 +288,21 @@
     renderTarget(p.distance);
   });
   Open77.on("scan:toast", p => toast(p.text));
+
+  // -- Сандевистан ------------------------------------------------------------------------
+  let odTimer = null;
+  Open77.on("od:on", () => {
+    const started = Date.now();
+    const tick = () => {
+      const sec = Math.floor((Date.now() - started) / 1000);
+      $("odTime").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} · X — выключить · рассудок −1 каждые 5 с`;
+    };
+    tick();
+    clearInterval(odTimer);
+    odTimer = setInterval(tick, 1000);
+    $("od").classList.add("on");
+  });
+  Open77.on("od:off", () => { clearInterval(odTimer); $("od").classList.remove("on"); });
 
   Open77.ready();
 </script>

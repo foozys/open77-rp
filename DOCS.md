@@ -214,7 +214,7 @@ tunable.set open77_transactions mint3 rp_shops sys:rp.shops * 5000
 | Усиленные ноги | ноги | двойной прыжок | 10 |
 | Сухожилия | сухожилия | рывок на Ctrl, 2 заряда | 8 |
 | Усиленный скелет | скелет | удар о землю (G) с тупым оружием в руках | 12 |
-| Сандевистан | ОС | ускорение рефлексов (X), 6 с. **Тяжёлый:** каждое применение +5 к психозу | 25 |
+| Сандевистан | ОС | ускорение рефлексов, X — включить / выключить, без перезарядки; экран зелёный, пока включён. **Тяжёлый:** пока включён, каждые 5 с +1 к психозу. Выключается при ранении, смерти и сбое имплантов | 25 |
 | Кибердека Militech | ОС | 3 слота скриптов, 8 RAM | 15 |
 | Кибердека Netwatch | ОС | 5 слотов скриптов, 12 RAM, RAM восстанавливается быстрее | 20 |
 | Оптика Kiroshi | глаза | сканер (зажать TAB); с кибердекой — отправка скриптов | 3 |
@@ -668,7 +668,7 @@ towPrice = 500,     -- эвакуировать машину в гараж
 
 ### 6.4.3 Импланты — `resources/rp/rp_cyberware/server/config.lua`
 
-Каталог имплантов (`implants`: слот, цена человечности `humanity`, плата за установку `price`, параметры платформы), слоты, `psychosisThreshold` (50), `psychosisGrowth`, `neuroblockerRelief` (40), `episodeFrom` (40), `severeFrom` (75), `episodeMinutes` (10), `clinicPriceFactor` (1.5 — NPC-клиника дороже), `removePrice` (500). У тяжёлых имплантов `sanityPerUse` — сколько психоза добавляет каждое применение. У кибердек `deck` = `{ slots, ram, ramRegen }`. Скрипты взлома — `quickhacks`: `ram` (цена отправки) и `grade` (параметры `Open77.hacking`: вид `kind`, дальность `range`, загрузка `uploadMs`, перезарядка `cooldownMs`, урон и длительность эффекта). `scanRange` (50 м) — кого сканер видит как цель. Предметы имплантов — в `rp_inventory/server/config.lua`, цены покупки — тип `implants` в `rp_shops/server/config.lua`. **Поменяли параметры платформенного импланта — увеличьте `VERSION` в начале `rp_cyberware/server/main.lua`**: определения платформы неизменяемы.
+Каталог имплантов (`implants`: слот, цена человечности `humanity`, плата за установку `price`, параметры платформы), слоты, `psychosisThreshold` (50), `psychosisGrowth`, `neuroblockerRelief` (40), `episodeFrom` (40), `severeFrom` (75), `episodeMinutes` (10), `clinicPriceFactor` (1.5 — NPC-клиника дороже), `removePrice` (500). У Purge `sanityPerUse` — сколько психоза добавляет каждое применение. У Сандевистана `overdrive` = `{ tier, sanitySeconds, sanityAmount }`: уровень ускорения (`reflex` или `reflex_heavy`) и сколько психоза за сколько секунд работы. У кибердек `deck` = `{ slots, ram, ramRegen }`. Скрипты взлома — `quickhacks`: `ram` (цена отправки) и `grade` (параметры `Open77.hacking`: вид `kind`, дальность `range`, загрузка `uploadMs`, перезарядка `cooldownMs`, урон и длительность эффекта). `scanRange` (50 м) — кого сканер видит как цель. Предметы имплантов — в `rp_inventory/server/config.lua`, цены покупки — тип `implants` в `rp_shops/server/config.lua`. **Поменяли параметры платформенного импланта — увеличьте `VERSION` в начале `rp_cyberware/server/main.lua`**: определения платформы неизменяемы.
 
 Хакерские импланты работают через платформенный `open77_hacking` (скопирован в `resources/system/`, вне нашего git — после обновления сервера поставить заново).
 

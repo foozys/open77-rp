@@ -15,7 +15,7 @@ dependency "open77_hacking"
 -- players.cyberware.*: определения, запись, установка и снятие постоянных имплантов;
 -- players.hacking.define/read: кибердека, Self-ICE, Purge; activate/cancel: отправка скрипта из сканера Kiroshi
 -- и отмена загрузки без RAM или с пустой деки;
--- players.dash.* / players.abilities.* / players.reflex.*: рывок, удар о землю, Сандевистан;
+-- players.dash.* / players.abilities.*: рывок, удар о землю;
 -- players.stats.apply / players.damage.apply: броня, здоровье (обе формы — валидатор devkit);
 -- players.stats.read / players.damage.read: здоровье для биомонитора;
 -- players.life.read: позиция, жив ли игрок; players.motion.control: падение при тяжёлом приступе;
@@ -26,7 +26,6 @@ permissions {
     "players.hacking.define", "players.hacking.read", "players.hacking.activate", "players.hacking.cancel",
     "players.dash.define", "players.dash.manage", "players.dash.read",
     "players.abilities.define", "players.abilities.manage", "players.abilities.read",
-    "players.reflex.define", "players.reflex.manage", "players.reflex.read",
     "players.stats.apply", "players.damage.apply", "players.stats.read", "players.damage.read",
     "players.life.read", "players.motion.control", "players.screenfx",
     "database.access", "network.events",

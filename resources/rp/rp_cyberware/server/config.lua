@@ -9,7 +9,8 @@
 -- price — плата за установку у рипердока-игрока; в NPC-клинике умножается на
 -- clinicPriceFactor. kind:
 --   cyberware — постоянный имплант платформы (руки, ноги, кибердека, Self-ICE, Purge);
---   dash, slam, reflex — способность платформы, выдаётся при каждом входе;
+--   dash, slam — способность платформы, выдаётся при каждом входе;
+--   overdrive — Сандевистан: наш переключатель поверх Open77.reflex.overdrive (клиент);
 --   passive — наш: armor (броня, восстанавливается), maxHealth, regen (здоровье в
 --   10 с, пока не полное), hungerRate (множитель расхода еды и воды).
 
@@ -95,12 +96,11 @@ CyberConfig = {
             platform = { id = "rp.ground_slam", config = { inputKey = "g", damage = 35, knockbackMeters = 1.5,
                 cosmetic = false, nonlethal = true, staminaCost = 25, cooldownMs = 8000, radius = 4,
                 impactEffect = "impact.ground_slam", impactSound = "w_cyb_strongarms_hit_back" } } },
-        implant_sandevistan = { slot = "os", humanity = 25, price = 5000, kind = "reflex",
-            description = "Ускорение рефлексов (X), 6 с, перезарядка 30 с. Тяжёлый: каждое применение бьёт по рассудку",
-            sanityPerUse = 5,
-            platform = { id = "rp.sandevistan", config = { tier = "reflex", inputKey = "x", presentation = "native",
-                durationMs = 6000, cooldownMs = 30000, maxCharges = 1, chargeRegenMs = 30000,
-                staminaCost = 25, heatCost = 0 } } },
+        -- Переключаемый (X — вкл/выкл), без перезарядки. Пока включён — ускорение рефлексов
+        -- (tier: reflex или reflex_heavy) и каждые sanitySeconds секунд +sanityAmount психоза.
+        implant_sandevistan = { slot = "os", humanity = 25, price = 5000, kind = "overdrive",
+            description = "Ускорение рефлексов, X — включить / выключить. Тяжёлый: пока включён, каждые 5 с −1 рассудка",
+            overdrive = { tier = "reflex", sanitySeconds = 5, sanityAmount = 1 } },
         implant_subdermal = { slot = "skin", humanity = 8, price = 1500, kind = "passive",
             description = "Броня 50, восстанавливается вне боя", passive = { armor = 50 } },
         implant_heart = { slot = "heart", humanity = 10, price = 2500, kind = "passive",

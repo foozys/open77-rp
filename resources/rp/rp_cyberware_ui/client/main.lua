@@ -184,8 +184,51 @@ mapping("rp_scan_hack", "Сканер: отправить скрипт", "MOUSE1
     TriggerServerEvent("rp_cyberware:hack", scan.target)
 end)
 
+-- -- Сандевистан: X — включить / выключить ----------------------------------------------
+-- Сервер разрешает (rp_cyberware:overdrive) и списывает рассудок. Ускорение платформы
+-- (Open77.reflex.overdrive) живёт до 15 с — пока режим включён, продлеваем его, как
+-- только оно закончилось. Экран зелёный, пока режим включён.
+
+local od = { on = false, tier = "reflex", since = 0 }
+
+local function overdriveLoop()
+    CreateThread(function()
+        local retryAt = 0
+        while od.on do
+            local st = Open77.reflex.state()
+            if (not st or st.active ~= true) and GetGameTimer() >= retryAt then
+                local request, why = Open77.reflex.overdrive(od.tier, 15000)
+                -- Отказ (в машине, нет тела): пробуем раз в секунду, без спама в лог.
+                if not request then retryAt = GetGameTimer() + 1000 end
+                if not request and why ~= od.lastWhy then print("[rp_cyberware_ui] сандевистан: " .. tostring(why)) end
+                od.lastWhy = why
+            end
+            Wait(250)
+        end
+    end)
+end
+
+RegisterNetEvent("rp_cyberware:overdrive", function(p)
+    if type(p) ~= "table" then return end
+    if p.text then send("scan:toast", { text = p.text }) end
+    if p.on and not od.on then
+        od.on, od.tier, od.lastWhy = true, p.tier == "reflex_heavy" and "reflex_heavy" or "reflex", nil
+        send("od:on")
+        overdriveLoop()
+    elseif not p.on and od.on then
+        od.on = false
+        Open77.reflex.clear()
+        send("od:off")
+    end
+end)
+
+mapping("rp_sandevistan", "Сандевистан: включить / выключить", "X", function()
+    TriggerServerEvent("rp_cyberware:overdrive", not od.on)
+end)
+
 AddEventHandler("onClientResourceStop", function(name)
     if name ~= GetCurrentResourceName() then return end
     if page then page:setFocus(false, false) end
     if scan.open then block(false) end
+    if od.on then Open77.reflex.clear() end
 end)
