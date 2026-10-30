@@ -192,11 +192,45 @@ end)
 local upload = nil   -- { target } у хакера
 local incoming = false
 
+-- Ванильная полоса взлома игры с её звуками (как при F8): «<ВИД> UPLOAD» у хакера,
+-- «INCOMING <ВИД>» у цели, в конце — попадание или срыв. Аренда показа 1,5 с —
+-- обновляем, пока загрузка идёт.
+local native = nil   -- { id, phase, kind, started, ms }
+local nativeLastWhy = nil
+local KINDS = { short_circuit = true, overheat = true, malfunction = true, cripple = true,
+                reboot_optics = true, weapon_glitch = true }
+
+local function present(id, phase, progress, kind)
+    local ok, why = Open77.hacking.present({ actionId = id, phase = phase, progress = progress,
+                                             kind = KINDS[kind] and kind or "short_circuit" })
+    if not ok and why ~= nativeLastWhy then print("[rp_cyberware_ui] полоса взлома: " .. tostring(why)) end
+    nativeLastWhy = why
+end
+
+local function nativeStart(id, phase, kind, ms)
+    local mine = { id = math.tointeger(tonumber(id)) or 1, phase = phase, kind = kind, started = GetGameTimer(), ms = ms or 2000 }
+    native = mine
+    CreateThread(function()
+        while native == mine do
+            present(mine.id, mine.phase, math.min(1, (GetGameTimer() - mine.started) / mine.ms), mine.kind)
+            Wait(250)
+        end
+    end)
+end
+
+local OUTCOME = { impact = "impact", block = "block", purge = "purge", cancel = "cancel" }
+local function nativeEnd(id, kind, outcome)
+    native = nil
+    present(math.tointeger(tonumber(id)) or 1, OUTCOME[outcome] or "cancel", 1, kind)
+    SetTimeout(1500, function() if not native then Open77.hacking.clear() end end)
+end
+
 RegisterNetEvent("rp_cyberware:upload", function(p)
     if type(p) ~= "table" then return end
     if p.phase == "start" then
         upload = { target = tonumber(p.target) }
         send("upl:start", { label = p.label, ms = p.ms })
+        nativeStart(p.id, "upload", p.kind, p.ms)
         CreateThread(function()
             local mine = upload
             while upload == mine do
@@ -208,6 +242,7 @@ RegisterNetEvent("rp_cyberware:upload", function(p)
     elseif p.phase == "end" then
         upload = nil
         send("upl:end", { ok = p.ok, text = p.text })
+        if p.id then nativeEnd(p.id, p.kind, p.outcome) end
     end
 end)
 
@@ -216,9 +251,11 @@ RegisterNetEvent("rp_cyberware:incoming", function(p)
     if p.phase == "start" then
         incoming = true
         send("inc:start", { label = p.label, ms = p.ms, purge = p.purge == true })
+        nativeStart(p.id, "incoming", p.kind, p.ms)
     elseif p.phase == "end" then
         incoming = false
         send("inc:end", { ok = p.ok, text = p.text })
+        if p.id then nativeEnd(p.id, p.kind, p.outcome) end
     elseif p.phase == "note" then
         send("inc:note", { text = p.text })
     end
