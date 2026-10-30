@@ -4,6 +4,7 @@
 local page, pageReady, isOpen = nil, false, false
 local handles = {}
 local flying = false
+local offerOpen = false -- окно вызова (/airtaxi) с ценой
 
 local function call(name, ...)
     local pending, why = Open77.exports.call("open77_interactions", name, ...)
@@ -16,6 +17,13 @@ local function send(event, payload)
 end
 
 local function close()
+    if offerOpen then
+        offerOpen, isOpen = false, false
+        send("air:call", { stage = "none" })
+        if page then page:setFocus(false, false) end
+        TriggerServerEvent("rp_airtaxi:call", false)
+        return
+    end
     if not isOpen then return end
     isOpen = false
     send("air:close")
@@ -92,6 +100,29 @@ RegisterNetEvent("rp_airtaxi:arrive", function(payload)
     send("air:arrive", payload)
 end)
 
+-- -- вызов к себе (/airtaxi) ------------------------------------------------------------
+
+-- Сервер спрашивает метку на карте — пункт назначения.
+RegisterNetEvent("rp_airtaxi:askWaypoint", function()
+    local waypoint, reason = Open77.map.getWaypoint()
+    local position = type(waypoint) == "table" and waypoint.position or nil
+    TriggerServerEvent("rp_airtaxi:waypoint", position, reason and tostring(reason) or nil)
+end)
+
+-- Этап вызова: offer — окно с ценой (с фокусом), waiting — таймер, none — всё убрать.
+RegisterNetEvent("rp_airtaxi:callState", function(payload)
+    if type(payload) ~= "table" or not page then return end
+    send("air:call", payload)
+    offerOpen = payload.stage == "offer"
+    if offerOpen then
+        isOpen = true
+        page:setFocus(true, true)
+    elseif isOpen then
+        isOpen = false
+        page:setFocus(false, false)
+    end
+end)
+
 AddEventHandler("onClientResourceStart", function(name)
     if name ~= GetCurrentResourceName() then return end
     local created, reason = Open77.webui.create({
@@ -105,6 +136,11 @@ AddEventHandler("onClientResourceStart", function(name)
     page = created
     page:on("ui:ready", function() pageReady = true end)
     page:on("air:close", close)
+    page:on("air:callAnswer", function(p)
+        isOpen, offerOpen = false, false
+        page:setFocus(false, false)
+        TriggerServerEvent("rp_airtaxi:call", type(p) == "table" and p.accept == true)
+    end)
     page:on("air:fly", function(p)
         if type(p) == "table" then TriggerServerEvent("rp_airtaxi:fly", tonumber(p.id)) end
     end)

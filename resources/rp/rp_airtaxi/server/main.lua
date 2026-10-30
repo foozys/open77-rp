@@ -184,22 +184,25 @@ local function departSound(playerId)
     if not ok then log("warn", "звук взлёта игроку %d: %s", playerId, tostring(why)) end
 end
 
--- Полёт: проверка денег → затемнение → перенос в свой bucket на площадку прилёта → оплата →
--- время полёта → обратно в bucket площадки, экран светлеет. Перенос не удался — денег не берём.
-local function fly(playerId, from, to)
-    local price, ms = quote(from, to)
+-- Хватает ли денег на рейс: nil или причина отказа.
+local function cannotPay(playerId, price)
     local bank = bankOf(playerId)
     local money = bank and balance(bank)
-    if not money then return TriggerClientEvent("rp_airtaxi:result", playerId, { ok = false, text = "Оплата сейчас недоступна." }) end
-    if money < price then
-        return TriggerClientEvent("rp_airtaxi:result", playerId, { ok = false, text = "Недостаточно денег на счёте." })
-    end
+    if not money then return "Оплата сейчас недоступна." end
+    if money < price then return "Недостаточно денег на счёте." end
+end
+
+-- Полёт: затемнение → перенос в свой bucket к месту прилёта → оплата → время полёта →
+-- bucket места прилёта, экран светлеет. Перенос не удался — денег не берём.
+-- from = { name, bucket }, to = { name, x, y, z (куда встать), heading, bucket }.
+local function fly(playerId, from, to, price, ms)
+    local bank = bankOf(playerId)
     sessions[playerId] = nil
     TriggerClientEvent("rp_airtaxi:depart", playerId, { from = from.name, to = to.name, ms = ms })
     departSound(playerId)
     Wait(1200) -- экран успевает потемнеть
     local landed, err
-    local pending, reason = Open77.players.teleport(playerId, { x = to.x, y = to.y, z = to.z - AirTaxiConfig.pointHeight },
+    local pending, reason = Open77.players.teleport(playerId, { x = to.x, y = to.y, z = to.z },
         { heading = to.heading, bucket = AirTaxiConfig.flightBucketBase + playerId, fade = false, dismount = true })
     if pending then landed, err = pending:await() else err = reason end
     if not landed then
@@ -239,7 +242,15 @@ RegisterNetEvent("rp_airtaxi:fly", function(toId)
         return TriggerClientEvent("rp_airtaxi:result", playerId, { ok = false, text = "Вы отошли от площадки." })
     end
     flights[playerId] = true -- до оплаты: второй щелчок не купит второй рейс
-    local ok, err = pcall(fly, playerId, from, to) -- возвращается после прилёта
+    local price, ms = quote(from, to)
+    local broke = cannotPay(playerId, price)
+    if broke then
+        flights[playerId] = nil
+        return TriggerClientEvent("rp_airtaxi:result", playerId, { ok = false, text = broke })
+    end
+    local landing = { name = to.name, x = to.x, y = to.y, z = to.z - AirTaxiConfig.pointHeight,
+                      heading = to.heading, bucket = to.bucket }
+    local ok, err = pcall(fly, playerId, from, landing, price, ms) -- возвращается после прилёта
     if not ok then log("error", "полёт игрока %d: %s", playerId, tostring(err)) end
     flights[playerId] = nil
 end)
@@ -249,9 +260,122 @@ RegisterNetEvent("rp_airtaxi:request", function()
     if playerId then sendList(playerId) end
 end)
 
+-- -- вызов к себе: /airtaxi → метка на карте → подтверждение → ожидание АВ → полёт ----------
+
+local calls = {}     -- [playerId] = { stage = "asking" | "offer" | "waiting", at, from, to, price, ms, token }
+local lastCall = {}  -- [playerId] = unix, когда вызов закончился (перерыв между вызовами)
+
+local function say(playerId, text, ok)
+    TriggerClientEvent("rp_airtaxi:callState", playerId, { stage = "none", text = text, ok = ok == true })
+end
+
+local function cancelCall(playerId, text)
+    if not calls[playerId] then return end
+    calls[playerId] = nil
+    say(playerId, text, false)
+end
+
+RegisterCommand("airtaxi", function(source)
+    local playerId = tonumber(source)
+    if not playerId or playerId < 1 then return end
+    if calls[playerId] then return cancelCall(playerId, "Вызов аэротакси отменён.") end
+    local why = blocked(playerId)
+    if why then return notify(playerId, why) end
+    local C = AirTaxiConfig.call
+    local wait = C.cooldownSeconds - (Open77.time.unix() - (lastCall[playerId] or 0))
+    if wait > 0 then return notify(playerId, "Диспетчер занят, попробуйте через %d с.", wait) end
+    calls[playerId] = { stage = "asking", at = Open77.time.unix() }
+    TriggerClientEvent("rp_airtaxi:askWaypoint", playerId)
+    -- Клиент не ответил — не держать вызов вечно.
+    CreateThread(function()
+        Wait(5000)
+        local call = calls[playerId]
+        if call and call.stage == "asking" then
+            calls[playerId] = nil
+            notify(playerId, "Игра не прислала метку. Перезайдите на сервер и попробуйте снова.")
+        end
+    end)
+end, false)
+
+RegisterNetEvent("rp_airtaxi:waypoint", function(position, reason)
+    local playerId = tonumber(source)
+    local call = playerId and calls[playerId]
+    if not call or call.stage ~= "asking" then return end
+    local x = type(position) == "table" and tonumber(position.x)
+    local y = type(position) == "table" and tonumber(position.y)
+    local z = type(position) == "table" and tonumber(position.z)
+    if not x or not y or not z then
+        calls[playerId] = nil
+        return notify(playerId, reason and "Карта недоступна (%s)." or "Сначала поставьте метку на карте — туда и полетим.", reason)
+    end
+    local here = placeOf(playerId)
+    if not here then
+        calls[playerId] = nil
+        return notify(playerId, "Ваша позиция неизвестна.")
+    end
+    local C = AirTaxiConfig.call
+    local dx, dy = here.x - x, here.y - y
+    local km = math.sqrt(dx * dx + dy * dy) / 1000
+    if km * 1000 < C.minMeters then
+        calls[playerId] = nil
+        return notify(playerId, "Метка слишком близко — дойдите пешком.")
+    end
+    local price, ms = quote(here, { x = x, y = y })
+    price = price + C.fee
+    call.stage, call.at, call.price, call.ms = "offer", Open77.time.unix(), price, ms
+    call.from = { name = "место вызова", x = here.x, y = here.y, z = here.z, bucket = here.bucket }
+    call.to = { name = "метка на карте", x = x, y = y, z = z + 0.5, heading = here.heading, bucket = here.bucket }
+    TriggerClientEvent("rp_airtaxi:callState", playerId, { stage = "offer", km = math.floor(km * 10) / 10,
+        price = price, seconds = math.floor(ms / 1000), wait = C.waitSeconds })
+end)
+
+-- Ожидание АВ: игрок стоит на месте вызова (stayRadius), с ним ничего не случилось.
+local function waitForAv(playerId, call)
+    local C = AirTaxiConfig.call
+    for _ = 1, C.waitSeconds do
+        Wait(1000)
+        if calls[playerId] ~= call then return end
+        local why = blocked(playerId)
+        if why then return cancelCall(playerId, "Вызов отменён: " .. why) end
+        local here = placeOf(playerId)
+        if not here or here.bucket ~= call.from.bucket or distance(here, call.from) > C.stayRadius then
+            return cancelCall(playerId, "Вызов отменён: вы ушли с места посадки.")
+        end
+    end
+    local broke = cannotPay(playerId, call.price)
+    if broke then return cancelCall(playerId, "Вызов отменён: " .. broke) end
+    calls[playerId] = nil
+    lastCall[playerId] = Open77.time.unix()
+    flights[playerId] = true
+    TriggerClientEvent("rp_airtaxi:callState", playerId, { stage = "none" })
+    local ok, err = pcall(fly, playerId, call.from, call.to, call.price, call.ms)
+    if not ok then log("error", "полёт по вызову игрока %d: %s", playerId, tostring(err)) end
+    flights[playerId] = nil
+end
+
+RegisterNetEvent("rp_airtaxi:call", function(accept)
+    local playerId = tonumber(source)
+    local call = playerId and calls[playerId]
+    if not call or call.stage ~= "offer" then return end
+    if accept ~= true then return cancelCall(playerId, "Вызов аэротакси отменён.") end
+    if Open77.time.unix() - call.at > AirTaxiConfig.sessionSeconds then
+        return cancelCall(playerId, "Предложение устарело — вызовите снова: /airtaxi.")
+    end
+    local here = placeOf(playerId)
+    if not here or distance(here, call.from) > AirTaxiConfig.call.stayRadius then
+        return cancelCall(playerId, "Вы ушли с места вызова.")
+    end
+    local broke = cannotPay(playerId, call.price)
+    if broke then return cancelCall(playerId, broke) end
+    call.stage = "waiting"
+    TriggerClientEvent("rp_airtaxi:callState", playerId, { stage = "waiting", wait = AirTaxiConfig.call.waitSeconds,
+        radius = AirTaxiConfig.call.stayRadius })
+    waitForAv(playerId, call)
+end)
+
 AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     local playerId = tonumber(playerIdStr)
-    if playerId then sessions[playerId], flights[playerId] = nil, nil end
+    if playerId then sessions[playerId], flights[playerId], calls[playerId] = nil, nil, nil end
 end)
 
 -- -- админ -----------------------------------------------------------------------------

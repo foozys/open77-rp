@@ -54,6 +54,23 @@
   #flight .track { width: 420px; height: 3px; background: rgba(255, 255, 255, 0.1); }
   #flight .fill { height: 100%; width: 0; background: var(--accent); }
   #flight .note { margin-top: 14px; color: var(--muted); font-size: 13px; }
+  /* Вызов к себе: окно с ценой и таймер ожидания. */
+  #offer { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+  #offer.open { display: block; }
+  #offer .box { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px;
+    padding: 22px 24px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  #offer .rows { margin: 14px 0 18px; }
+  #offer .rows div { display: flex; justify-content: space-between; padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+  #offer .rows b { color: var(--text); }
+  #offer .rows .sum b { color: var(--money); font-size: 18px; }
+  #offer .buttons { display: flex; gap: 10px; justify-content: flex-end; }
+  #offer button.muted { border-color: var(--muted); color: var(--muted); }
+  #waiting { display: none; position: absolute; right: 40px; top: 300px; padding: 10px 14px; min-width: 240px;
+    background: var(--bg); border: 1px solid var(--line); border-left: 3px solid var(--accent); font-size: 14px; }
+  #waiting.on { display: block; }
+  #waiting .t { color: var(--accent); font-size: 22px; font-weight: 600; }
+  #waiting small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
   #toast { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); padding: 8px 16px;
     background: var(--bg); border: 1px solid var(--line); color: var(--accent); font-size: 15px; display: none; }
   #toast.on { display: block; }
@@ -79,6 +96,21 @@
   <div class="track"><div class="fill"></div></div>
   <div class="note">Не выходите из игры до посадки</div>
 </div>
+<div id="offer">
+  <div class="box">
+    <h1>Вызов аэротакси</h1>
+    <div class="rows">
+      <div><span>Куда</span><b>метка на карте</b></div>
+      <div><span>Расстояние</span><b id="oKm"></b></div>
+      <div><span>Ожидание АВ</span><b id="oWait"></b></div>
+      <div><span>Полёт</span><b id="oFlight"></b></div>
+      <div class="sum"><span>Цена (со счёта при посадке)</span><b id="oPrice"></b></div>
+    </div>
+    <div class="buttons"><button class="muted" id="oNo">Отмена</button><button id="oYes">Вызвать</button></div>
+  </div>
+</div>
+<div id="waiting">АВ прибудет через <span class="t" id="wLeft"></span> с
+  <small id="wNote"></small></div>
 <div id="toast"></div>
 
 <script>
@@ -134,8 +166,41 @@
   }
 
   document.addEventListener("keydown", e => {
-    if (!$("root").classList.contains("open")) return;
-    if (e.key === "Escape") { e.preventDefault(); Open77.emit("air:close", {}); }
+    if (e.key !== "Escape") return;
+    if ($("offer").classList.contains("open")) { e.preventDefault(); answer(false); return; }
+    if ($("root").classList.contains("open")) { e.preventDefault(); Open77.emit("air:close", {}); }
+  });
+
+  function answer(accept) {
+    $("offer").classList.remove("open");
+    Open77.emit("air:callAnswer", { accept });
+  }
+  $("oYes").addEventListener("click", () => answer(true));
+  $("oNo").addEventListener("click", () => answer(false));
+
+  let waitTimer = null;
+  function stopWaiting() {
+    clearInterval(waitTimer);
+    waitTimer = null;
+    $("waiting").classList.remove("on");
+  }
+  Open77.on("air:call", p => {
+    $("offer").classList.remove("open");
+    stopWaiting();
+    if (p.stage === "offer") {
+      $("oKm").textContent = `${p.km} км`;
+      $("oWait").textContent = `${p.wait} с`;
+      $("oFlight").textContent = `${p.seconds} с`;
+      $("oPrice").textContent = money(p.price || 0);
+      $("offer").classList.add("open");
+    } else if (p.stage === "waiting") {
+      let left = p.wait || 0;
+      $("wLeft").textContent = left;
+      $("wNote").textContent = `Ждите на месте (не дальше ${p.radius} м) · /airtaxi — отменить`;
+      $("waiting").classList.add("on");
+      waitTimer = setInterval(() => { left = Math.max(0, left - 1); $("wLeft").textContent = left; }, 1000);
+    }
+    if (p.text) toast(p.text, p.ok);
   });
 
   Open77.on("air:show", p => {
@@ -154,6 +219,7 @@
 
   Open77.on("air:depart", p => {
     $("root").classList.remove("open");
+    stopWaiting();
     $("fFrom").textContent = p.from || "";
     $("fTo").textContent = p.to || "";
     const fill = document.querySelector("#flight .fill");

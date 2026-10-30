@@ -7,8 +7,9 @@ reload_policy "reconnect"
 -- Подсказки у площадок.
 dependency "open77_interactions >=0.2.0"
 
--- network.events: связь с rp_airtaxi; input.actions: на время полёта персонаж не двигается
-permissions { "network.events", "input.actions" }
+-- network.events: связь с rp_airtaxi; input.actions: на время полёта персонаж не двигается;
+-- map.read: метка на карте — куда лететь по вызову
+permissions { "network.events", "input.actions", "map.read" }
 
 client_script "client/main.lua"
 web_file "web/index.html"
