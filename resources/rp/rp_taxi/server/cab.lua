@@ -41,7 +41,7 @@ end
 
 -- Ехать к точке. true — доехали (или ближе radius); false, причина — нет.
 -- watch() каждые полсекунды: вернёт причину — прервать поездку.
-local function driveTo(cab, target, arrival, seconds, radius, watch)
+local function driveTo(cab, target, arrival, seconds, radius, watch, driverId)
     local task, why = Open77.vehicles.ai.driveTo(cab, {
         position = { x = target.x, y = target.y, z = target.z }, speed = C.speed, behavior = C.behavior,
         arrivalRadius = arrival, timeoutMilliseconds = math.floor(seconds * 1000),
@@ -52,6 +52,7 @@ local function driveTo(cab, target, arrival, seconds, radius, watch)
     end
     local deadline = GetGameTimer() + seconds * 1000 + 5000
     local waited -- чего автопилот ждал (waiting_for_simulator: simulator_capacity — все слоты клиента заняты)
+    local started, last, asked = GetGameTimer(), nil, false
     while GetGameTimer() < deadline do
         Wait(500)
         local stop = watch and watch()
@@ -60,6 +61,22 @@ local function driveTo(cab, target, arrival, seconds, radius, watch)
         local status = state and state.status
         if status == "arrived" then return true end
         if status == "waiting_for_simulator" then waited = tostring(state.reason) end
+        -- Каждая смена состояния — в лог (пока такси не поехало, это единственный способ понять,
+        -- на чём оно стоит).
+        local now = state and ("%s/%s/%s owner=%s"):format(tostring(status), tostring(state.phase),
+            tostring(state.execution), tostring(state.owner)) or "нет состояния"
+        if now ~= last then
+            last = now
+            log("info", "такси %s, %.1f с: %s", tostring(cab), (GetGameTimer() - started) / 1000, now)
+        end
+        -- Никто не ведёт машину — попросить клиент игрока.
+        if not asked and driverId and GetGameTimer() - started > 3000 and state
+            and (state.owner == nil or tostring(state.owner) == "0" or tostring(state.owner) == "") then
+            asked = true
+            local granted, why = Open77.vehicles.requestAuthority(cab, driverId)
+            log("info", "такси %s: ведение клиенту игрока %d — %s", tostring(cab), driverId,
+                granted and ("выдано, physicsOwner=" .. tostring(granted.physicsOwner)) or ("отказ: " .. tostring(why)))
+        end
         local at = Open77.vehicles.getPosition(cab)
         if at and distance2d(at, target) <= radius and (status ~= "running" or distance2d(at, target) <= arrival * 2) then
             return true
@@ -140,7 +157,7 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
         if not alive(playerId) then return "player_gone" end
         local here = placeOf(playerId)
         if not here or distance2d(here, waitAt) > TaxiConfig.call.stayRadius then return "player_left" end
-    end)
+    end, playerId)
     if not ok then
         log("warn", "такси не подъехало к игроку %d: %s", playerId, tostring(failure))
         dismiss(cab, failure ~= "player_left" and failure ~= "player_gone")
@@ -178,7 +195,7 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
             local at = Open77.vehicles.getPosition(cab)
             if at then status("riding", { meters = math.floor(distance2d(at, to)) }) end
         end
-    end)
+    end, playerId)
     if not ok and failure == "player_gone" then
         dismiss(cab, true)
         return "aborted"
