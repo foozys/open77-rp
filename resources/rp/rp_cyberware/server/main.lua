@@ -317,9 +317,13 @@ local function applyPassives(playerId, healthFraction)
         end
     end
     if s.maxHealth ~= maxHealth or healthFraction then setMaxHealthKeeping(playerId, maxHealth, healthFraction) end
-    if armor ~= (s.armor or 0) or healthFraction then
-        local ok, why = Open77.players.setArmor(playerId, armor)
-        if not ok then log("warn", "броня игроку %d: %s", playerId, tostring(why)) end
+    -- Максимум брони стал меньше текущей (сняли имплант) — срезать; набирается сама (ниже).
+    if armor < (s.armor or 0) then
+        local hp = Open77.players.getHealth(playerId)
+        if hp and (tonumber(hp.armor) or 0) > armor then
+            local ok, why = Open77.players.setArmor(playerId, armor)
+            if not ok then log("warn", "броня игроку %d: %s", playerId, tostring(why)) end
+        end
     end
     s.armor, s.regen, s.maxHealth = armor, regen, maxHealth
     send(playerId, "rp_hud:armorMax", armor) -- полоса брони в HUD (0 — скрыта)
@@ -722,7 +726,7 @@ AddEventHandler("rp_inventory:used", function(playerIdArg, itemId)
 end)
 
 -- Раз в минуту: психоз растёт ниже порога человечности, приступы; раз в 10 с —
--- биомонитор; раз в armorRestoreSeconds — броня; раз в 30 с — способности.
+-- биомонитор; раз в 30 с — способности.
 CreateThread(function()
     local tick = 0
     while true do
@@ -734,9 +738,6 @@ CreateThread(function()
                 if hp and hp.health and hp.maxHealth and hp.health > 0 and hp.health < hp.maxHealth then
                     Open77.players.heal(playerId, s.regen)
                 end
-            end
-            if tick % math.max(1, math.floor(CyberConfig.armorRestoreSeconds / 10)) == 0 and (s.armor or 0) > 0 and not s.psycho then
-                Open77.players.setArmor(playerId, s.armor)
             end
             if tick % 3 == 0 then ensureAbilities(playerId) end
             -- Платформа могла сбросить максимум (смерть, больница, новое тело) — вернуть.
@@ -759,6 +760,41 @@ CreateThread(function()
                     s.nextEpisode = now + math.floor(CyberConfig.episodeMinutes * 60 * (0.5 + math.random()))
                 end
                 if tick % 30 == 0 then saveState(playerId) end
+            end
+        end
+    end
+end)
+
+-- -- броня: восстанавливается сама ---------------------------------------------------------
+-- Максимум — подкожная броня (+ бонус в киберпсихозе). +step раз в everyMs, если calmSeconds
+-- не было боя: потеря брони или здоровья, зажатый спуск (выстрел, удар). Псих — всегда.
+
+local function armorMaxOf(s)
+    return (s.armor or 0) + (s.psycho and CyberConfig.psycho.armorBonus or 0)
+end
+
+CreateThread(function()
+    local cfg = CyberConfig.armorRegen
+    while true do
+        Wait(cfg.everyMs)
+        local now = GetGameTimer()
+        for playerId, s in pairs(state) do
+            local max = armorMaxOf(s)
+            if max > 0 and not Open77.players.isDead(playerId) then
+                local read = Open77.players.get(playerId)
+                local armor = read and tonumber(read.armor)
+                local health = read and tonumber(read.health)
+                if armor and health then
+                    if (s.seenArmor and armor < s.seenArmor) or (s.seenHealth and health < s.seenHealth)
+                        or (read.flags and read.flags.triggerDown) then
+                        s.combatAt = now
+                    end
+                    if armor < max and (s.psycho or now - (s.combatAt or 0) >= cfg.calmSeconds * 1000) then
+                        armor = math.min(max, armor + cfg.step)
+                        Open77.players.setArmor(playerId, armor)
+                    end
+                    s.seenArmor, s.seenHealth = armor, health
+                end
             end
         end
     end
@@ -1030,9 +1066,13 @@ local function psychoDeath(playerId)
     for _, scriptId in ipairs(s.scripts) do items[scriptId] = (items[scriptId] or 0) + 1 end
     s.scripts, s.armed = {}, nil
     db("update", "DELETE FROM rp_implants WHERE character_id = ?", { s.characterId })
+    local lost = nil -- куча не создалась — импланты вернутся в карманы после больницы
     if place and next(items) then
-        local pile, why = await("rp_inventory", "drop_pile", place, items, "Хром киберпсиха", "Cyberpsycho chrome")
-        if not pile then log("error", "киберпсих %d: куча с имплантами не создана: %s", playerId, tostring(why)) end
+        local pile, why = await("rp_inventory", "drop_pile", place, items, "Хром киберпсиха", "Cyberpsycho chrome", playerId)
+        if not pile then
+            log("error", "киберпсих %d: куча с имплантами не создана: %s", playerId, tostring(why))
+            lost = items
+        end
     end
     s.psychosis = cfg.psychosisAfter
     s.zeroWarned = false
@@ -1058,6 +1098,11 @@ local function psychoDeath(playerId)
         end
     end
     applyPassives(playerId)
+    for itemId, count in pairs(lost or {}) do
+        local given, why = await("rp_inventory", "give", playerId, itemId, count)
+        if not given then log("error", "киберпсих %d: %s ×%d не возвращён: %s", playerId, itemId, count, tostring(why)) end
+    end
+    if lost then notify(playerId, "Извлечённый хром вам вернули в больнице (куча на месте не создалась).") end
 end
 
 AddEventHandler("rp_medical:flatlined", function(playerIdArg)

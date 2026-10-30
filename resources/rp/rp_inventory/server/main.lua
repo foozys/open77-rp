@@ -575,9 +575,9 @@ exports("give", function(playerId, itemId, count)
 end)
 
 -- Куча на земле с предметами из ниоткуда (выпускаются из SOURCE), только rp_*: добыча с тела
--- киберпсиха. position = { x, y, z, bucket }, items = { [itemId] = количество } (не уникальные).
--- Вызывать в потоке. id кучи, или nil, reason.
-exports("drop_pile", function(position, items, label, labelEn)
+-- киберпсиха. position = { x, y, z, bucket }, items = { [itemId] = количество } (не уникальные),
+-- player — игрок у кучи (куча проверяет досягаемость). Вызывать в потоке. id кучи, или nil, reason.
+exports("drop_pile", function(position, items, label, labelEn, player)
     local caller = GetInvokingResource()
     if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
     if type(position) ~= "table" or type(items) ~= "table" then return nil, "invalid_argument" end
@@ -599,9 +599,20 @@ exports("drop_pile", function(position, items, label, labelEn)
     if not pile then return nil, why end
     for _, line in ipairs(lines) do line.to = pile.id end
     local opId = Store.newOpId("rppile")
-    local receipt
-    receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.pile", reason = caller, lines = lines }, "containers")
+    if not opId then
+        Store.boxes("close", pile.id)
+        return nil, "store_unavailable"
+    end
+    local spec = { opId = opId, kind = "rp.pile", reason = caller, player = math.tointeger(tonumber(player)), lines = lines }
+    local receipt, info
+    for attempt = 1, 5 do
+        receipt, why, info = Store.boxes("transfer", spec)
+        if receipt or not (type(info) == "table" and info.retryable) then break end
+        Wait(500 * attempt)
+    end
     if not receipt then
+        log("warn", "куча %s от %s: предметы не положены: %s %s", pile.id, caller, tostring(why),
+            type(info) == "table" and json.encode(info) or "")
         Store.boxes("close", pile.id)
         return nil, why or "busy"
     end
