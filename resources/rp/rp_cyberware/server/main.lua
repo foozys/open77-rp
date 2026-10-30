@@ -264,6 +264,54 @@ local function platformApply(playerId, def, install, grade)
     return waitTicket(result)
 end
 
+-- Снять со слота платформы всё, что там стоит, с повторами: сразу после смерти, больницы
+-- или переноса тело может быть не готово (native_projection_failed). true, или nil, причина.
+local function platformClearSlot(playerId, slot)
+    local why
+    for attempt = 1, 6 do
+        local record
+        record, why = Open77.cyberware.current(playerId)
+        if record then
+            local operationId = Open77.cyberware.newOperationId()
+            local result
+            result, why = Open77.cyberware.remove(playerId, { expectedRevision = record.revision,
+                operationId = operationId, slot = slot })
+            if result then
+                local ok, whyTicket = waitTicket(result)
+                if ok then return true end
+                why = whyTicket
+            end
+        end
+        Wait(2000 * attempt)
+    end
+    return nil, why
+end
+
+-- Слоты платформы, которые занимают наши импланты.
+local PLATFORM_SLOTS = { "arms", "legs", "operating_system", "self_ice", "purge" }
+
+-- Сверка: на платформе стоит имплант, которого нет в нашей записи (сорвалось снятие,
+-- смерть киберпсиха) — снять. Вызывать в потоке.
+local function reconcilePlatform(playerId)
+    local s = state[playerId]
+    local record = s and Open77.cyberware.current(playerId)
+    if not record then return end
+    local wanted = {}
+    for _, implantId in pairs(s.slots) do
+        local def = CyberConfig.implants[implantId]
+        if def and def.kind == "cyberware" and def.platform then wanted[def.platform.slot] = true end
+    end
+    for _, slot in ipairs(PLATFORM_SLOTS) do
+        local entry = record[slot] or (type(record.slots) == "table" and record.slots[slot]) or nil
+        if type(entry) == "table" and entry.definition and not wanted[slot] then
+            local ok, why = platformClearSlot(playerId, slot)
+            log(ok and "info" or "warn", "игрок %d: лишний имплант платформы в слоте %s (%s) %s", playerId, slot,
+                tostring(entry.definition), ok and "снят" or ("не снят: " .. tostring(why)))
+            if ok and slot == "operating_system" then s.armed = nil end
+        end
+    end
+end
+
 -- Способности (рывок, удар о землю): выдать или забрать.
 local ABILITY = {
     dash = { grant = function(p, id) return Open77.dash.grant(p, id) end, revoke = function(p) return Open77.dash.revoke(p) end,
@@ -353,6 +401,11 @@ local function load(playerId, characterId)
     pushPanel(playerId)
     -- Дека могла остаться прошитой скриптом (или старой версией) — вернуть в пустой режим.
     Arm(playerId)
+    -- На платформе могло остаться то, чего у персонажа уже нет (сорвалось снятие).
+    local loaded = state[playerId]
+    SetTimeout(10000, function()
+        if state[playerId] == loaded then CreateThread(function() reconcilePlatform(playerId) end) end
+    end)
     -- Вышел посреди киберпсихоза — срыв продолжается после входа.
     if saved and tonumber(saved.psycho_pending) == 1 then
         local s = state[playerId]
@@ -1053,12 +1106,10 @@ local function psychoDeath(playerId)
 
     -- Импланты из тела и скрипты из деки — добыча на месте смерти.
     -- Постоянные импланты платформы снимаются, когда тело снова живо (после больницы).
-    local items, platformDefs = {}, {}
+    local items = {}
     for slot, implantId in pairs(s.slots) do
         local def = CyberConfig.implants[implantId]
-        if def and def.kind == "cyberware" then
-            platformDefs[#platformDefs + 1] = def
-        elseif def and ABILITY[def.kind] then
+        if def and def.kind ~= "cyberware" and ABILITY[def.kind] then
             ABILITY[def.kind].revoke(playerId)
         end
         items[implantId] = (items[implantId] or 0) + 1
@@ -1089,15 +1140,7 @@ local function psychoDeath(playerId)
     -- После подъёма — снять импланты на платформе, вернуть здоровье и броню без имплантов.
     Wait(8000)
     if state[playerId] ~= s then return end
-    local done = {}
-    for _, def in ipairs(platformDefs) do
-        local slot = def.platform.slot
-        if not done[slot] then -- две кибердеки — одно определение и один слот платформы
-            done[slot] = true
-            local ok, why = platformApply(playerId, def, false)
-            if not ok then log("warn", "киберпсих %d: имплант в слоте %s не снят на платформе: %s", playerId, slot, tostring(why)) end
-        end
-    end
+    reconcilePlatform(playerId) -- наша запись уже пуста: снять всё с платформы (с повторами)
     applyPassives(playerId)
     for itemId, count in pairs(lost or {}) do
         local given, why = await("rp_inventory", "give", playerId, itemId, count)
