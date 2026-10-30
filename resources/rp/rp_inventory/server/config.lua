@@ -89,21 +89,21 @@ InvConfig = {
         mag_sg12    = { label = "Магазин 12 калибра",       labelEn = "Shotgun magazine", w = 1, h = 2, weightG = 300, stack = 1, color = "#55606e",
                         unique = true, mag = { ammo = "12", capacity = 6 }, meta = { rounds = 0 } },
 
-        wpn_lexington  = { label = "Пистолет Lexington",   labelEn = "Lexington",  w = 2, h = 1, weightG = 900,  stack = 1, color = "#3d4652", unique = true,
+        wpn_lexington  = { label = "Пистолет Lexington (9 мм)",   labelEn = "Lexington",  w = 2, h = 1, weightG = 900,  stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Lexington_Default", mags = { "mag_pistol9" } }, meta = {} },
-        wpn_unity      = { label = "Пистолет Unity",       labelEn = "Unity",      w = 2, h = 1, weightG = 1000, stack = 1, color = "#3d4652", unique = true,
+        wpn_unity      = { label = "Пистолет Unity (9 мм)",       labelEn = "Unity",      w = 2, h = 1, weightG = 1000, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Unity_Default", mags = { "mag_pistol9" } }, meta = {} },
-        wpn_overture   = { label = "Револьвер Overture",   labelEn = "Overture",   w = 2, h = 1, weightG = 1300, stack = 1, color = "#3d4652", unique = true,
+        wpn_overture   = { label = "Револьвер Overture (.44)",   labelEn = "Overture",   w = 2, h = 1, weightG = 1300, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Overture_Default", mags = { "mag_rev44" } }, meta = {} },
-        wpn_saratoga   = { label = "ПП Saratoga",          labelEn = "Saratoga",   w = 3, h = 2, weightG = 2500, stack = 1, color = "#3d4652", unique = true,
+        wpn_saratoga   = { label = "ПП Saratoga (9 мм)",          labelEn = "Saratoga",   w = 3, h = 2, weightG = 2500, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Saratoga_Default", mags = { "mag_smg9" } }, meta = {} },
-        wpn_pulsar     = { label = "ПП Pulsar",            labelEn = "Pulsar",     w = 3, h = 2, weightG = 2700, stack = 1, color = "#3d4652", unique = true,
+        wpn_pulsar     = { label = "ПП Pulsar (9 мм)",            labelEn = "Pulsar",     w = 3, h = 2, weightG = 2700, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Pulsar_Default", mags = { "mag_smg9" } }, meta = {} },
-        wpn_ajax       = { label = "Штурмовая винтовка Ajax",       labelEn = "Ajax",       w = 4, h = 2, weightG = 3800, stack = 1, color = "#3d4652", unique = true,
+        wpn_ajax       = { label = "Штурмовая винтовка Ajax (5,56)",       labelEn = "Ajax",       w = 4, h = 2, weightG = 3800, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Ajax_Default", mags = { "mag_ar556" } }, meta = {} },
-        wpn_copperhead = { label = "Штурмовая винтовка Copperhead", labelEn = "Copperhead", w = 4, h = 2, weightG = 3600, stack = 1, color = "#3d4652", unique = true,
+        wpn_copperhead = { label = "Штурмовая винтовка Copperhead (5,56)", labelEn = "Copperhead", w = 4, h = 2, weightG = 3600, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Copperhead_Default", mags = { "mag_ar556" } }, meta = {} },
-        wpn_carnage    = { label = "Дробовик Carnage",     labelEn = "Carnage",    w = 4, h = 2, weightG = 4200, stack = 1, color = "#3d4652", unique = true,
+        wpn_carnage    = { label = "Дробовик Carnage (12 кал.)",     labelEn = "Carnage",    w = 4, h = 2, weightG = 4200, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Carnage_Default", mags = { "mag_sg12" } }, meta = {} },
         wpn_knife      = { label = "Нож",                  labelEn = "Knife",      w = 1, h = 2, weightG = 300,  stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Knife_Default" }, meta = {} },
@@ -115,6 +115,6 @@ InvConfig = {
 
     -- Снаряжение (окно «Снаряжение» рядом с сеткой): слоты оружия w1..w3 (слоты платформы
     -- 1..3) и пояс b1..b5 — клавиши 4–8. На пояс — предметы не больше beltMaxCells клеток.
-    -- Перезарядка (R) — только магазином с пояса; reloadMs — сколько длится.
+    -- Перезарядка — R самой игры, только магазином с пояса (его патроны — запас оружия).
     gear = { weaponSlots = 3, beltSlots = 5, beltMaxCells = 2, reloadMs = 1600 },
 }

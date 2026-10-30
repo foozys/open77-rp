@@ -112,14 +112,12 @@ AddEventHandler("onClientResourceStart", function(name)
         end)
     end
 
-    -- R — перезарядка магазином с пояса; 4–8 — ячейки пояса (магазин — перезарядить им).
+    -- 4–8 — ячейки пояса (магазин — следующий для перезарядки). Перезарядка — R самой игры:
+    -- запас оружия = патроны следующего магазина с пояса (rp_inventory, server/gear.lua).
     local function key(id, label, default, fn)
         local okKey, whyKey = RegisterKeyMapping(id, label, default, fn)
         if not okKey then print("[rp_inventory_ui] клавиша " .. id .. ": " .. tostring(whyKey)) end
     end
-    key("rp_reload", "Перезарядка (магазин с пояса)", "R", function()
-        if not isOpen then TriggerServerEvent("rp_inventory:reload") end
-    end)
     for n = 1, 5 do
         key("rp_belt" .. n, "Пояс: ячейка " .. n, tostring(n + 3), function()
             if not isOpen then TriggerServerEvent("rp_inventory:belt", n) end
