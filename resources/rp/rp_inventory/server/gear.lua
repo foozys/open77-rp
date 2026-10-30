@@ -119,13 +119,25 @@ end
 local function applyAmmo(playerId, state, slot, withLoaded)
     local live = state.gear and state.gear[slot]
     if not live or live.melee then return end
+    local before = live.reserve
     live.reserve = beltAmmo(state, live.caliber)
     local ammo = { reserve = live.reserve }
     if withLoaded and live.cap and live.cap > 0 then
         live.native = math.min(live.rounds, live.cap)
         ammo.magazine = live.native
+    elseif live.reserve < before then
+        -- Счётчик запаса на экране игра обновляет при уменьшении только после выстрела. Если
+        -- оружие в руках — переслать и патроны в нём (то же число), чтобы счётчик обновился сразу.
+        local w = Open77.weapons.get(playerId)
+        local mag = w and w.drawn and activeSlot(state, w) == slot and tonumber(w.magazine)
+        if mag then
+            live.native = math.min(mag, live.rounds)
+            ammo.magazine = live.native
+        end
     end
     live.settleUntil = GetGameTimer() + 1500 -- пока игра применяет числа, их не учитывать
+    C.log("info", "патроны слота %d игроку %d: отправлено запас=%d в оружии=%s", slot, playerId,
+        live.reserve, tostring(ammo.magazine))
     request(playerId, slot, live.u, (withLoaded and not live.cap) and "probe" or "ammo", ammo)
 end
 
@@ -200,6 +212,11 @@ AddEventHandler("open77:weapons:completed", function(playerIdArg, requestId, ope
     local ammo = type(result) == "table" and type(result.ammo) == "table" and result.ammo or nil
     local cap = ammo and tonumber(ammo.capacity)
     if cap and cap > 0 then live.cap = cap end
+    if job.kind ~= "assign" then
+        C.log("info", "патроны слота %d игроку %d: ответ %s %s, у игры запас=%s в оружии=%s всего=%s", job.slot,
+            playerId, tostring(accepted), tostring(reason), tostring(ammo and ammo.reserve),
+            tostring(ammo and ammo.magazine), tostring(ammo and ammo.total))
+    end
     if not accepted then
         if job.kind == "assign" then
             state.gear[job.slot] = nil -- следующая сверка попробует снова
