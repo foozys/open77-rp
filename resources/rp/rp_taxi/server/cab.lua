@@ -85,17 +85,19 @@ local function dropOff(playerId, cab)
     return false
 end
 
--- spot — место появления на дороге { x, y, z, yaw }, pick — где ждёт игрок, to — куда
+-- spot — место появления на дороге { x, y, z, yaw }, pick — куда подъехать (полоса у игрока),
+-- waitAt — где игрок ждёт (ушёл дальше stayRadius — такси уезжает), to — куда
 -- { name, x, y, z, bucket }; status(stage, extra) — плашка игроку; pay() — списать, сумма.
 -- Ответ: "done", "fallback" (не доехали — main.lua перенесёт игрока сам) или "aborted".
-function Cab.ride(playerId, spot, pick, to, bucket, status, pay)
+function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
+    waitAt = waitAt or pick
     local cab, why = Open77.vehicles.create({
-        record = C.model, position = { x = spot.x, y = spot.y, z = spot.z + 0.3 }, yaw = spot.yaw or 0,
+        record = C.model, position = { x = spot.x, y = spot.y, z = spot.z + 0.35 }, yaw = spot.yaw or 0,
         bucket = bucket, ttlMs = 30 * 60 * 1000,
     })
     if not cab and C.fallbackModel then
         cab, why = Open77.vehicles.create({
-            record = C.fallbackModel, position = { x = spot.x, y = spot.y, z = spot.z + 0.3 }, yaw = spot.yaw or 0,
+            record = C.fallbackModel, position = { x = spot.x, y = spot.y, z = spot.z + 0.35 }, yaw = spot.yaw or 0,
             bucket = bucket, ttlMs = 30 * 60 * 1000,
         })
     end
@@ -117,7 +119,7 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay)
     local ok, failure = driveTo(cab, pick, C.pickupRadius, C.pickupSeconds, C.pickupRadius * 2.5, function()
         if not alive(playerId) then return "player_gone" end
         local here = placeOf(playerId)
-        if not here or distance2d(here, pick) > TaxiConfig.call.stayRadius then return "player_left" end
+        if not here or distance2d(here, waitAt) > TaxiConfig.call.stayRadius then return "player_left" end
     end)
     if not ok then
         log("warn", "такси не подъехало к игроку %d: %s", playerId, tostring(failure))
@@ -145,7 +147,7 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay)
     end
 
     -- Поездка.
-    local meters = distance2d(pick, to)
+    local meters = distance2d(waitAt, to)
     status("riding", { meters = math.floor(meters) })
     local seconds = math.max(C.minRideSeconds, meters / 1000 * C.rideSecondsPerKm)
     local lastShown = 0

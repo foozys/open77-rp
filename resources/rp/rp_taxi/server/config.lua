@@ -15,18 +15,18 @@ TaxiConfig = {
     -- перерыв между вызовами; offerSeconds — сколько окно с ценой действует.
     call = { stayRadius = 30, minMeters = 200, cooldownSeconds = 60, offerSeconds = 120 },
 
-    -- Машина и автопилот. model — запись машины (запасная — fallbackModel); spawn — где
-    -- появиться: на дороге в minMeters..maxMeters от игрока (место берётся у городского
-    -- трафика, нет трафика — см. ground); speed — м/с; pickupSeconds / rideSecondsPerKm —
+    -- Машина и автопилот. model — запись машины (запасная — fallbackModel); speed — м/с; pickupSeconds / rideSecondsPerKm —
     -- сколько ждать доезда, дольше — запасной вариант; dropRadius — до метки ближе этого «доехали», даже если автопилот не
     -- смог подъехать вплотную; leaveSeconds — сколько такси после высадки ездит в трафике.
     cab = {
         model = "Vehicle.v_standard2_villefort_cortes_delamain_taxi",
         fallbackModel = "Vehicle.v_standard2_villefort_cortes_delamain",
-        spawn = { minMeters = 50, maxMeters = 180 },
-        -- Запасное место, если трафика рядом нет: точки вокруг игрока на расстояниях meters
-        -- (directions направлений), где земля не дальше maxStep м по высоте от ног игрока.
-        ground = { meters = { 45, 30, 60 }, directions = 8, maxStep = 2.5, fromAbove = 6 },
+        -- spawn: точка полосы (server/roads.lua) в minMeters..maxMeters от игрока, не дальше
+        -- maxDz по высоте; tries — сколько точек проверить лучом; clearance — без машин в
+        -- стольких метрах. pickupRoadMeters / dropRoadMeters — такси подъезжает к полосе не
+        -- дальше этого от игрока и высаживает у полосы не дальше этого от метки.
+        spawn = { minMeters = 60, maxMeters = 180, maxDz = 10, tries = 8, clearance = 6 },
+        pickupRoadMeters = 40, dropRoadMeters = 80,
         speed = 16, behavior = "normal", seat = "rearLeft",
         pickupSeconds = 90, rideSecondsPerKm = 150, minRideSeconds = 90,
         pickupRadius = 12, dropRadius = 120, boardTimeoutMs = 8000, leaveSeconds = 40,

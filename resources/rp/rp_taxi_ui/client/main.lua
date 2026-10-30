@@ -1,5 +1,5 @@
 -- Такси Деламейна: окно с ценой, плашка поездки, запасное затемнение. Всё решает сервер
--- (rp_taxi): клиент присылает метку на карте и место на дороге, где появится такси.
+-- (rp_taxi): клиент присылает метку на карте.
 
 local page, pageReady = nil, false
 local offerOpen = false
@@ -27,54 +27,6 @@ RegisterNetEvent("rp_taxi:askWaypoint", function()
     local waypoint, reason = Open77.map.getWaypoint()
     local position = type(waypoint) == "table" and waypoint.position or nil
     TriggerServerEvent("rp_taxi:waypoint", position, reason and tostring(reason) or nil)
-end)
-
--- -- место на дороге -------------------------------------------------------------------------
--- Дорог платформа не знает, а автопилоту нужен старт на полосе. Берём место, где только что
--- была машина трафика и откуда она уже уехала: это проезжая часть, и там сейчас пусто.
-
-local function yawOf(car)
-    local o = car.orientation
-    if type(o) == "number" then return o end
-    if type(o) == "table" then
-        if tonumber(o.yaw) then return tonumber(o.yaw) end
-        local x, y, z, w = tonumber(o.x or o.i), tonumber(o.y or o.j), tonumber(o.z or o.k), tonumber(o.w or o.r)
-        if x and y and z and w then
-            return math.deg(math.atan(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
-        end
-    end
-    return 0
-end
-
-RegisterNetEvent("rp_taxi:findSpot", function(range)
-    local minM = tonumber(type(range) == "table" and range.min) or 50
-    local maxM = tonumber(type(range) == "table" and range.max) or 180
-    CreateThread(function()
-        local before, why = Open77.vehicles.adoptable({ radius = math.min(200, maxM), limit = 32 })
-        if not before then return TriggerServerEvent("rp_taxi:spot", { reason = tostring(why) }) end
-        Wait(3000)
-        local after = Open77.vehicles.adoptable({ radius = 200, limit = 32 }) or {}
-        local best, bestScore
-        for _, car in ipairs(before) do
-            local p = type(car.position) == "table" and car.position or nil
-            local d = tonumber(car.distance)
-            if p and d and d >= minM and d <= maxM and not car.destroyed then
-                local free = true
-                for _, other in ipairs(after) do
-                    local q = other.position
-                    if type(q) == "table" then
-                        local dx, dy = q.x - p.x, q.y - p.y
-                        if dx * dx + dy * dy < 12 * 12 then free = false break end
-                    end
-                end
-                local score = math.abs(d - (minM + maxM) / 2)
-                if free and (not best or score < bestScore) then best, bestScore = car, score end
-            end
-        end
-        local spot = best and { x = best.position.x, y = best.position.y, z = best.position.z, yaw = yawOf(best) }
-            or { reason = ("машин трафика рядом: %d, подходящих мест нет"):format(#before) }
-        TriggerServerEvent("rp_taxi:spot", spot)
-    end)
 end)
 
 -- -- состояние вызова ------------------------------------------------------------------------
