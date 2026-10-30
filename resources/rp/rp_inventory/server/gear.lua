@@ -120,7 +120,9 @@ local function request(playerId, slot, u, kind, ammo)
 end
 
 -- Привести патроны оружия игры к нашим: магазин (если знаем ёмкость) и запас.
-local function applyAmmo(playerId, state, slot)
+-- reserveOnly — патроны в оружии уже верные, менять только запас (изменение числа в оружии
+-- может вызвать у игры лишнюю перезарядку).
+local function applyAmmo(playerId, state, slot, reserveOnly)
     local live = state.gear and state.gear[slot]
     if not live or live.melee then return end
     local weapon = stackByU(state, live.u)
@@ -129,7 +131,7 @@ local function applyAmmo(playerId, state, slot)
     local nxt, nxtRounds = nextMag(state, InvConfig.items[weapon.i], live)
     live.next, live.reserve = nxt and nxt.u or nil, nxtRounds or 0
     local ammo = { reserve = live.reserve }
-    if live.cap and live.cap > 0 then
+    if live.cap and live.cap > 0 and not reserveOnly then
         live.native = math.min(live.rounds, live.cap)
         ammo.magazine = live.native
     end
@@ -432,6 +434,13 @@ local function reloadStart(playerId)
     -- Перезарядка идёт: игре ничего не шлём (её анимация работает сама; «в оружии 0» вызвало
     -- бы вторую перезарядку). Рост патронов против baseline — анимация закончилась.
     live.inserting, live.committing, live.insertingAt, live.baseline = true, true, GetGameTimer(), live.native
+    -- Запас = ровно сколько игра должна долить, чтобы в конце анимации в оружии было ровно
+    -- nxtRounds; патроны в оружии не трогаем. Новый магазин меньше остатка — запас 0, число
+    -- поставим после анимации.
+    local cap = live.cap or nxtRounds
+    live.expect = math.min(nxtRounds, cap)
+    local fill = math.max(0, live.expect - (live.native or 0))
+    request(playerId, slot, live.u, "insert", { reserve = fill })
     local function undo(text)
         live.inserting, live.committing = false, false
         applyAmmo(playerId, state, slot)
@@ -523,7 +532,8 @@ CreateThread(function()
                     -- поставить точные числа одним запросом.
                     if mag > (live.baseline or 0) or GetGameTimer() - (live.insertingAt or 0) > 6000 then
                         live.inserting, live.native = false, mag
-                        applyAmmo(playerId, state, slot)
+                        -- Сошлось — менять только запас (на следующий магазин); нет — поставить всё.
+                        applyAmmo(playerId, state, slot, mag == live.expect)
                     end
                 elseif live and not live.inserting and not live.melee and live.ready and mag and w.drawn and not state.busy
                     and GetGameTimer() >= (live.settleUntil or 0) then
