@@ -994,6 +994,8 @@
     $("dialog").style.display = "none";
     if (drag) { drag.el.classList.remove("dragging"); $("ghost").style.display = "none"; drag = null; }
   });
+  // Каталог приходит частями (передача в страницу ограничена по размеру).
+  Open77.on("inv:catalog", part => { Object.assign(catalog, part || {}); if (state && !drag) render(); });
   Open77.on("inv:state", s => {
     if (s.catalog) catalog = s.catalog;
     // Пустая Lua-таблица приходит как {}, а не [].

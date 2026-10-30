@@ -5,7 +5,30 @@ local page, pageReady, isOpen = nil, false, false
 local pendingState = nil
 
 local function send(event, payload)
-    if page and pageReady then page:send(event, payload) end
+    if not page or not pageReady then return end
+    local ok, why = page:send(event, payload)
+    if not ok then print("[rp_inventory_ui] в окно не отправлено " .. event .. ": " .. tostring(why)) end
+end
+
+-- Передача в страницу ограничена по размеру: каталог предметов — отдельно и частями,
+-- состояние — без него.
+local catalogSent = false
+local function sendState(state)
+    if state.catalog then
+        if not catalogSent or state.catalog ~= catalogSent then
+            local chunk, n = {}, 0
+            for id, item in pairs(state.catalog) do
+                chunk[id], n = item, n + 1
+                if n >= 15 then send("inv:catalog", chunk) chunk, n = {}, 0 end
+            end
+            if n > 0 then send("inv:catalog", chunk) end
+            catalogSent = state.catalog
+        end
+        local copy = {}
+        for k, v in pairs(state) do if k ~= "catalog" then copy[k] = v end end
+        state = copy
+    end
+    send("inv:state", state)
 end
 
 local function close()
@@ -53,7 +76,7 @@ AddEventHandler("onClientResourceStart", function(name)
     page = created
     page:on("ui:ready", function()
         pageReady = true
-        if pendingState then send("inv:state", pendingState) end
+        if pendingState then sendState(pendingState) end
         if cyber then send("inv:cyber", cyber) end
     end)
     page:on("inv:close", close)
@@ -113,7 +136,7 @@ end)
 RegisterNetEvent("rp_inventory:state", function(state)
     if type(state) ~= "table" then return end
     pendingState = state
-    if isOpen then send("inv:state", state) end
+    if isOpen then sendState(state) end
 end)
 
 -- Сервер сам открыл окно (обыск: rp_police → rp_inventory open_loot).
