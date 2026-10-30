@@ -66,6 +66,20 @@ local function nextMag(state, weaponDef, live)
     return best, bestRounds
 end
 
+-- Слот оружия в руках: номер из отчёта платформы, а если его нет (пришёл только снимок
+-- игрока) — по записи оружия в руках.
+local function activeSlot(state, w)
+    local slot = w and tonumber(w.active)
+    if slot and state.gear and state.gear[slot] then return slot end
+    local record = w and w.activeRecord
+    if type(record) ~= "string" or record == "" then return nil end
+    for n, live in pairs(state.gear or {}) do
+        local weapon = stackByU(state, live.u)
+        local def = weapon and InvConfig.items[weapon.i]
+        if def and def.weapon.record == record then return n end
+    end
+end
+
 -- -- патроны в оружии игры -------------------------------------------------------------
 
 local function request(playerId, slot, u, kind, ammo)
@@ -376,14 +390,22 @@ RegisterNetEvent("rp_inventory:belt", function(n)
         if s.c == "b" .. n then
             local def = InvConfig.items[s.i]
             if def.mag then
-                local w = Open77.weapons.get(playerId)
-                local slot = w and tonumber(w.active)
-                local live = slot and state.gear[slot]
-                local weapon = live and stackByU(state, live.u)
-                local wdef = weapon and InvConfig.items[weapon.i]
-                local fits = false
-                for _, id in ipairs(wdef and wdef.weapon.mags or {}) do if id == s.i then fits = true end end
-                if not fits then return C.notify(playerId, "Этот магазин не подходит к оружию в руках.") end
+                local function accepts(n)
+                    local live = n and state.gear[n]
+                    local weapon = live and stackByU(state, live.u)
+                    for _, id in ipairs(weapon and InvConfig.items[weapon.i].weapon.mags or {}) do
+                        if id == s.i then return true end
+                    end
+                    return false
+                end
+                -- Оружие в руках, а не определилось — любой надетый ствол под этот магазин.
+                local slot = activeSlot(state, Open77.weapons.get(playerId))
+                if not accepts(slot) then
+                    slot = nil
+                    for n = 1, G.weaponSlots do if accepts(n) then slot = n break end end
+                end
+                if not slot then return C.notify(playerId, "Этот магазин не подходит ни к одному оружию в слотах.") end
+                local live = state.gear[slot]
                 live.preferred = s.u
                 applyAmmo(playerId, state, slot)
                 return C.notify(playerId, "Следующий магазин: %s (%d патр.). Перезарядка — R.", def.label,
@@ -405,7 +427,7 @@ CreateThread(function()
         for playerId, state in pairs(C.inv) do
             if state.gear and next(state.gear) then
                 local w = Open77.weapons.get(playerId)
-                local slot = w and tonumber(w.active)
+                local slot = activeSlot(state, w)
                 local live = slot and state.gear[slot]
                 local mag = w and tonumber(w.magazine)
                 if live and not live.melee and live.ready and mag and w.drawn and not state.busy then
