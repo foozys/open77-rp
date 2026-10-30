@@ -767,7 +767,7 @@ end)
 
 -- -- броня: восстанавливается сама ---------------------------------------------------------
 -- Максимум — подкожная броня (+ бонус в киберпсихозе). +step раз в everyMs, если calmSeconds
--- не было боя: потеря брони или здоровья, зажатый спуск (выстрел, удар). Псих — всегда.
+-- не было боя: потеря брони или здоровья, зажатый спуск (выстрел, удар). Псих — всегда, раз в psychoEveryMs.
 
 local function armorMaxOf(s)
     return (s.armor or 0) + (s.psycho and CyberConfig.psycho.armorBonus or 0)
@@ -776,11 +776,12 @@ end
 CreateThread(function()
     local cfg = CyberConfig.armorRegen
     while true do
-        Wait(cfg.everyMs)
+        Wait(50)
         local now = GetGameTimer()
         for playerId, s in pairs(state) do
             local max = armorMaxOf(s)
-            if max > 0 and not Open77.players.isDead(playerId) then
+            if max > 0 and now >= (s.armorNextAt or 0) and not Open77.players.isDead(playerId) then
+                s.armorNextAt = now + (s.psycho and cfg.psychoEveryMs or cfg.everyMs)
                 local read = Open77.players.get(playerId)
                 local armor = read and tonumber(read.armor)
                 local health = read and tonumber(read.health)

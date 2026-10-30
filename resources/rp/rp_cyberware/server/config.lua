@@ -158,6 +158,6 @@ CyberConfig = {
 
     baseMaxHealth = 100,     -- здоровье без «второго сердца»
     -- Броня восстанавливается сама: +step раз в everyMs, если calmSeconds не было боя (потеря
-    -- брони или здоровья, выстрел или удар). В киберпсихозе — всегда, даже в бою.
-    armorRegen = { step = 1, everyMs = 250, calmSeconds = 10 },
+    -- брони или здоровья, выстрел или удар). В киберпсихозе — всегда, даже в бою, раз в psychoEveryMs.
+    armorRegen = { step = 1, everyMs = 250, psychoEveryMs = 150, calmSeconds = 10 },
 }
