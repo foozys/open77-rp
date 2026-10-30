@@ -178,7 +178,7 @@ function Gear.sync(playerId, state)
             flushSlot(playerId, state, slot)
             state.gear[slot] = nil
             Open77.weapons.remove(playerId, slot)
-        elseif live and not live.melee and live.ready and not state.busy
+        elseif live and not live.melee and live.ready and not live.consuming
             and beltAmmo(state, live.caliber) ~= live.reserve then
             applyAmmo(playerId, state, slot) -- патроны на поясе изменились — обновить запас
         end
@@ -333,11 +333,12 @@ local function consumeBelt(playerId, state, live, count)
     local ammoId = ammoItemFor(live.caliber)
     local opId = ammoId and Store.newOpId("rpreload")
     if not opId then return end
-    state.busy = true
+    state.busy, live.consuming = true, true -- пока пояс не поправлен, запас не пересчитывать
     local receipt, why = Store.transfer({ opId = opId, kind = "rp.reload", reason = "reload", lines = {
         { item = ammoId, count = count, from = state.account, to = SOURCE } } })
     state.busy = false
     if not receipt then
+        live.consuming = false
         return C.log("warn", "перезарядка игрока %d: патроны с пояса не списаны: %s", playerId, tostring(why))
     end
     -- Списать именно из пачек на поясе (сверка сама убрала бы из любой стопки).
@@ -354,6 +355,7 @@ local function consumeBelt(playerId, state, live, count)
     end
     Store.saveLayout(state.characterId, state.stacks)
     live.reserve = beltAmmo(state, live.caliber) -- игра уже уменьшила свой запас сама
+    live.consuming = false
     C.refresh(playerId)
 end
 
