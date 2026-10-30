@@ -843,6 +843,12 @@ local function implantsSuspended(playerId)
     return false
 end
 
+-- Оптика перезагружается (скрипт «Перезагрузка оптики»): сканер Kiroshi не работает.
+local function opticsDown(playerId)
+    local h = Open77.hacking.state(playerId)
+    return type(h) == "table" and (tonumber(h.blindedMs) or 0) > 0
+end
+
 RegisterNetEvent("rp_cyberware:overdrive", function(on)
     local playerId = tonumber(source)
     local s = playerId and state[playerId]
@@ -861,6 +867,10 @@ CreateThread(function()
         Wait(1000)
         local test = CyberConfig.testEpisodes
         for playerId, s in pairs(state) do
+            if s.scanning and opticsDown(playerId) then
+                s.scanning = false
+                send(playerId, "rp_cyberware:scanState", { open = false, text = "Оптика перезагружается." })
+            end
             -- Тестовый режим приступов (CyberConfig.testEpisodes): по секундам, а не по минутам.
             if test and s.psychosis >= CyberConfig.episodeFrom and not Open77.players.isDead(playerId) and not isDowned(playerId) then
                 local severe = s.psychosis >= CyberConfig.severeFrom
@@ -1059,6 +1069,10 @@ RegisterNetEvent("rp_cyberware:scan", function(open)
         s.scanning = false
         return send(playerId, "rp_cyberware:scanState", { open = false })
     end
+    if opticsDown(playerId) then
+        s.scanning = false
+        return send(playerId, "rp_cyberware:scanState", { open = false, text = "Оптика перезагружается." })
+    end
     s.scanning = true
     pushScan(playerId)
 end)
@@ -1237,6 +1251,8 @@ CreateThread(function()
             elseif not mine or not theirs or mine.bucket ~= theirs.bucket
                 or distance(mine, theirs) > u.q.grade.range * RANGE_SLACK then
                 finishUpload(attacker, false, "цель вне дальности")
+            elseif opticsDown(attacker) then
+                finishUpload(attacker, false, "оптика хакера перезагружена")
             elseif hp < u.hp or armor < u.armor then
                 finishUpload(attacker, false, "хакера сбили уроном")
             elseif now - u.seenAt > LOS_GRACE_MS then
