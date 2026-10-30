@@ -884,10 +884,17 @@ CreateThread(function()
 end)
 
 -- -- Kiroshi и взлом ---------------------------------------------------------------------
--- Платформа шлёт только тот скрипт, которым дека «прошита» (grade установленной деки).
--- Вне сканера дека в пустом режиме (IDLE), и F8 ничего не делает. Открыт сканер — сервер
--- прошивает выбранный скрипт; ЛКМ — Open77.hacking.start. RAM списывается при начале
--- любой загрузки с деки, не хватает — загрузка отменяется.
+-- Загрузка скрипта — своя (клиентская загрузка платформы требует держать клавишу): ЛКМ в
+-- сканере запускает её на сервере, RAM списывается сразу. Пока идёт загрузка, цель может
+-- защититься: уйти из поля зрения хакера (его клиент сообщает видимость), уйти дальше
+-- дальности, сбить хакера уроном, нажать INSERT с Purge. Self-ICE отражает загрузку на старте.
+-- Итог — эффекты платформы: урон (Open77.players.damage) и статус скрипта (Open77.statuses.apply
+-- по grade кибердеки). Установленная дека всегда в пустом режиме IDLE: F8 платформы ничего не шлёт.
+
+local LOS_GRACE_MS = 1200   -- сколько хакер может не видеть цель, прежде чем загрузка сорвётся
+local RANGE_SLACK = 1.15    -- запас к дальности скрипта, пока идёт загрузка
+
+local uploads = {}          -- [attacker] = { target, scriptId, q, startedAt, endsAt, seenAt, hp, armor }
 
 local function deckOf(s)
     local def = s and s.slots.os and CyberConfig.implants[s.slots.os]
@@ -903,12 +910,13 @@ local function ramOf(s)
     return s.ram, def.deck.ram
 end
 
-
 local function selectedScript(s)
     if #s.scripts == 0 then return nil end
     s.selected = math.max(1, math.min(#s.scripts, s.selected or 1))
     return s.scripts[s.selected]
 end
+
+local function nowMs() return math.floor(GetGameTimer()) end
 
 -- Кто рядом может быть целью (клиент сам выбирает по прицелу через Open77.hacking.observe).
 local function candidatesNear(playerId)
@@ -933,37 +941,30 @@ local function pushScan(playerId, extra)
     local scripts = {}
     for i, scriptId in ipairs(s.scripts) do
         local q = CyberConfig.quickhacks[scriptId]
+        local cd = s.cooldowns and s.cooldowns[scriptId]
         scripts[i] = { id = scriptId, label = labelOf(scriptId):gsub("^Скрипт: ", ""), ram = q.ram,
-                       description = q.description, range = q.grade.range }
+                       description = q.description, range = q.grade.range,
+                       cooldown = cd and cd > nowMs() and math.ceil((cd - nowMs()) / 1000) or 0 }
     end
     local payload = { open = s.scanning == true, deck = deckOf(s) ~= nil, scripts = scripts, selected = s.selected or 1,
-        ram = math.floor(ram * 10) / 10, ramMax = ramMax, armed = s.armed == selectedScript(s),
-        busy = s.action ~= nil, candidates = candidatesNear(playerId), range = CyberConfig.scanRange }
+        ram = math.floor(ram * 10) / 10, ramMax = ramMax, armed = true,
+        busy = uploads[playerId] ~= nil, candidates = candidatesNear(playerId), range = CyberConfig.scanRange }
     for k, v in pairs(extra or {}) do payload[k] = v end
     send(playerId, "rp_cyberware:scanState", payload)
 end
 
--- Довести прошивку деки до нужной: выбранный скрипт при открытом сканере, иначе IDLE.
--- Пока идёт своя загрузка, не трогаем (переустановка могла бы её оборвать).
+-- Установленная дека должна быть в пустом режиме (старая версия, прошитый скрипт — переставить).
 Arm = function(playerId)
     local s = state[playerId]
     if not s or s.arming then return end
+    local def = deckOf(s)
+    if not def or s.armed == IDLE then return end
     s.arming = true
     CreateThread(function()
-        for _ = 1, 5 do
-            local def = deckOf(s)
-            if not def or s.action or state[playerId] ~= s then break end
-            local want = s.scanning and selectedScript(s) or IDLE
-            if s.armed == want then break end
-            local ok, why = platformApply(playerId, def, true, want)
-            if not ok then
-                log("warn", "дека игрока %d не прошита (%s): %s", playerId, want, tostring(why))
-                break
-            end
-            s.armed = want
-        end
+        local ok, why = platformApply(playerId, def, true, IDLE)
+        if ok then s.armed = IDLE
+        else log("warn", "дека игрока %d не переведена в пустой режим: %s", playerId, tostring(why)) end
         s.arming = false
-        if s.scanning then pushScan(playerId) end
     end)
 end
 
@@ -997,7 +998,7 @@ RegisterNetEvent("rp_cyberware:deckEject", function(index)
     index = math.tointeger(tonumber(index))
     local scriptId = s and index and s.scripts[index]
     if not scriptId or s.deckBusy then return end
-    if s.action then return notify(playerId, "Дождитесь окончания загрузки.") end
+    if uploads[playerId] then return notify(playerId, "Дождитесь окончания загрузки.") end
     if sync("rp_inventory", "fits", playerId, scriptId, 1) == false then return notify(playerId, "Карманы полны.") end
     s.deckBusy = true
     table.remove(s.scripts, index)
@@ -1009,7 +1010,6 @@ RegisterNetEvent("rp_cyberware:deckEject", function(index)
     saveState(playerId)
     s.deckBusy = false
     pushPanel(playerId)
-    if s.armed == scriptId then Arm(playerId) end
 end)
 
 -- TAB зажат / отпущен. open = true повторяется раз в пару секунд (новые цели рядом, RAM).
@@ -1019,7 +1019,6 @@ RegisterNetEvent("rp_cyberware:scan", function(open)
     if not s then return end
     if not open then
         s.scanning = false
-        Arm(playerId)
         return
     end
     if not s.slots.eyes then
@@ -1030,9 +1029,7 @@ RegisterNetEvent("rp_cyberware:scan", function(open)
         s.scanning = false
         return send(playerId, "rp_cyberware:scanState", { open = false })
     end
-    local was = s.scanning
     s.scanning = true
-    if not was then Arm(playerId) end
     pushScan(playerId)
 end)
 
@@ -1044,7 +1041,6 @@ RegisterNetEvent("rp_cyberware:scanSelect", function(step)
     if not s or not s.scanning or not step or #s.scripts == 0 then return end
     s.selected = ((s.selected or 1) - 1 + step) % #s.scripts + 1
     pushScan(playerId)
-    Arm(playerId)
 end)
 
 -- Что Kiroshi видит о цели.
@@ -1062,49 +1058,164 @@ RegisterNetEvent("rp_cyberware:scanInfo", function(targetArg)
         unstable = t.psychosis >= CyberConfig.episodeFrom, downed = Open77.players.isDead(target) or isDowned(target) })
 end)
 
--- ЛКМ в сканере: отправить выбранный скрипт в цель.
+local function healthOf(playerId)
+    local hp = Open77.players.getHealth(playerId)
+    return hp and tonumber(hp.health) or 0, hp and tonumber(hp.armor) or 0
+end
+
+-- Конец загрузки: ok — скрипт дошёл; иначе текст причины для обоих.
+local function finishUpload(attacker, ok, why)
+    local u = uploads[attacker]
+    if not u then return end
+    uploads[attacker] = nil
+    local t = state[u.target]
+    if t and t.incoming == attacker then t.incoming = nil end
+    local label = labelOf(u.scriptId):gsub("^Скрипт: ", "")
+    send(attacker, "rp_cyberware:upload", { phase = "end", ok = ok, text = ok and ("«" .. label .. "» загружен.") or why })
+    send(u.target, "rp_cyberware:incoming", { phase = "end", ok = ok,
+        text = ok and ("Взлом прошёл: " .. label) or ("Взлом сорван: " .. tostring(why)) })
+    if state[attacker] and state[attacker].scanning then pushScan(attacker) end
+    if not ok then return end
+    -- Итог: урон (несмертельный скрипт не опускает ниже 1) и статус платформы.
+    local damage = tonumber(u.q.grade.damage) or 0
+    if damage > 0 and not Open77.players.isDead(u.target) then
+        if u.q.grade.nonlethal then
+            local hp = healthOf(u.target)
+            damage = math.min(damage, math.max(0, hp - 1))
+        end
+        if damage > 0 then
+            local done, whyDamage = Open77.players.damage(u.target, damage, { attacker = attacker, cause = "hacking" })
+            if not done then log("warn", "урон скрипта %s: %s", u.scriptId, tostring(whyDamage)) end
+        end
+    end
+    local applied, whyStatus = Open77.statuses.apply(attacker, u.target, DECK_ID, u.scriptId)
+    if not applied and whyStatus ~= "status_stacked" then
+        log("warn", "статус скрипта %s игроку %d: %s", u.scriptId, u.target, tostring(whyStatus))
+    end
+    if t then t.hackedUntil = nowMs() + (tonumber(u.q.grade.recoveryMs) or 0) end
+end
+
+-- ЛКМ в сканере: начать загрузку выбранного скрипта в цель.
 RegisterNetEvent("rp_cyberware:hack", function(targetArg)
     local playerId, target = tonumber(source), math.tointeger(tonumber(targetArg))
     local s = playerId and state[playerId]
-    if not s or not s.scanning or not target or target == playerId or not state[target] then return end
+    local t = target and state[target]
+    if not s or not s.scanning or not t or target == playerId then return end
     local def, scriptId = deckOf(s), selectedScript(s)
     local reply = function(text) pushScan(playerId, { text = text }) end
     if not def then return reply("Нет кибердеки.") end
     if not scriptId then return reply("В деке нет скриптов: вставьте их во вкладке «Импланты» (I).") end
-    if s.action then return reply("Загрузка уже идёт.") end
-    if s.armed ~= scriptId then
-        Arm(playerId)
-        return reply("Скрипт ещё загружается в деку…")
-    end
+    if uploads[playerId] then return reply("Загрузка уже идёт.") end
+    if Open77.players.isDead(playerId) or isDowned(playerId) then return end
     local q = CyberConfig.quickhacks[scriptId]
+    s.cooldowns = s.cooldowns or {}
+    if (s.cooldowns[scriptId] or 0) > nowMs() then
+        return reply(("Скрипт перезаряжается: %d с."):format(math.ceil((s.cooldowns[scriptId] - nowMs()) / 1000)))
+    end
     if ramOf(s) < q.ram then return reply(("Мало RAM: нужно %d."):format(q.ram)) end
     local mine, theirs = placeOf(playerId), placeOf(target)
     if not mine or not theirs or mine.bucket ~= theirs.bucket or distance(mine, theirs) > q.grade.range then
         return reply(("Цель дальше %d м."):format(q.grade.range))
     end
     if Open77.players.isDead(target) or isDowned(target) then return reply("Цель без сознания.") end
-    local result, why = Open77.hacking.start(playerId, target, DECK_ID, scriptId,
-        { operationId = ("rphack:%d:%d:%d"):format(math.floor(playerId), target, math.floor(GetGameTimer())) })
-    if not result then return reply("Отказ: " .. tostring(why)) end
-    s.action = result.actionId
-    reply(nil)
-    -- Если платформа так и не сообщит конец загрузки — освободить через 20 с.
-    local actionId = result.actionId
-    SetTimeout(20000, function()
-        if s.action == actionId then s.action = nil Arm(playerId) end
-    end)
+    if t.incoming then return reply("Цель уже взламывают.") end
+    if (t.hackedUntil or 0) > nowMs() then return reply("Цель ещё не оправилась от прошлого взлома.") end
+
+    s.ram = s.ram - q.ram
+    s.cooldowns[scriptId] = nowMs() + (tonumber(q.grade.cooldownMs) or 0)
+    local label = labelOf(scriptId):gsub("^Скрипт: ", "")
+
+    -- Self-ICE отражает загрузку сразу (RAM и перезарядка уже потрачены).
+    local ice = t.slots.ice and CyberConfig.implants[t.slots.ice]
+    if ice and (t.iceReadyAt or 0) <= nowMs() then
+        t.iceReadyAt = nowMs() + (ice.platform and ice.platform.ice and ice.platform.ice.rechargeMs or 30000)
+        reply("Отражено: у цели Self-ICE.")
+        send(target, "rp_cyberware:incoming", { phase = "end", ok = false, text = "Self-ICE отразил взлом: " .. label })
+        return
+    end
+
+    local hp, armor = healthOf(playerId)
+    local upload = { target = target, scriptId = scriptId, q = q, startedAt = nowMs(),
+                     endsAt = nowMs() + (tonumber(q.grade.uploadMs) or 2000), seenAt = nowMs(), hp = hp, armor = armor }
+    uploads[playerId] = upload
+    t.incoming = playerId
+    send(playerId, "rp_cyberware:upload", { phase = "start", target = target, label = label, ms = upload.endsAt - upload.startedAt })
+    send(target, "rp_cyberware:incoming", { phase = "start", label = label, ms = upload.endsAt - upload.startedAt,
+                                            purge = t.slots.purge ~= nil })
+    pushScan(playerId)
 end)
 
-local TERMINAL = { completed = true, interrupted = true, blocked = true, cancelled = true }
+-- Клиент хакера, пока идёт загрузка: видит ли он цель (Open77.hacking.observe).
+RegisterNetEvent("rp_cyberware:hackSight", function(visible)
+    local playerId = tonumber(source)
+    local u = playerId and uploads[playerId]
+    if u and visible == true then u.seenAt = nowMs() end
+end)
+
+-- INSERT у цели: Purge сбрасывает входящую загрузку (тяжёлый имплант — рассудок).
+RegisterNetEvent("rp_cyberware:purge", function()
+    local playerId = tonumber(source)
+    local t = playerId and state[playerId]
+    if not t or not t.incoming then return end
+    local purge = t.slots.purge and CyberConfig.implants[t.slots.purge]
+    if not purge then return send(playerId, "rp_cyberware:incoming", { phase = "note", text = "Purge не установлен." }) end
+    if (t.purgeReadyAt or 0) > nowMs() then
+        return send(playerId, "rp_cyberware:incoming", { phase = "note",
+            text = ("Purge перезаряжается: %d с."):format(math.ceil((t.purgeReadyAt - nowMs()) / 1000)) })
+    end
+    t.purgeReadyAt = nowMs() + (purge.platform and purge.platform.purge and purge.platform.purge.cooldownMs or 10000)
+    sanityCost(playerId, "implant_purge")
+    t.purgedAt = Open77.time.unix()
+    finishUpload(t.incoming, false, "цель запустила Purge")
+end)
+
+-- Ход загрузок: срывы и завершение.
+CreateThread(function()
+    while true do
+        Wait(150)
+        for attacker, u in pairs(uploads) do
+            local now = nowMs()
+            local a, t = state[attacker], state[u.target]
+            local mine, theirs = placeOf(attacker), placeOf(u.target)
+            local hp, armor = healthOf(attacker)
+            if not a or not t then
+                finishUpload(attacker, false, "связь потеряна")
+            elseif Open77.players.isDead(attacker) or isDowned(attacker) then
+                finishUpload(attacker, false, "хакер выведен из строя")
+            elseif Open77.players.isDead(u.target) or isDowned(u.target) then
+                finishUpload(attacker, false, "цель без сознания")
+            elseif not mine or not theirs or mine.bucket ~= theirs.bucket
+                or distance(mine, theirs) > u.q.grade.range * RANGE_SLACK then
+                finishUpload(attacker, false, "цель вне дальности")
+            elseif hp < u.hp or armor < u.armor then
+                finishUpload(attacker, false, "хакера сбили уроном")
+            elseif now - u.seenAt > LOS_GRACE_MS then
+                finishUpload(attacker, false, "цель скрылась из поля зрения")
+            elseif now >= u.endsAt then
+                finishUpload(attacker, true)
+            else
+                u.hp, u.armor = math.max(hp, u.hp), math.max(armor, u.armor) -- регенерация не в счёт
+            end
+        end
+    end
+end)
+
+AddEventHandler("onPlayerDisconnected", function(playerIdArg)
+    local playerId = tonumber(playerIdArg)
+    if not playerId then return end
+    if uploads[playerId] then finishUpload(playerId, false, "хакер отключился") end
+    for attacker, u in pairs(uploads) do
+        if u.target == playerId then finishUpload(attacker, false, "цель отключилась") end
+    end
+end)
 
 AddEventHandler("onHackingTransition", function(encoded)
     local ok, t = pcall(json.decode, encoded)
     if not ok or type(t) ~= "table" then return end
-    local attacker, target = math.tointeger(tonumber(t.attacker)), math.tointeger(tonumber(t.target))
+    local target = math.tointeger(tonumber(t.target))
 
-    -- Purge (тяжёлый имплант): снят статус или оборвана загрузка на себе.
-    if target and state[target] and (t.phase == "status_purged"
-        or (t.phase == "interrupted" and tostring(t.reason or ""):find("purge"))) then
+    -- Purge платформы (INSERT) снял наложенный скриптом статус — тоже стоит рассудка.
+    if target and state[target] and t.phase == "status_purged" then
         local s = state[target]
         local now = Open77.time.unix()
         if not s.purgedAt or now - s.purgedAt >= 3 then
@@ -1113,31 +1224,9 @@ AddEventHandler("onHackingTransition", function(encoded)
         end
     end
 
-    if t.definition ~= DECK_ID then return end
-    local s = attacker and state[attacker]
-    if t.phase == "challenge" or t.phase == "upload_started" then
-        if t.grade == IDLE then
-            Open77.hacking.cancel(t.actionId) -- пустая дека (F8 без сканера) — ничего не шлём
-            return
-        end
-    end
-    if not s then return end
-    if t.phase == "upload_started" then
-        local q = CyberConfig.quickhacks[t.grade]
-        if q then
-            if ramOf(s) < q.ram then
-                Open77.hacking.cancel(t.actionId)
-                notify(attacker, "Мало RAM для «%s».", labelOf(t.grade))
-            else
-                s.ram = s.ram - q.ram
-            end
-        end
-        s.action = t.actionId
-        if s.scanning then pushScan(attacker) end
-    elseif TERMINAL[t.phase] and s.action == t.actionId then
-        s.action = nil
-        Arm(attacker)
-        if s.scanning then pushScan(attacker) end
+    -- Загрузки платформы с нашей деки (F8) не используем: отменяем сразу.
+    if t.definition == DECK_ID and (t.phase == "challenge" or t.phase == "upload_started") then
+        Open77.hacking.cancel(t.actionId)
     end
 end)
 

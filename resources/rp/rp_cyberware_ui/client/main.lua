@@ -184,6 +184,50 @@ mapping("rp_scan_hack", "Сканер: отправить скрипт", "MOUSE1
     TriggerServerEvent("rp_cyberware:hack", scan.target)
 end)
 
+-- -- загрузка скрипта: хакер и цель -----------------------------------------------------
+-- Загрузку ведёт сервер (rp_cyberware). Хакер, пока она идёт, сообщает, видит ли цель:
+-- отвернулся или цель скрылась больше чем на ~1 с — загрузка срывается. Цель видит
+-- красную полосу и может нажать INSERT (Purge).
+
+local upload = nil   -- { target } у хакера
+local incoming = false
+
+RegisterNetEvent("rp_cyberware:upload", function(p)
+    if type(p) ~= "table" then return end
+    if p.phase == "start" then
+        upload = { target = tonumber(p.target) }
+        send("upl:start", { label = p.label, ms = p.ms })
+        CreateThread(function()
+            local mine = upload
+            while upload == mine do
+                local seen = Open77.hacking.observe(mine.target)
+                if seen and seen.streamed and seen.visible then TriggerServerEvent("rp_cyberware:hackSight", true) end
+                Wait(200)
+            end
+        end)
+    elseif p.phase == "end" then
+        upload = nil
+        send("upl:end", { ok = p.ok, text = p.text })
+    end
+end)
+
+RegisterNetEvent("rp_cyberware:incoming", function(p)
+    if type(p) ~= "table" then return end
+    if p.phase == "start" then
+        incoming = true
+        send("inc:start", { label = p.label, ms = p.ms, purge = p.purge == true })
+    elseif p.phase == "end" then
+        incoming = false
+        send("inc:end", { ok = p.ok, text = p.text })
+    elseif p.phase == "note" then
+        send("inc:note", { text = p.text })
+    end
+end)
+
+mapping("rp_purge", "Purge: сбросить входящий взлом", "INSERT", function()
+    if incoming then TriggerServerEvent("rp_cyberware:purge") end
+end)
+
 -- -- голоса при приступе психоза ---------------------------------------------------------
 -- Живая запись (tools/voices/audio.mp3), нарезана и обработана (эхо между ушами, шёпот, сдвиг высоты); у тяжёлого
 -- приступа своя, более искажённая версия. Слышит только сам игрок.

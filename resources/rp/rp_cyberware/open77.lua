@@ -13,7 +13,8 @@ dependency "open77_cyberware"
 dependency "open77_hacking"
 
 -- players.cyberware.*: определения, запись, установка и снятие постоянных имплантов;
--- players.hacking.define/read: кибердека, Self-ICE, Purge; activate/cancel: отправка скрипта из сканера Kiroshi
+-- players.hacking.define/read: кибердека, Self-ICE, Purge; cancel: загрузки F8 с деки отменяем;
+-- players.statuses.apply: эффект скрипта после своей загрузки из сканера Kiroshi
 -- и отмена загрузки без RAM или с пустой деки;
 -- players.dash.* / players.abilities.*: рывок, удар о землю;
 -- players.stats.apply / players.damage.apply: броня, здоровье (обе формы — валидатор devkit);
@@ -23,7 +24,7 @@ dependency "open77_hacking"
 -- rp_cyber_clinics; network.events: окно клиники и вкладка «Импланты»
 permissions {
     "players.cyberware.define", "players.cyberware.read", "players.cyberware.manage",
-    "players.hacking.define", "players.hacking.read", "players.hacking.activate", "players.hacking.cancel",
+    "players.hacking.define", "players.hacking.read", "players.hacking.cancel", "players.statuses.apply",
     "players.dash.define", "players.dash.manage", "players.dash.read",
     "players.abilities.define", "players.abilities.manage", "players.abilities.read",
     "players.stats.apply", "players.damage.apply", "players.stats.read", "players.damage.read",

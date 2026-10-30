@@ -83,6 +83,25 @@
   #scanToast { position: absolute; left: 50%; top: calc(50% + 90px); transform: translateX(-50%); padding: 6px 14px;
     background: rgba(12, 10, 2, 0.85); border: 1px solid var(--warn); color: var(--warn); font-size: 14px; display: none; }
   #scanToast.show { display: block; }
+  /* -- загрузка скрипта: у хакера снизу, у цели сверху -- */
+  .hbar { position: absolute; left: 50%; transform: translateX(-50%); width: 460px; display: none; pointer-events: none;
+    padding: 8px 12px 10px; background: rgba(8, 10, 16, 0.88); font-size: 13px; letter-spacing: 1px; }
+  .hbar.on { display: block; }
+  .hbar .cap { display: flex; justify-content: space-between; text-transform: uppercase; font-weight: 700; }
+  .hbar .track { height: 6px; margin-top: 6px; background: rgba(255, 255, 255, 0.1); }
+  .hbar .fill { height: 100%; width: 0; }
+  .hbar .tip { margin-top: 6px; font-size: 12px; color: var(--muted); letter-spacing: 0; }
+  #upl { bottom: 150px; border: 1px solid rgba(94, 246, 255, 0.6); color: #5ef6ff; }
+  #upl .fill { background: #5ef6ff; }
+  #inc { top: 90px; border: 1px solid var(--warn); color: var(--warn); animation: incPulse 0.8s ease-in-out infinite; }
+  #inc .fill { background: var(--warn); }
+  @keyframes incPulse { 50% { box-shadow: 0 0 24px rgba(255, 94, 108, 0.55); } }
+  #hackMsg { position: absolute; left: 50%; top: 150px; transform: translateX(-50%); padding: 6px 14px; display: none;
+    background: rgba(8, 10, 16, 0.9); font-size: 14px; pointer-events: none; }
+  #hackMsg.show { display: block; }
+  #hackMsg.ok { border: 1px solid var(--ok); color: var(--ok); }
+  #hackMsg.bad { border: 1px solid var(--warn); color: var(--warn); }
+
   /* -- приступ психоза: резкий глитч, пока звучит голос -- */
   #ep { display: none; position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   #ep.on { display: block; }
@@ -132,6 +151,13 @@
     <div class="hint">Импланты покупают в магазине имплантов. Esc — закрыть.</div>
   </div>
 </div>
+<div class="hbar" id="upl"><div class="cap"><span id="uplLabel"></span><span id="uplTime"></span></div>
+  <div class="track"><div class="fill" id="uplFill"></div></div>
+  <div class="tip">Держите цель в поле зрения</div></div>
+<div class="hbar" id="inc"><div class="cap"><span id="incLabel"></span><span id="incTime"></span></div>
+  <div class="track"><div class="fill" id="incFill"></div></div>
+  <div class="tip" id="incTip"></div></div>
+<div id="hackMsg"></div>
 <div id="ep"><div class="edge"></div><div id="epBars"></div><div class="scan"></div><div class="flash" id="epFlash"></div></div>
 <div id="od"><div class="glow"></div><div class="lines"></div><div class="ghost"></div>
   <div class="label">Sandevistan<small id="odTime"></small></div></div>
@@ -278,16 +304,16 @@
     if (!scripts.length) list.innerHTML = `<div class="script poor"><span class="n">Дека пуста — вставьте скрипты в инвентаре (I → Импланты)</span></div>`;
     scripts.forEach((s, i) => {
       const row = document.createElement("div");
-      row.className = "script" + (i === (p.selected || 1) - 1 ? " sel" : "") + (s.ram > p.ram ? " poor" : "");
+      row.className = "script" + (i === (p.selected || 1) - 1 ? " sel" : "") + (s.ram > p.ram || s.cooldown > 0 ? " poor" : "");
       row.innerHTML = `<span class="n"></span><span class="r"></span>`;
       row.querySelector(".n").textContent = s.label;
-      row.querySelector(".r").textContent = s.ram;
+      row.querySelector(".r").textContent = s.cooldown > 0 ? `⟳ ${s.cooldown} с` : s.ram;
       list.append(row);
     });
     $("scriptDesc").textContent = sel ? `${sel.description} · до ${sel.range} м` : "";
     const status = $("scanStatus");
     if (p.busy) { status.textContent = "Идёт загрузка…"; status.className = "wait"; }
-    else if (sel && !p.armed) { status.textContent = "Скрипт загружается в деку…"; status.className = "wait"; }
+    else if (sel && sel.cooldown > 0) { status.textContent = `Перезарядка: ${sel.cooldown} с`; status.className = "wait"; }
     else if (sel) { status.textContent = "Готов: ЛКМ — отправить"; status.className = ""; }
     else status.textContent = "";
   }
@@ -302,6 +328,40 @@
     renderTarget(p.distance);
   });
   Open77.on("scan:toast", p => toast(p.text));
+
+  // -- загрузка скрипта ------------------------------------------------------------------
+  const bars = {};
+  function runBar(id, label, ms) {
+    clearInterval(bars[id]);
+    const start = Date.now();
+    $(id + "Label").textContent = label;
+    $(id).classList.add("on");
+    const tick = () => {
+      const left = Math.max(0, ms - (Date.now() - start));
+      $(id + "Fill").style.width = `${Math.min(100, (1 - left / ms) * 100)}%`;
+      $(id + "Time").textContent = `${(left / 1000).toFixed(1)} с`;
+    };
+    tick();
+    bars[id] = setInterval(tick, 50);
+  }
+  function stopBar(id) { clearInterval(bars[id]); $(id).classList.remove("on"); }
+  let msgTimer = null;
+  function hackMsg(text, ok) {
+    if (!text) return;
+    const el = $("hackMsg");
+    el.textContent = text;
+    el.className = "show " + (ok ? "ok" : "bad");
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(() => { el.className = ""; }, 3000);
+  }
+  Open77.on("upl:start", p => runBar("upl", `Загрузка: ${p.label}`, p.ms));
+  Open77.on("upl:end", p => { stopBar("upl"); hackMsg(p.text, p.ok); });
+  Open77.on("inc:start", p => {
+    $("incTip").textContent = "Уйдите из поля зрения или дальности · ударьте хакера" + (p.purge ? " · INSERT — Purge" : "");
+    runBar("inc", `Входящий взлом: ${p.label}`, p.ms);
+  });
+  Open77.on("inc:end", p => { stopBar("inc"); hackMsg(p.text, !p.ok); });
+  Open77.on("inc:note", p => hackMsg(p.text, false));
 
   // -- приступ психоза: глитч ------------------------------------------------------------
   // Полосы «разорванного» сигнала: каждые 70 мс новые места, ширина и цвета.
