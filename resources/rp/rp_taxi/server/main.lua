@@ -303,6 +303,29 @@ RegisterNetEvent("rp_taxi:answer", function(accept)
     end
 end)
 
+-- rp.taxitest [cab|cortes|galena] [drive|join] — диагностика автопилота (право rp.vehicles):
+-- машина с водителем на полосе рядом, команда, 25 с состояний в лог сервера.
+local TEST_MODELS = {
+    cab = "Vehicle.v_standard2_villefort_cortes_delamain_taxi",
+    cortes = "Vehicle.v_standard2_villefort_cortes",
+    galena = "Vehicle.v_standard2_thorton_galena",
+}
+RegisterCommand("rp.taxitest", function(source, args)
+    local playerId = tonumber(source)
+    if not playerId or playerId < 1 then return end
+    if core("can", playerId, "rp.vehicles") ~= true then return notify(playerId, "Недостаточно прав (rp.vehicles).") end
+    local record = TEST_MODELS[args[1] or "cab"] or args[1]
+    local mode = args[2] == "join" and "join" or "drive"
+    local here = placeOf(playerId)
+    if not here then return notify(playerId, "Ваша позиция неизвестна.") end
+    local spot = roadSpot(playerId, here)
+    if not spot then return notify(playerId, "Рядом нет свободной полосы.") end
+    local target = nearestRoad(here, 40, 6) or here
+    notify(playerId, "Тест: %s, %s. Смотрите лог сервера (тест такси …), 25 с.", record, mode)
+    Cab.test(playerId, spot, here.bucket, record, mode, { x = target.x, y = target.y, z = target.z }, 25)
+    notify(playerId, "Тест закончен.")
+end, false)
+
 AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     local playerId = tonumber(playerIdStr)
     if playerId then calls[playerId] = nil end

@@ -116,29 +116,22 @@ local function dropOff(playerId, cab)
     return false
 end
 
--- spot — место появления на дороге { x, y, z, yaw }, pick — куда подъехать (полоса у игрока),
--- waitAt — где игрок ждёт (ушёл дальше stayRadius — такси уезжает), to — куда
--- { name, x, y, z, bucket }; status(stage, extra) — плашка игроку; pay() — списать, сумма.
--- Ответ: "done", "fallback" (не доехали — main.lua перенесёт игрока сам) или "aborted".
-function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
-    waitAt = waitAt or pick
-    -- Как у open77_traffic: машина закрыта сразу при создании, зажигание и заморозка до
-    -- водителя (автопилот двигатель не включает), водитель — NPC без своего ИИ и неуязвимый,
-    -- автопилот с ним, задача — и только потом разморозка.
+-- Машина с водителем на полосе. Как у open77_traffic: машина закрыта сразу при создании,
+-- зажигание и заморозка до водителя (автопилот двигатель не включает), водитель — NPC без
+-- своего ИИ и неуязвимый, автопилот с ним; разморозить — после первой задачи.
+-- cab, или nil, причина.
+local function spawnCab(playerId, spot, bucket, records)
     local where = { x = spot.x, y = spot.y, z = spot.z + 0.35 }
-    local cab, why = Open77.vehicles.create({ record = C.model, position = where, yaw = spot.yaw or 0,
-        bucket = bucket, ttlMs = 30 * 60 * 1000, flags = Open77.vehicles.flags.locked })
-    if not cab and C.fallbackModel then
-        cab, why = Open77.vehicles.create({ record = C.fallbackModel, position = where, yaw = spot.yaw or 0,
+    local cab, why
+    for _, record in ipairs(records) do
+        cab, why = Open77.vehicles.create({ record = record, position = where, yaw = spot.yaw or 0,
             bucket = bucket, ttlMs = 30 * 60 * 1000, flags = Open77.vehicles.flags.locked })
+        if cab then break end
     end
-    if not cab then
-        log("warn", "такси для игрока %d не создано: %s", playerId, tostring(why))
-        return "fallback"
-    end
+    if not cab then return nil, "машина: " .. tostring(why) end
     active[cab] = true
     local engine, engineWhy = Open77.vehicles.setEngine(cab, true)
-    if not engine then log("warn", "такси игрока %d: двигатель не включён: %s", playerId, tostring(engineWhy)) end
+    if not engine then log("warn", "такси %s: двигатель не включён: %s", tostring(cab), tostring(engineWhy)) end
     Open77.vehicles.setFrozen(cab, true)
     local driver, driverWhy = Open77.npcs.create({
         record = C.driver, position = where, yaw = spot.yaw or 0, bucket = bucket,
@@ -146,9 +139,8 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
         behavior = { aiEnabled = false, combatEnabled = false, perceptionEnabled = false, voiceEnabled = false },
     })
     if not driver then
-        log("warn", "водитель такси игрока %d не создан: %s", playerId, tostring(driverWhy))
         removeCab(cab)
-        return "fallback"
+        return nil, "водитель: " .. tostring(driverWhy)
     end
     active[cab] = driver
     local attached, reason = Open77.vehicles.ai.attachDriver(cab, { npcId = driver, admissionPlayerId = playerId })
@@ -156,8 +148,21 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
         attached, reason = Open77.vehicles.ai.attachDriver(cab, { npcId = driver }) -- слоты игрока заняты
     end
     if not attached then
-        log("warn", "автопилот такси игрока %d: %s", playerId, tostring(reason))
         removeCab(cab)
+        return nil, "автопилот: " .. tostring(reason)
+    end
+    return cab
+end
+
+-- spot — место появления на дороге { x, y, z, yaw }, pick — куда подъехать (полоса у игрока),
+-- waitAt — где игрок ждёт (ушёл дальше stayRadius — такси уезжает), to — куда
+-- { name, x, y, z, bucket }; status(stage, extra) — плашка игроку; pay() — списать, сумма.
+-- Ответ: "done", "fallback" (не доехали — main.lua перенесёт игрока сам) или "aborted".
+function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
+    waitAt = waitAt or pick
+    local cab, why = spawnCab(playerId, spot, bucket, { C.model, C.fallbackModel })
+    if not cab then
+        log("warn", "такси для игрока %d не создано: %s", playerId, tostring(why))
         return "fallback"
     end
     local function thaw() Open77.vehicles.setFrozen(cab, false) end
@@ -220,6 +225,40 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
     end
     if not outside then return "fallback" end
     return "done", pay()
+end
+
+-- Диагностика (rp.taxitest): машина record с водителем на spot, команда mode — "drive"
+-- (driveTo к target) или "join" (joinTraffic), seconds секунд состояния автопилота в лог,
+-- потом машина убирается.
+function Cab.test(playerId, spot, bucket, record, mode, target, seconds)
+    local cab, why = spawnCab(playerId, spot, bucket, { record })
+    if not cab then return log("warn", "тест такси: %s", tostring(why)) end
+    local task, taskWhy
+    if mode == "join" then
+        task, taskWhy = Open77.vehicles.ai.joinTraffic(cab)
+    else
+        task, taskWhy = Open77.vehicles.ai.driveTo(cab, { position = target, speed = C.speed, behavior = C.behavior,
+            arrivalRadius = 10, timeoutMilliseconds = seconds * 1000 })
+    end
+    Open77.vehicles.setFrozen(cab, false)
+    log("info", "тест такси %s: %s %s — задача %s", tostring(cab), record, mode, task and "принята" or ("отказ: " .. tostring(taskWhy)))
+    local started, last = GetGameTimer(), nil
+    local from = Open77.vehicles.getPosition(cab)
+    while GetGameTimer() - started < seconds * 1000 do
+        Wait(500)
+        local state = Open77.vehicles.ai.state(cab)
+        local at = Open77.vehicles.getPosition(cab)
+        local now = state and ("%s/%s/%s owner=%s reason=%s"):format(tostring(state.status), tostring(state.phase),
+            tostring(state.execution), tostring(state.owner), tostring(state.reason)) or "нет состояния"
+        if now ~= last then
+            last = now
+            log("info", "тест такси %s, %.1f с: %s, сдвинулось на %.0f м", tostring(cab), (GetGameTimer() - started) / 1000,
+                now, (at and from) and distance2d(at, from) or -1)
+        end
+    end
+    local at = Open77.vehicles.getPosition(cab)
+    log("info", "тест такси %s: итог — сдвинулось на %.0f м", tostring(cab), (at and from) and distance2d(at, from) or -1)
+    removeCab(cab)
 end
 
 AddEventHandler("onResourceStop", function(name)
