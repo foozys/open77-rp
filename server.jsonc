@@ -20,8 +20,8 @@
   },
   "network": {
     "port": 11778,
-    // Адрес в Tailscale: так подключаются и друзья из tailnet, и сам хост.
-    "publicEndpoint": "100.90.118.2:11778",
+    // Внешний адрес (порты 11778/UDP и 11779/TCP проброшены на роутере). Сменился IP — поменять тут и в publicBaseUrl.
+    "publicEndpoint": "46.242.13.11:11778",
     "maximumPlayers": 32
   },
   "simulation": {
@@ -149,7 +149,7 @@
     "download": {
       "enabled": true,
       "listenUrl": "http://0.0.0.0:11779",
-      "publicBaseUrl": "http://100.90.118.2:11779/",
+      "publicBaseUrl": "http://46.242.13.11:11779/",
       "allowInsecureHttp": true,
       "cacheDirectory": ".open77/resource-cache",
       "signingKeyFile": ".open77/resource-signing-key.json",
