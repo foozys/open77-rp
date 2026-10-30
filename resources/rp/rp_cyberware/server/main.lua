@@ -832,9 +832,15 @@ local function setOverdrive(playerId, on, text)
     send(playerId, "rp_cyberware:overdrive", { on = s.overdrive, tier = def and def.overdrive.tier or nil, text = text })
 end
 
+-- Импланты выведены из строя: эффект disableCyberwareMs, скрипт «Сбой имплантов»
+-- (malfunctionMs) или «Сбой движения» (crippledMs).
 local function implantsSuspended(playerId)
     local h = Open77.hacking.state(playerId)
-    return type(h) == "table" and ((tonumber(h.cyberwareSuspendedMs) or 0) > 0 or (tonumber(h.crippledMs) or 0) > 0)
+    if type(h) ~= "table" then return false end
+    for _, key in ipairs({ "cyberwareSuspendedMs", "malfunctionMs", "crippledMs" }) do
+        if (tonumber(h[key]) or 0) > 0 then return true end
+    end
+    return false
 end
 
 RegisterNetEvent("rp_cyberware:overdrive", function(on)
