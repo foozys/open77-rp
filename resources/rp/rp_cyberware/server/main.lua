@@ -713,12 +713,67 @@ local function overdriveDef(s)
     end
 end
 
+-- Как его видят все: слои и звуки те же, что у платформенного рефлекса
+-- (open77_reflex/server/presentation.lua, проверены там на расстоянии): вспышка искр
+-- и звук включения, синее свечение вокруг тела, искры и следы у ступней, пока включён.
+local OD_LOOP_MS = 60000 -- свечение живёт минуту и обновляется, пока режим включён
+local OD_LAYERS = {
+    { effect = "neon.loot_drop", slot = "Chest" },
+    { effect = "electric.industrial_arm", slot = "Chest" },
+    { effect = "sparks.welding", slot = "LeftFoot" },
+    { effect = "sparks.welding", slot = "RightFoot" },
+    { effect = "cyber.trail_electric", slot = "LeftFoot" },
+    { effect = "cyber.trail_electric", slot = "RightFoot" },
+}
+local OD_HEAVY = { effect = "electric.arc", slot = "RightHand" }
+
+local function odBurst(playerId, effect, ttlMs)
+    Open77.effects.attach({ kind = "player", id = tostring(playerId) }, effect, { slot = "Chest", ttlMs = ttlMs })
+end
+
+local function odSound(playerId, event)
+    Open77.effects.sound({ kind = "player", id = tostring(playerId) }, event,
+        { duration = 2, actionId = ("rpod:%d:%s:%d"):format(playerId, event, GetGameTimer()) })
+end
+
+local function odClearBody(s)
+    for _, handle in ipairs(s.odHandles or {}) do Open77.effects.remove(handle) end
+    s.odHandles = nil
+end
+
+local function odBody(playerId, s, def)
+    odClearBody(s)
+    s.odHandles = {}
+    local layers = OD_LAYERS
+    if def.overdrive.tier == "reflex_heavy" then layers = { table.unpack(OD_LAYERS) } layers[#layers + 1] = OD_HEAVY end
+    for _, layer in ipairs(layers) do
+        local handle = Open77.effects.attach({ kind = "player", id = tostring(playerId) }, layer.effect,
+            { slot = layer.slot, ttlMs = OD_LOOP_MS, streamingRadius = 90, streamingHysteresis = 20 })
+        if handle then s.odHandles[#s.odHandles + 1] = handle end
+    end
+end
+
 local function setOverdrive(playerId, on, text)
     local s = state[playerId]
     if not s then return end
     local def = on and overdriveDef(s)
+    local was = s.overdrive == true
     s.overdrive = def and true or false
     s.overdriveSeconds = 0
+    if s.overdrive and not was then
+        -- Каждое включение тоже стоит рассудка: иначе выгодно щёлкать X чаще, чем раз в 5 с.
+        s.psychosis = math.min(100, s.psychosis + (def.overdrive.activationSanity or 0))
+        pushPanel(playerId)
+        odBurst(playerId, "sparks.burst.large", 900)
+        odSound(playerId, "w_cyb_berserker_activate")
+        odBody(playerId, s, def)
+    elseif was and not s.overdrive then
+        odClearBody(s)
+        if Open77.players.get(playerId) and not Open77.players.isDead(playerId) then
+            odBurst(playerId, "sparks.burst.small", 700)
+            odSound(playerId, "w_cyb_berserker_deactivate")
+        end
+    end
     send(playerId, "rp_cyberware:overdrive", { on = s.overdrive, tier = def and def.overdrive.tier or nil, text = text })
 end
 
@@ -752,6 +807,7 @@ CreateThread(function()
                     setOverdrive(playerId, false, "Импланты выведены из строя.")
                 else
                     s.overdriveSeconds = s.overdriveSeconds + 1
+                    if s.overdriveSeconds % 55 == 0 then odBody(playerId, s, def) end
                     if s.overdriveSeconds % def.overdrive.sanitySeconds == 0 then
                         s.psychosis = math.min(100, s.psychosis + def.overdrive.sanityAmount)
                         pushPanel(playerId)

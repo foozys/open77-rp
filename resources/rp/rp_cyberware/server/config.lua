@@ -97,10 +97,11 @@ CyberConfig = {
                 cosmetic = false, nonlethal = true, staminaCost = 25, cooldownMs = 8000, radius = 4,
                 impactEffect = "impact.ground_slam", impactSound = "w_cyb_strongarms_hit_back" } } },
         -- Переключаемый (X — вкл/выкл), без перезарядки. Пока включён — ускорение рефлексов
-        -- (tier: reflex или reflex_heavy) и каждые sanitySeconds секунд +sanityAmount психоза.
+        -- (tier: reflex или reflex_heavy) и каждые sanitySeconds секунд +sanityAmount психоза;
+        -- каждое включение — ещё +activationSanity (чтобы не щёлкали X чаще, чем раз в 5 с).
         implant_sandevistan = { slot = "os", humanity = 25, price = 5000, kind = "overdrive",
-            description = "Ускорение рефлексов, X — включить / выключить. Тяжёлый: пока включён, каждые 5 с −1 рассудка",
-            overdrive = { tier = "reflex", sanitySeconds = 5, sanityAmount = 1 } },
+            description = "Ускорение рефлексов, X — включить / выключить. Тяжёлый: −1 рассудка за включение и каждые 5 с работы",
+            overdrive = { tier = "reflex", sanitySeconds = 5, sanityAmount = 1, activationSanity = 1 } },
         implant_subdermal = { slot = "skin", humanity = 8, price = 1500, kind = "passive",
             description = "Броня 50, восстанавливается вне боя", passive = { armor = 50 } },
         implant_heart = { slot = "heart", humanity = 10, price = 2500, kind = "passive",
