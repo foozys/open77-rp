@@ -227,15 +227,22 @@ function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
     return "done", pay()
 end
 
--- Диагностика (rp.taxitest): машина record с водителем на spot, команда mode — "drive"
--- (driveTo к target) или "join" (joinTraffic), seconds секунд состояния автопилота в лог,
--- потом машина убирается.
-function Cab.test(playerId, spot, bucket, record, mode, target, seconds)
+-- Диагностика (rp.taxitest): машина record с водителем на spot, команда mode:
+--   drive  — driveTo к target со скоростью и поведением; plain — driveTo только с позицией;
+--   route  — followRoute по точкам полосы route; follow — follow за игроком; join — joinTraffic.
+-- seconds секунд состояния автопилота в лог, потом машина убирается.
+function Cab.test(playerId, spot, bucket, record, mode, target, seconds, route)
     local cab, why = spawnCab(playerId, spot, bucket, { record })
     if not cab then return log("warn", "тест такси: %s", tostring(why)) end
     local task, taskWhy
     if mode == "join" then
         task, taskWhy = Open77.vehicles.ai.joinTraffic(cab)
+    elseif mode == "plain" then
+        task, taskWhy = Open77.vehicles.ai.driveTo(cab, { position = target })
+    elseif mode == "route" then
+        task, taskWhy = Open77.vehicles.ai.followRoute(cab, { points = route, speed = C.speed })
+    elseif mode == "follow" then
+        task, taskWhy = Open77.vehicles.ai.follow(cab, { targetKind = "player", targetId = playerId, distance = 10, speed = C.speed })
     else
         task, taskWhy = Open77.vehicles.ai.driveTo(cab, { position = target, speed = C.speed, behavior = C.behavior,
             arrivalRadius = 10, timeoutMilliseconds = seconds * 1000 })

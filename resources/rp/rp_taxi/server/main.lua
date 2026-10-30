@@ -303,7 +303,7 @@ RegisterNetEvent("rp_taxi:answer", function(accept)
     end
 end)
 
--- rp.taxitest [cab|cortes|galena] [drive|join] — диагностика автопилота (право rp.vehicles):
+-- rp.taxitest [cab|cortes|galena] [drive|plain|route|follow|join] — диагностика автопилота (право rp.vehicles):
 -- машина с водителем на полосе рядом, команда, 25 с состояний в лог сервера.
 local TEST_MODELS = {
     cab = "Vehicle.v_standard2_villefort_cortes_delamain_taxi",
@@ -315,14 +315,24 @@ RegisterCommand("rp.taxitest", function(source, args)
     if not playerId or playerId < 1 then return end
     if core("can", playerId, "rp.vehicles") ~= true then return notify(playerId, "Недостаточно прав (rp.vehicles).") end
     local record = TEST_MODELS[args[1] or "cab"] or args[1]
-    local mode = args[2] == "join" and "join" or "drive"
+    local modes = { drive = true, plain = true, route = true, follow = true, join = true }
+    local mode = modes[args[2] or ""] and args[2] or "drive"
     local here = placeOf(playerId)
     if not here then return notify(playerId, "Ваша позиция неизвестна.") end
     local spot = roadSpot(playerId, here)
     if not spot then return notify(playerId, "Рядом нет свободной полосы.") end
     local target = nearestRoad(here, 40, 6) or here
     notify(playerId, "Тест: %s, %s. Смотрите лог сервера (тест такси …), 25 с.", record, mode)
-    Cab.test(playerId, spot, here.bucket, record, mode, { x = target.x, y = target.y, z = target.z }, 25)
+    -- Маршрут для route: точки полос между машиной и игроком (по 1 из каждых ~30 м).
+    local route = {}
+    for i = 1, 4 do
+        local t = i / 4
+        local p = nearestRoad({ x = spot.x + (target.x - spot.x) * t, y = spot.y + (target.y - spot.y) * t,
+                                z = spot.z + (target.z - spot.z) * t }, 30, 8)
+        if p then route[#route + 1] = { x = p.x, y = p.y, z = p.z } end
+    end
+    if #route == 0 then route[1] = { x = target.x, y = target.y, z = target.z } end
+    Cab.test(playerId, spot, here.bucket, record, mode, { x = target.x, y = target.y, z = target.z }, 25, route)
     notify(playerId, "Тест закончен.")
 end, false)
 
