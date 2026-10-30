@@ -69,16 +69,44 @@ end
 -- Слот оружия в руках: номер из отчёта платформы, а если его нет (пришёл только снимок
 -- игрока) — по записи оружия в руках.
 local function activeSlot(state, w)
-    local slot = w and tonumber(w.active)
-    if slot and state.gear and state.gear[slot] then return slot end
-    local record = w and w.activeRecord
-    if type(record) ~= "string" or record == "" then return nil end
-    for n, live in pairs(state.gear or {}) do
-        local weapon = stackByU(state, live.u)
-        local def = weapon and InvConfig.items[weapon.i]
-        if def and def.weapon.record == record then return n end
+    if not w or not state.gear then return nil end
+    -- последняя смена оружия в руках (onPlayerWeaponChanged) — самый надёжный источник
+    if state.drawnSlot and state.gear[state.drawnSlot] then return state.drawnSlot end
+    local slot = tonumber(w.active)
+    if slot and state.gear[slot] then return slot end
+    -- код оружия в руках (из снимка игрока) — сверить с кодом, который вернула выдача
+    local tdb = w.activeTweakDbId
+    if type(tdb) == "string" and tdb ~= "" then
+        for n, live in pairs(state.gear) do
+            if live.tdb and live.tdb:lower() == tdb:lower() then return n end
+        end
+    end
+    local record = w.activeRecord
+    if type(record) == "string" and record ~= "" then
+        for n, live in pairs(state.gear) do
+            local weapon = stackByU(state, live.u)
+            local def = weapon and InvConfig.items[weapon.i]
+            if def and def.weapon.record == record then return n end
+        end
+    end
+    -- строки слотов из отчёта клиента
+    for _, row in ipairs(type(w.slots) == "table" and w.slots or {}) do
+        local n = tonumber(row.slot)
+        if n and state.gear[n] and (row.active == true or row.drawn == true) then return n end
     end
 end
+
+-- Смена оружия в руках: какой слот теперь в руках (или ничего).
+AddEventHandler("onPlayerWeaponChanged", function(playerIdArg, slotArg, _, drawn)
+    local state = C.inv[tonumber(playerIdArg) or 0]
+    if not state then return end
+    local slot = tonumber(slotArg)
+    if drawn == "true" or drawn == true then
+        state.drawnSlot = slot
+    elseif state.drawnSlot == slot then
+        state.drawnSlot = nil
+    end
+end)
 
 -- -- патроны в оружии игры -------------------------------------------------------------
 
@@ -180,6 +208,9 @@ AddEventHandler("open77:weapons:completed", function(playerIdArg, requestId, ope
     local state = playerId and C.inv[playerId]
     local live = state and state.gear and state.gear[job.slot]
     if not live or live.u ~= job.u then return end
+    if type(result) == "table" and type(result.tweakDbId) == "string" and result.tweakDbId ~= "" then
+        live.tdb = result.tweakDbId
+    end
     local ammo = type(result) == "table" and type(result.ammo) == "table" and result.ammo or nil
     local cap = ammo and tonumber(ammo.capacity)
     if cap and cap > 0 then live.cap = cap end
@@ -461,15 +492,20 @@ RegisterCommand("rp.weapondebug", function(source, args)
     local state = id and C.inv[id]
     if not state then return C.notify(source, "Использование: rp.weapondebug <ID игрока в сети>") end
     local w, why = Open77.weapons.get(id)
-    C.notify(source, "get: %s", w and ("active=%s record=%s drawn=%s magazine=%s source=%s fresh=%s slot=%s"):format(
-        tostring(w.active), tostring(w.activeRecord), tostring(w.drawn), tostring(w.magazine), tostring(w.source),
-        tostring(w.fresh), tostring(activeSlot(state, w))) or ("нет: " .. tostring(why)))
+    C.notify(source, "get: %s", w and ("active=%s record=%s tdb=%s drawn=%s magazine=%s source=%s slot=%s"):format(
+        tostring(w.active), tostring(w.activeRecord), tostring(w.activeTweakDbId), tostring(w.drawn),
+        tostring(w.magazine), tostring(w.source), tostring(activeSlot(state, w))) or ("нет: " .. tostring(why)))
+    C.notify(source, "последняя смена оружия: слот %s", tostring(state.drawnSlot))
+    for _, row in ipairs(w and type(w.slots) == "table" and w.slots or {}) do
+        C.notify(source, "  строка слота %s: active=%s drawn=%s tdb=%s ammo=%s", tostring(row.slot), tostring(row.active),
+            tostring(row.drawn), tostring(row.tweakDbId), type(row.ammo) == "table" and tostring(row.ammo.magazine) or "-")
+    end
     for n = 1, G.weaponSlots do
         local live = state.gear and state.gear[n]
         if live then
-            C.notify(source, "слот %d: ready=%s cap=%s native=%s rounds=%s next=%s reserve=%s melee=%s", n,
+            C.notify(source, "слот %d: ready=%s cap=%s native=%s rounds=%s reserve=%s tdb=%s", n,
                 tostring(live.ready), tostring(live.cap), tostring(live.native), tostring(live.rounds),
-                tostring(live.next), tostring(live.reserve), tostring(live.melee))
+                tostring(live.reserve), tostring(live.tdb))
         end
     end
 end, false)
