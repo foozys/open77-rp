@@ -205,14 +205,76 @@ local function playVoice(file, volume)
     else print("[rp_cyberware_ui] голос " .. file .. ": " .. tostring(why)) end
 end
 
+-- Помехи на экране идут, пока звучит голос: нативный эффект игры плюс резкий глитч
+-- страницы (полосы с расслоением цвета). Тяжёлый приступ — две фразы по очереди с паузой.
+local EPISODE_GAP_MS = 2000
+local episodeRun = 0 -- номер текущего приступа: новый или нейроблокатор обрывают старый
+local screenAliases = nil
+local glitchHandle = nil -- нативный экранный эффект, пока звучит голос
+
+local function screenAlias(severe)
+    if not screenAliases then
+        local ok, catalog = pcall(Open77.vfx.screenCatalog)
+        screenAliases = ok and type(catalog) == "table" and catalog or {}
+    end
+    for _, alias in ipairs(severe and { "drugged.heavy", "drunk.heavy", "drugged.medium" }
+                                   or { "drugged.medium", "drugged.light", "drunk.medium" }) do
+        if screenAliases[alias] then return alias end
+    end
+end
+
+local function glitch(on, severe)
+    if on then
+        local alias = screenAlias(severe)
+        if alias and not glitchHandle then
+            local handle, why = Open77.vfx.screen(alias, { duration = 0 }) -- держим до stop
+            if handle then glitchHandle = handle else print("[rp_cyberware_ui] экран: " .. tostring(why)) end
+        end
+        send("ep:glitch", { on = true, severe = severe })
+    else
+        if glitchHandle then Open77.vfx.stop(glitchHandle) glitchHandle = nil end
+        send("ep:glitch", { on = false })
+    end
+end
+
+-- Дождаться конца фразы (или обрыва приступа). Максимум 15 с на случай сбоя декодера.
+local function waitVoice(file, run)
+    local handle = voiceHandles[file]
+    local deadline = GetGameTimer() + 15000
+    Wait(150)
+    while episodeRun == run and handle and GetGameTimer() < deadline do
+        local st = Open77.audio.getState(handle)
+        if not st or (st.status ~= "playing" and st.status ~= "loading") then return end
+        Wait(100)
+    end
+end
+
 RegisterNetEvent("rp_cyberware:voices", function(p)
     local severe = type(p) == "table" and p.severe == true
-    local first = math.random(VOICES)
-    playVoice(("audio/voice_%d%s.wav"):format(first, severe and "_severe" or ""), severe and 1.0 or 0.85)
-    if severe then
-        local second = (first + math.random(VOICES - 1) - 1) % VOICES + 1
-        SetTimeout(1400, function() playVoice(("audio/voice_%d_severe.wav"):format(second), 0.7) end)
-    end
+    episodeRun = episodeRun + 1
+    local run = episodeRun
+    CreateThread(function()
+        local first = math.random(VOICES)
+        local phrases = { first }
+        if severe then phrases[2] = (first + math.random(VOICES - 1) - 1) % VOICES + 1 end
+        for i, n in ipairs(phrases) do
+            if episodeRun ~= run then return end
+            local file = ("audio/voice_%d%s.wav"):format(n, severe and "_severe" or "")
+            glitch(true, severe)
+            playVoice(file, severe and 1.0 or 0.85)
+            waitVoice(file, run)
+            if episodeRun ~= run then return end
+            glitch(false)
+            if i < #phrases then Wait(EPISODE_GAP_MS) end
+        end
+    end)
+end)
+
+-- Нейроблокатор: приступ обрывается сразу.
+RegisterNetEvent("rp_cyberware:calm", function()
+    episodeRun = episodeRun + 1
+    for _, handle in pairs(voiceHandles) do Open77.audio.stop(handle) end
+    glitch(false)
 end)
 
 -- -- Сандевистан: X — включить / выключить ----------------------------------------------

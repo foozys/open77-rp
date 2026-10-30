@@ -11,8 +11,9 @@ dependency "open77_interactions >=0.2.0"
 -- network.events: связь с rp_cyberware; world.query: цель сканера (Open77.hacking.observe);
 -- input.actions: клавиши сканера и блокировка оружия, пока он открыт;
 -- player.reflex.overdrive: ускорение Сандевистана, пока он включён;
--- audio.play: голоса в голове при приступе психоза
-permissions { "network.events", "world.query", "input.actions", "player.reflex.overdrive", "audio.play" }
+-- audio.play: голоса в голове при приступе психоза; vfx.screen + world.effects (снять эффект):
+-- помехи на экране, пока они звучат
+permissions { "network.events", "world.query", "input.actions", "player.reflex.overdrive", "audio.play", "vfx.screen", "world.effects" }
 
 client_script "client/main.lua"
 web_file "web/index.html"

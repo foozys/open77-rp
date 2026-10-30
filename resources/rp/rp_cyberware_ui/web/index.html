@@ -83,6 +83,18 @@
   #scanToast { position: absolute; left: 50%; top: calc(50% + 90px); transform: translateX(-50%); padding: 6px 14px;
     background: rgba(12, 10, 2, 0.85); border: 1px solid var(--warn); color: var(--warn); font-size: 14px; display: none; }
   #scanToast.show { display: block; }
+  /* -- приступ психоза: резкий глитч, пока звучит голос -- */
+  #ep { display: none; position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  #ep.on { display: block; }
+  #ep .edge { position: absolute; inset: 0;
+    box-shadow: inset 14px 0 40px -18px rgba(0, 255, 255, 0.55), inset -14px 0 40px -18px rgba(255, 0, 90, 0.55); }
+  #ep.severe .edge { box-shadow: inset 26px 0 60px -20px rgba(0, 255, 255, 0.7), inset -26px 0 60px -20px rgba(255, 20, 40, 0.8),
+    inset 0 0 160px rgba(120, 0, 10, 0.55); }
+  #ep .scan { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px); }
+  #ep .bar { position: absolute; left: 0; mix-blend-mode: normal; }
+  #ep .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+</style>
+<style>
   /* -- Сандевистан: зелёный экран, пока включён -- */
   #od { display: none; position: absolute; inset: 0; pointer-events: none; }
   #od.on { display: block; animation: odIn 0.35s ease-out; }
@@ -119,6 +131,7 @@
     <div class="hint">Импланты покупают в магазине имплантов. Esc — закрыть.</div>
   </div>
 </div>
+<div id="ep"><div class="edge"></div><div id="epBars"></div><div class="scan"></div><div class="flash" id="epFlash"></div></div>
 <div id="od"><div class="glow"></div><div class="lines"></div><div class="ghost"></div>
   <div class="label">Sandevistan<small id="odTime"></small></div></div>
 <div id="scan">
@@ -288,6 +301,52 @@
     renderTarget(p.distance);
   });
   Open77.on("scan:toast", p => toast(p.text));
+
+  // -- приступ психоза: глитч ------------------------------------------------------------
+  // Полосы «разорванного» сигнала: каждые 70 мс новые места, ширина и цвета.
+  let epTimer = null;
+  const LIGHT = ["rgba(0,255,255,0.55)", "rgba(255,0,170,0.5)", "rgba(255,255,255,0.45)", "rgba(0,0,0,0.65)"];
+  const HEAVY = ["rgba(255,30,50,0.75)", "rgba(255,255,255,0.7)", "rgba(0,255,255,0.6)", "rgba(0,0,0,0.85)", "rgba(255,0,140,0.6)"];
+
+  function epFrame(severe) {
+    const box = $("epBars");
+    box.replaceChildren();
+    // Тихие кадры между всплесками — глитч «дёргается», а не висит сплошной пеленой.
+    if (Math.random() < (severe ? 0.2 : 0.4)) return;
+    const colors = severe ? HEAVY : LIGHT;
+    const count = (severe ? 8 : 5) + Math.floor(Math.random() * (severe ? 8 : 5));
+    for (let i = 0; i < count; i++) {
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const h = 2 + Math.floor(Math.random() * (severe ? 30 : 18));
+      const c1 = colors[Math.floor(Math.random() * colors.length)];
+      const c2 = colors[Math.floor(Math.random() * colors.length)];
+      const shift = Math.floor((Math.random() - 0.5) * (severe ? 120 : 50));
+      bar.style.top = `${Math.random() * 100}%`;
+      bar.style.height = `${h}px`;
+      bar.style.left = `${Math.max(0, Math.random() * 60 - 20)}%`;
+      bar.style.width = `${20 + Math.random() * 80}%`;
+      // Расслоение цвета: два канала со сдвигом, между ними «цифровой» шум.
+      bar.style.background = `linear-gradient(90deg, transparent, ${c1} 8%, ${c1} 40%, transparent 41%, ${c2} 46%, ${c2} 92%, transparent)`;
+      bar.style.transform = `translateX(${shift}px)`;
+      bar.style.boxShadow = `${shift > 0 ? -4 : 4}px 0 0 rgba(0,255,255,0.5), ${shift > 0 ? 4 : -4}px 0 0 rgba(255,0,80,0.5)`;
+      box.append(bar);
+    }
+    $("epFlash").style.opacity = severe && Math.random() < 0.08 ? "0.35" : "0";
+  }
+
+  Open77.on("ep:glitch", p => {
+    clearInterval(epTimer);
+    if (!p.on) {
+      $("ep").className = "";
+      $("epBars").replaceChildren();
+      $("epFlash").style.opacity = "0";
+      return;
+    }
+    $("ep").className = "on" + (p.severe ? " severe" : "");
+    epFrame(p.severe);
+    epTimer = setInterval(() => epFrame(p.severe), 70);
+  });
 
   // -- Сандевистан ------------------------------------------------------------------------
   let odTimer = null;

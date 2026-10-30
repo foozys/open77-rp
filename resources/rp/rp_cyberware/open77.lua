@@ -19,7 +19,7 @@ dependency "open77_hacking"
 -- players.stats.apply / players.damage.apply: броня, здоровье (обе формы — валидатор devkit);
 -- players.stats.read / players.damage.read: здоровье для биомонитора;
 -- players.life.read: позиция, жив ли игрок; players.motion.control: падение при тяжёлом приступе;
--- players.screenfx: экран при приступе; world.effects: Сандевистан на теле и его звуки; database.access: rp_implants, rp_cyber_state,
+-- world.effects: Сандевистан на теле и его звуки; database.access: rp_implants, rp_cyber_state,
 -- rp_cyber_clinics; network.events: окно клиники и вкладка «Импланты»
 permissions {
     "players.cyberware.define", "players.cyberware.read", "players.cyberware.manage",
@@ -27,7 +27,7 @@ permissions {
     "players.dash.define", "players.dash.manage", "players.dash.read",
     "players.abilities.define", "players.abilities.manage", "players.abilities.read",
     "players.stats.apply", "players.damage.apply", "players.stats.read", "players.damage.read",
-    "players.life.read", "players.motion.control", "players.screenfx", "world.effects",
+    "players.life.read", "players.motion.control", "world.effects",
     "database.access", "network.events",
 }
 

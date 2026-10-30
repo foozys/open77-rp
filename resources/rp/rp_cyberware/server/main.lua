@@ -613,18 +613,6 @@ end, false)
 
 -- -- психоз и приступы -------------------------------------------------------------------
 
-local screenAlias = nil
-local function pickScreen()
-    if screenAlias ~= nil then return screenAlias end
-    local catalog = Open77.effects.screenCatalog() or {}
-    local have = {}
-    for _, name in ipairs(catalog) do have[name] = true end
-    for _, name in ipairs({ "drugged", "drunk", "health.critical" }) do
-        if have[name] then screenAlias = name return name end
-    end
-    screenAlias = false
-    return false
-end
 
 local EPISODE_TEXT = {
     "В голове шум помех. Мир на секунду становится чужим.",
@@ -653,9 +641,8 @@ local function episodeGlitch(playerId, severe)
 end
 
 local function episode(playerId, severe)
-    local alias = pickScreen()
-    if alias then Open77.effects.screen(playerId, alias, { strength = severe and 0.9 or 0.5, duration = severe and 12 or 8 }) end
-    -- Голоса в голове: свои звуковые файлы, играются только у этого игрока (rp_cyberware_ui).
+    -- Голоса в голове и помехи на экране — у самого игрока (rp_cyberware_ui): помехи идут
+    -- ровно столько, сколько звучат голоса.
     send(playerId, "rp_cyberware:voices", { severe = severe })
     local ok, err = pcall(episodeGlitch, playerId, severe)
     if not ok then log("warn", "звук приступа: %s", tostring(err)) end
@@ -682,7 +669,7 @@ AddEventHandler("rp_inventory:used", function(playerIdArg, itemId)
     if not s then return end
     s.psychosis = math.max(0, s.psychosis - CyberConfig.neuroblockerRelief)
     s.nextEpisode = math.max(s.nextEpisode, Open77.time.unix() + CyberConfig.episodeMinutes * 60)
-    if Open77.effects.clearScreen then Open77.effects.clearScreen(playerId) end
+    send(playerId, "rp_cyberware:calm") -- оборвать идущий приступ: голоса и помехи
     notify(playerId, "Нейроблокатор подействовал: голова проясняется (психоз %d).", math.floor(s.psychosis))
     pushPanel(playerId)
 end)
