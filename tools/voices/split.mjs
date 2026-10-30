@@ -3,7 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import { MPEGDecoder } from 'mpg123-decoder';
 
-const [input, outDir, analyzeOnly] = process.argv.slice(2);
+// Аргументы: вход.mp3 папка [analyze] [join=5+6,9+10] — join склеивает отрезки в одну фразу
+// (пауза на точке внутри фразы не отличается от паузы между фразами).
+const args = process.argv.slice(2);
+const [input, outDir] = args;
+const analyzeOnly = args.includes("analyze");
+const joinArg = (args.find(a => a.startsWith("join=")) || "join=").slice(5);
 const decoder = new MPEGDecoder();
 await decoder.ready;
 const { channelData, sampleRate } = decoder.decode(new Uint8Array(fs.readFileSync(input)));
@@ -42,7 +47,18 @@ for (let k = 0; k < rms.length; k++) {
   }
 }
 if (start >= 0) segs.push([start, rms.length]);
-const phrases = segs.filter(([a, b]) => b - a >= minLen);
+let phrases = segs.filter(([a, b]) => b - a >= minLen);
+if (joinArg) {
+  const groups = joinArg.split(",").map(g => g.split("+").map(Number));
+  const merged = [], used = new Set();
+  phrases.forEach((seg, i) => {
+    if (used.has(i + 1)) return;
+    const g = groups.find(g => g[0] === i + 1);
+    if (g) { g.forEach(n => used.add(n)); merged.push([phrases[g[0] - 1][0], phrases[g[g.length - 1] - 1][1]]); }
+    else merged.push(seg);
+  });
+  phrases = merged;
+}
 phrases.forEach(([a, b], i) => console.log(`фраза ${i + 1}: ${(a * 0.02).toFixed(2)}–${(b * 0.02).toFixed(2)} с`));
 if (analyzeOnly) process.exit(0);
 

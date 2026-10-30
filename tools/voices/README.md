@@ -10,7 +10,8 @@
    ```powershell
    node split.mjs C:\open77-rp\tools\voices\audio.mp3 C:\temp\phrases
    ```
-   Третий аргумент `analyze` — только показать найденные фразы. Порог паузы — `minGap` в `split.mjs`.
+   `analyze` — только показать найденные отрезки. Пауза на точке внутри фразы («Сделай это. Сейчас.») такая же, как между
+   фразами, поэтому такие фразы режутся на части — `join=5+6,9+10` склеивает отрезки по номерам из `analyze`.
 3. Обработка в хор (тот же голос ниже, мягкий шёпот, эхо между ушами; `_severe` — грубее):
    ```powershell
    node voices.js C:\temp\phrases C:\open77-rp\resources\rp\rp_cyberware_ui\audio

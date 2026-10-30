@@ -25,7 +25,5 @@ files {
     "audio/voice_5.wav", "audio/voice_5_severe.wav",
     "audio/voice_6.wav", "audio/voice_6_severe.wav",
     "audio/voice_7.wav", "audio/voice_7_severe.wav",
-    "audio/voice_8.wav", "audio/voice_8_severe.wav",
-    "audio/voice_9.wav", "audio/voice_9_severe.wav",
-    "audio/voice_10.wav", "audio/voice_10_severe.wav"
+    "audio/voice_8.wav", "audio/voice_8_severe.wav"
 }
