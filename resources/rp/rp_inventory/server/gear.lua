@@ -450,3 +450,26 @@ CreateThread(function()
         end
     end
 end)
+
+-- rp.weapondebug <ID> — что сервер видит об оружии игрока (право rp.view).
+RegisterCommand("rp.weapondebug", function(source, args)
+    if source and source > 0 then
+        local ok, allowed = pcall(Open77.exports.callSync, "rp_core", "can", source, "rp.view")
+        if not (ok and allowed == true) then return C.notify(source, "Недостаточно прав (rp.view).") end
+    end
+    local id = math.tointeger(tonumber(args[1]))
+    local state = id and C.inv[id]
+    if not state then return C.notify(source, "Использование: rp.weapondebug <ID игрока в сети>") end
+    local w, why = Open77.weapons.get(id)
+    C.notify(source, "get: %s", w and ("active=%s record=%s drawn=%s magazine=%s source=%s fresh=%s slot=%s"):format(
+        tostring(w.active), tostring(w.activeRecord), tostring(w.drawn), tostring(w.magazine), tostring(w.source),
+        tostring(w.fresh), tostring(activeSlot(state, w))) or ("нет: " .. tostring(why)))
+    for n = 1, G.weaponSlots do
+        local live = state.gear and state.gear[n]
+        if live then
+            C.notify(source, "слот %d: ready=%s cap=%s native=%s rounds=%s next=%s reserve=%s melee=%s", n,
+                tostring(live.ready), tostring(live.cap), tostring(live.native), tostring(live.rounds),
+                tostring(live.next), tostring(live.reserve), tostring(live.melee))
+        end
+    end
+end, false)
