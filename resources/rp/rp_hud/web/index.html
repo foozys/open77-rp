@@ -36,6 +36,8 @@
   .need .bar { flex: 1; height: 6px; background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 3px rgba(0, 0, 0, 0.8); }
   .need .fill { height: 100%; transition: width 0.6s; }
   #healthFill { background: #e5484d; }
+  #armorFill { background: #b8c4cc; }
+  .need .num { width: 26px; font-size: 11px; color: #e8f1f2; text-align: right; }
   #hungerFill { background: #f0a020; }
   #thirstFill { background: #3fa9f5; }
   .need.low .fill { animation: blink 1s steps(2, start) infinite; }
@@ -61,6 +63,7 @@
     <div class="row"><span id="jobRank"></span></div>
   </div>
   <div id="needs">
+    <div class="need" id="armor"><span class="label">Броня</span><div class="bar"><div class="fill" id="armorFill"></div></div><span class="num" id="armorNum"></span></div>
     <div class="need" id="health"><span class="label">Здоровье</span><div class="bar"><div class="fill" id="healthFill"></div></div></div>
     <div class="need" id="hunger"><span class="label">Еда</span><div class="bar"><div class="fill" id="hungerFill"></div></div></div>
     <div class="need" id="thirst"><span class="label">Вода</span><div class="bar"><div class="fill" id="thirstFill"></div></div></div>
@@ -118,8 +121,13 @@
     $(key).classList.toggle("low", value <= 20);
   }
 
-  function renderNeeds(needs, health) {
-    $("needs").classList.toggle("visible", !!needs || !!health);
+  function renderNeeds(needs, health, armor) {
+    $("needs").classList.toggle("visible", !!needs || !!health || !!armor);
+    $("armor").style.display = armor ? "" : "none";
+    if (armor) {
+      $("armorFill").style.width = `${Math.max(0, Math.min(100, armor.value / armor.max * 100))}%`;
+      $("armorNum").textContent = armor.value;
+    }
     $("health").style.display = health ? "" : "none";
     $("hunger").style.display = needs ? "" : "none";
     $("thirst").style.display = needs ? "" : "none";
@@ -134,7 +142,7 @@
     const playing = state && state.money; // без выбранного персонажа HUD скрыт
     renderMoney(playing);
     renderJob(playing && state.job);
-    renderNeeds(playing && state.needs, playing && state.health);
+    renderNeeds(playing && state.needs, playing && state.health, playing && state.armor);
   });
   Open77.ready();
 </script>

@@ -278,8 +278,24 @@ local function ensureAbilities(playerId)
     end
 end
 
--- Пассивные: здоровье, броня, регенерация, расход еды.
-local function applyPassives(playerId)
+-- Максимум здоровья с сохранением доли: поднять максимум с 100 до 150 — не оставить
+-- 100 из 150. fraction — какую долю выставить (при входе — сохранённая персонажем).
+local function setMaxHealthKeeping(playerId, maxHealth, fraction)
+    if Open77.players.isDead(playerId) then return end
+    local hp = Open77.players.getHealth(playerId)
+    local current, oldMax = hp and tonumber(hp.health), hp and tonumber(hp.maxHealth)
+    if not fraction then fraction = (current and oldMax and oldMax > 0) and current / oldMax or 1 end
+    fraction = math.max(0.01, math.min(1, fraction))
+    if oldMax ~= maxHealth then
+        local ok, why = Open77.players.setMaxHealth(playerId, maxHealth)
+        if not ok then return log("warn", "максимум здоровья игроку %d: %s", playerId, tostring(why)) end
+    end
+    local want = math.max(1, math.floor(maxHealth * fraction + 0.5))
+    if current ~= want then Open77.players.setHealth(playerId, want) end
+end
+
+-- Пассивные: здоровье, броня, регенерация, расход еды. healthFraction — при входе.
+local function applyPassives(playerId, healthFraction)
     local s = state[playerId]
     if not s then return end
     local maxHealth, armor, regen, hunger = CyberConfig.baseMaxHealth, 0, 0, 1
@@ -292,9 +308,13 @@ local function applyPassives(playerId)
             hunger = p.hungerRate or hunger
         end
     end
-    Open77.players.setMaxHealth(playerId, maxHealth)
-    if armor ~= (s.armor or 0) then Open77.players.setArmor(playerId, armor) end
-    s.armor, s.regen = armor, regen
+    if s.maxHealth ~= maxHealth or healthFraction then setMaxHealthKeeping(playerId, maxHealth, healthFraction) end
+    if armor ~= (s.armor or 0) or healthFraction then
+        local ok, why = Open77.players.setArmor(playerId, armor)
+        if not ok then log("warn", "броня игроку %d: %s", playerId, tostring(why)) end
+    end
+    s.armor, s.regen, s.maxHealth = armor, regen, maxHealth
+    send(playerId, "rp_hud:armorMax", armor) -- полоса брони в HUD (0 — скрыта)
     sync("rp_needs", "set_rate", playerId, hunger)
 end
 
@@ -315,7 +335,8 @@ local function load(playerId, characterId)
     state[playerId] = { characterId = characterId, slots = slots, psychosis = tonumber(saved and saved.psychosis) or 0,
                         nextEpisode = Open77.time.unix() + CyberConfig.episodeMinutes * 60,
                         scripts = scripts, ramAt = Open77.time.unix(), selected = 1 }
-    applyPassives(playerId)
+    local character = characterOf(playerId)
+    applyPassives(playerId, character and character.health or 1)
     ensureAbilities(playerId)
     pushPanel(playerId)
     -- Дека могла остаться прошитой скриптом (или старой версией) — вернуть в пустой режим.
@@ -692,6 +713,13 @@ CreateThread(function()
                 Open77.players.setArmor(playerId, s.armor)
             end
             if tick % 3 == 0 then ensureAbilities(playerId) end
+            -- Платформа могла сбросить максимум (смерть, больница, новое тело) — вернуть.
+            if s.maxHealth and not Open77.players.isDead(playerId) then
+                local hp = Open77.players.getHealth(playerId)
+                if hp and tonumber(hp.maxHealth) and tonumber(hp.maxHealth) ~= s.maxHealth then
+                    setMaxHealthKeeping(playerId, s.maxHealth)
+                end
+            end
             if tick % 6 == 0 then
                 local humanity = humanityOf(s)
                 if humanity < CyberConfig.psychosisThreshold then

@@ -9,7 +9,8 @@ local REPLACE_VANILLA_HEALTH = false
 local HEALTH_POLL_MS = 250
 
 local page, pageReady = nil, false
-local state = { money = false, job = false, needs = false, health = false } -- для страницы после загрузки
+local state = { money = false, job = false, needs = false, health = false, armor = false } -- для страницы после загрузки
+local armorMax = 0 -- присылает rp_cyberware (подкожная броня); 0 — полоса скрыта
 
 local function push()
     if page and pageReady then page:send("hud:state", state) end
@@ -80,6 +81,26 @@ CreateThread(function()
         local shown = state.health and state.health.percent
         if percent ~= shown then
             state.health = percent and { percent = percent } or false
+            push()
+        end
+    end
+end)
+
+-- Броня — отдельный запас, тратится раньше здоровья; стандартная полоса игры её не показывает.
+RegisterNetEvent("rp_hud:armorMax", function(value)
+    armorMax = math.max(0, tonumber(value) or 0)
+end)
+
+CreateThread(function()
+    while true do
+        Wait(HEALTH_POLL_MS)
+        local stats = Open77.stats.get()
+        local armor = type(stats) == "table" and tonumber(stats.armor) or 0
+        local max = math.max(armorMax, armor)
+        local want = max > 0 and { value = math.floor(armor + 0.5), max = math.floor(max + 0.5) } or false
+        local have = state.armor
+        if (want and (not have or have.value ~= want.value or have.max ~= want.max)) or (not want and have) then
+            state.armor = want
             push()
         end
     end
