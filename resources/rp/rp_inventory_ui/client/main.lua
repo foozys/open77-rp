@@ -151,8 +151,17 @@ RegisterNetEvent("rp_inventory:openWindow", function()
 end)
 
 -- Перезарядка идёт: полоска на экране.
+-- Перезарядка идёт: полоска на экране, стрельба на это время заблокирована.
+local reloadToken = 0
 RegisterNetEvent("rp_inventory:reloading", function(ms)
-    send("inv:reloading", { ms = tonumber(ms) or 1500 })
+    ms = tonumber(ms) or 1500
+    send("inv:reloading", { ms = ms })
+    reloadToken = reloadToken + 1
+    local mine = reloadToken
+    Open77.input.setActionBlocked("Attack", true)
+    SetTimeout(ms, function()
+        if reloadToken == mine then Open77.input.setActionBlocked("Attack", false) end
+    end)
 end)
 
 -- Сервер отказал (персонаж не выбран и т.п.): закрыть окно.

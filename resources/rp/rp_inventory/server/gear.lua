@@ -3,13 +3,11 @@
 -- Оружие и магазины — уникальные предметы. Патроны в магазине — meta.rounds; вставленный в
 -- оружие магазин — meta.mag = { item, rounds } (сам магазин-предмет при этом сгорает и
 -- выпускается заново при извлечении). Истина — наши числа, оружие игры показывает их:
---   * патроны в оружии = патроны вставленного магазина (не больше ёмкости оружия);
---   * запас (reserve) = патроны «следующего» магазина — самого полного подходящего на поясе
---     (или выбранного клавишей пояса). Поэтому R — родная перезарядка игры, с анимацией.
--- Расход и перезарядку сервер видит по Open77.weapons.get (патроны оружия в руках, 20 раз в
--- секунду): меньше стало — выстрелы; больше — игра перезарядилась, и мы меняем магазины в
--- данных (новый — в оружие, вынутый с остатком — на его место на поясе), затем выравниваем
--- числа. Магазины из рюкзака в запас не идут: перезарядка — только с пояса.
+-- патроны в оружии = патроны вставленного магазина, запас всегда 0 — родная перезарядка игры
+-- ничего не делает (она умеет только доливать, а поправка числа в оружии в руках давала вторую
+-- анимацию и провал FPS). Перезарядка своя (R): полоска 1,5 с, затем точная смена магазинов —
+-- остаток в вынутый, он ложится на пояс на место нового; новый — в оружие. Только с пояса.
+-- Расход сервер видит по Open77.weapons.get (патроны оружия в руках, 20 раз в секунду).
 
 Gear = {}
 
@@ -119,23 +117,17 @@ local function request(playerId, slot, u, kind, ammo)
     end
 end
 
--- Привести патроны оружия игры к нашим: магазин (если знаем ёмкость) и запас.
--- reserveOnly — патроны в оружии уже верные, менять только запас (изменение числа в оружии
--- может вызвать у игры лишнюю перезарядку).
-local function applyAmmo(playerId, state, slot, reserveOnly)
+-- Привести патроны оружия игры к нашим: в оружии — патроны магазина (если знаем ёмкость),
+-- запас 0. Шлём только при выдаче и перезарядке: поправки оружия в руках дорогие для игры.
+local function applyAmmo(playerId, state, slot)
     local live = state.gear and state.gear[slot]
-    if not live or live.melee then return end
-    local weapon = stackByU(state, live.u)
-    if not weapon then return end
-    if live.inserting then return end -- идёт перезарядка: числа поставим, когда она закончится
-    local nxt, nxtRounds = nextMag(state, InvConfig.items[weapon.i], live)
-    live.next, live.reserve = nxt and nxt.u or nil, nxtRounds or 0
-    local ammo = { reserve = live.reserve }
-    if live.cap and live.cap > 0 and not reserveOnly then
+    if not live or live.melee or live.inserting then return end
+    local ammo = { reserve = 0 }
+    if live.cap and live.cap > 0 then
         live.native = math.min(live.rounds, live.cap)
         ammo.magazine = live.native
     end
-    live.settleUntil = GetGameTimer() + 1500 -- пока игра применяет числа, рост не считать перезарядкой
+    live.settleUntil = GetGameTimer() + 1500 -- пока игра применяет числа, их не считать выстрелами
     request(playerId, slot, live.u, live.cap and "ammo" or "probe", ammo)
 end
 
@@ -193,12 +185,6 @@ function Gear.sync(playerId, state)
             flushSlot(playerId, state, slot)
             state.gear[slot] = nil
             Open77.weapons.remove(playerId, slot)
-        elseif live and not live.melee and live.ready and not live.inserting then
-            -- Пояс мог измениться: другой следующий магазин — другой запас.
-            local nxt, nxtRounds = nextMag(state, InvConfig.items[stack.i], live)
-            if (nxt and nxt.u or nil) ~= live.next or (nxtRounds or 0) ~= live.reserve then
-                applyAmmo(playerId, state, slot)
-            end
         end
     end
 end
@@ -235,7 +221,7 @@ AddEventHandler("open77:weapons:completed", function(playerIdArg, requestId, ope
         if live.cap then return applyAmmo(playerId, state, job.slot) end
         -- Ёмкость не пришла: поставить патроны как есть (откажет — ответ принесёт ёмкость).
         live.native = live.rounds
-        return request(playerId, job.slot, live.u, "blind", { magazine = live.rounds, reserve = live.reserve })
+        return request(playerId, job.slot, live.u, "blind", { magazine = live.rounds, reserve = 0 })
     end
     if job.kind == "blind" and not accepted and live.cap then return applyAmmo(playerId, state, job.slot) end
 end)
@@ -377,19 +363,39 @@ RegisterNetEvent("rp_inventory:weaponEject", function(index, itemId)
     end)
 end)
 
--- -- перезарядка: игра перезарядилась — поменять магазины в данных ------------------------
-
-local function swapMagazines(playerId, state, slot, live)
+-- -- перезарядка (R) ------------------------------------------------------------------
+-- Полоска reloadMs (стрельба на это время заблокирована у клиента), затем точная смена:
+-- остаток патронов — в вынутый магазин, он ложится на пояс на место нового; новый — в оружие.
+-- Сменили оружие за это время — отмена.
+local function reload(playerId)
+    local state = C.inv[playerId]
+    if not state or state.busy then return end
+    local slot = activeSlot(state, Open77.weapons.get(playerId))
+    local live = slot and state.gear[slot]
+    if not live or live.melee or not live.ready or live.inserting then return end
+    if live.cap and live.rounds >= live.cap then return end -- магазин полный
     local weapon = stackByU(state, live.u)
-    local nxt = live.next and stackByU(state, live.next)
-    if not weapon or not nxt or not beltOf(nxt.c) then return applyAmmo(playerId, state, slot) end
-    local newRounds = tonumber(metaOf(state, nxt).rounds) or 0
+    if not weapon then return end
+    local nxt = nextMag(state, InvConfig.items[weapon.i], live)
+    if not nxt then return C.notify(playerId, "На поясе нет подходящего магазина.") end
+    live.inserting = true
+    TriggerClientEvent("rp_inventory:reloading", playerId, G.reloadMs)
+    Wait(G.reloadMs)
+    live.inserting = false
+    if C.inv[playerId] ~= state or state.gear[slot] ~= live then return end
+    if activeSlot(state, Open77.weapons.get(playerId)) ~= slot then
+        return C.notify(playerId, "Перезарядка прервана.")
+    end
+    -- Пояс мог измениться за это время: взять магазин заново.
+    local nxtRounds
+    nxt, nxtRounds = nextMag(state, InvConfig.items[weapon.i], live)
+    if not nxt or not stackByU(state, nxt.u) then return end
     local old = insertedOf(state, weapon)
     local opId = Store.newOpId("rpreload")
     if not opId then return end
     local lines = {
         { instance = nxt.u, from = state.account, to = SOURCE },
-        { instance = weapon.u, at = state.account, metaPatch = { mag = { item = nxt.i, rounds = newRounds } } },
+        { instance = weapon.u, at = state.account, metaPatch = { mag = { item = nxt.i, rounds = nxtRounds } } },
     }
     local oldId
     if old then
@@ -400,81 +406,20 @@ local function swapMagazines(playerId, state, slot, live)
     state.busy = true
     local receipt, why = Store.transfer({ opId = opId, kind = "rp.reload", reason = "reload", lines = lines })
     state.busy = false
-    if not receipt then
-        C.notify(playerId, "Перезарядка не удалась: %s.", C.explain(why or "busy"))
-        return applyAmmo(playerId, state, slot)
-    end
-    -- Вынутый магазин — в ту же ячейку пояса, где был новый.
-    if oldId then nxt.i, nxt.u = old.item, oldId
-    else
-        for i, s in ipairs(state.stacks) do if s == nxt then table.remove(state.stacks, i) break end end
-    end
-    Store.saveLayout(state.characterId, state.stacks)
-    live.rounds, live.dirty, live.preferred = newRounds, false, nil
-    C.refresh(playerId)
-    applyAmmo(playerId, state, slot) -- точные числа: патроны нового магазина и запас следующего
-end
-
--- Начало перезарядки (R, клиент шлёт вместе с родной перезарядкой игры): остаток патронов —
--- в вынутый магазин, он ложится на пояс на место следующего; следующий — в оружие. В игре:
--- в оружии 0, запас = новый магазин, анимация положит ровно его. Прервали — оружие пустое,
--- новый магазин ждёт в запасе до следующего R.
-local function reloadStart(playerId)
-    local state = C.inv[playerId]
-    if not state or state.busy then return end
-    local slot = activeSlot(state, Open77.weapons.get(playerId))
-    local live = slot and state.gear[slot]
-    if not live or live.melee or not live.ready or live.inserting then return end
-    if live.cap and live.rounds >= live.cap then return end -- полный: игра перезаряжать не станет
-    local weapon = stackByU(state, live.u)
-    if not weapon then return end
-    local nxt, nxtRounds = nextMag(state, InvConfig.items[weapon.i], live)
-    if not nxt then return end
-    local oldRounds = live.rounds
-    -- Перезарядка идёт: игре ничего не шлём (её анимация работает сама; «в оружии 0» вызвало
-    -- бы вторую перезарядку). Рост патронов против baseline — анимация закончилась.
-    live.inserting, live.committing, live.insertingAt, live.baseline = true, true, GetGameTimer(), live.native
-    -- Запас = ровно сколько игра должна долить, чтобы в конце анимации в оружии было ровно
-    -- nxtRounds; патроны в оружии не трогаем. Новый магазин меньше остатка — запас 0, число
-    -- поставим после анимации.
-    local cap = live.cap or nxtRounds
-    live.expect = math.min(nxtRounds, cap)
-    local fill = math.max(0, live.expect - (live.native or 0))
-    request(playerId, slot, live.u, "insert", { reserve = fill })
-    local function undo(text)
-        live.inserting, live.committing = false, false
-        applyAmmo(playerId, state, slot)
-        if text then C.notify(playerId, "%s", text) end
-    end
-    local old = insertedOf(state, weapon)
-    local opId = Store.newOpId("rpreload")
-    if not opId then return undo("Перезарядка не удалась: склад недоступен.") end
-    local lines = {
-        { instance = nxt.u, from = state.account, to = SOURCE },
-        { instance = weapon.u, at = state.account, metaPatch = { mag = { item = nxt.i, rounds = nxtRounds } } },
-    }
-    local oldId
-    if old then
-        oldId = newInstanceId(old.item, opId)
-        lines[#lines + 1] = { instance = oldId, item = old.item, from = SOURCE, to = state.account,
-                              meta = { rounds = oldRounds } }
-    end
-    state.busy = true
-    local receipt, why = Store.transfer({ opId = opId, kind = "rp.reload", reason = "reload", lines = lines })
-    state.busy = false
-    if not receipt then return undo("Перезарядка не удалась: " .. C.explain(why or "busy") .. ".") end
+    if not receipt then return C.notify(playerId, "Перезарядка не удалась: %s.", C.explain(why or "busy")) end
     if oldId then nxt.i, nxt.u = old.item, oldId
     else
         for i, st in ipairs(state.stacks) do if st == nxt then table.remove(state.stacks, i) break end end
     end
     Store.saveLayout(state.characterId, state.stacks)
-    live.rounds, live.dirty, live.preferred, live.committing = nxtRounds, false, nil, false
+    live.rounds, live.dirty, live.preferred = nxtRounds, false, nil
+    applyAmmo(playerId, state, slot)
     C.refresh(playerId)
 end
 
 RegisterNetEvent("rp_inventory:reloadStart", function()
     local playerId = tonumber(source)
-    if playerId then CreateThread(function() reloadStart(playerId) end) end
+    if playerId then CreateThread(function() reload(playerId) end) end
 end)
 
 -- Клавиши пояса 4–8: магазин — сделать следующим для перезарядки, остальное — применить.
@@ -502,9 +447,7 @@ RegisterNetEvent("rp_inventory:belt", function(n)
                     for n = 1, G.weaponSlots do if accepts(n) then slot = n break end end
                 end
                 if not slot then return C.notify(playerId, "Этот магазин не подходит ни к одному оружию в слотах.") end
-                local live = state.gear[slot]
-                live.preferred = s.u
-                applyAmmo(playerId, state, slot)
+                state.gear[slot].preferred = s.u
                 return C.notify(playerId, "Следующий магазин: %s (%d патр.). Перезарядка — R.", def.label,
                     tonumber(metaOf(state, s).rounds) or 0)
             end
@@ -514,7 +457,7 @@ RegisterNetEvent("rp_inventory:belt", function(n)
     end
 end)
 
--- -- учёт выстрелов и перезарядок --------------------------------------------------------
+-- -- учёт выстрелов --------------------------------------------------------------------
 
 CreateThread(function()
     local tick = 0
@@ -527,29 +470,16 @@ CreateThread(function()
                 local slot = activeSlot(state, w)
                 local live = slot and state.gear[slot]
                 local mag = w and tonumber(w.magazine)
-                if live and live.inserting and mag and not live.committing then
-                    -- Анимация закончилась (патронов больше, чем до R) или прервана (6 с без роста):
-                    -- поставить точные числа одним запросом.
-                    if mag > (live.baseline or 0) or GetGameTimer() - (live.insertingAt or 0) > 6000 then
-                        live.inserting, live.native = false, mag
-                        -- Сошлось — менять только запас (на следующий магазин); нет — поставить всё.
-                        applyAmmo(playerId, state, slot, mag == live.expect)
-                    end
-                elseif live and not live.inserting and not live.melee and live.ready and mag and w.drawn and not state.busy
+                if live and not live.inserting and not live.melee and live.ready and mag and w.drawn and not state.busy
                     and GetGameTimer() >= (live.settleUntil or 0) then
                     if mag < live.native then
                         live.rounds = math.max(0, live.rounds - (live.native - mag))
                         live.dirty = true
                         live.native = mag
-                    elseif mag > live.native then
-                        live.native = mag
-                        if live.next and live.reserve > 0 then
-                            -- Игра перезарядилась из запаса — это наш следующий магазин.
-                            CreateThread(function() swapMagazines(playerId, state, slot, live) end)
-                        elseif GetGameTimer() - (live.fixAt or 0) > 2000 then
-                            live.fixAt = GetGameTimer()
-                            applyAmmo(playerId, state, slot) -- патроны не от нас — вернуть как было
-                        end
+                    elseif mag > live.native and GetGameTimer() - (live.fixAt or 0) > 2000 then
+                        -- патроны не от нас (подобрал, родная перезарядка) — вернуть как было
+                        live.fixAt = GetGameTimer()
+                        applyAmmo(playerId, state, slot)
                     end
                 end
                 if tick % 50 == 0 and not state.busy then Gear.flush(playerId, state) end
@@ -579,9 +509,9 @@ RegisterCommand("rp.weapondebug", function(source, args)
     for n = 1, G.weaponSlots do
         local live = state.gear and state.gear[n]
         if live then
-            C.notify(source, "слот %d: ready=%s cap=%s native=%s rounds=%s reserve=%s tdb=%s", n,
+            C.notify(source, "слот %d: ready=%s cap=%s native=%s rounds=%s reloading=%s tdb=%s", n,
                 tostring(live.ready), tostring(live.cap), tostring(live.native), tostring(live.rounds),
-                tostring(live.reserve), tostring(live.tdb))
+                tostring(live.inserting), tostring(live.tdb))
         end
     end
 end, false)
