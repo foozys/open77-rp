@@ -19,7 +19,15 @@
   #root { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
   #root.open { display: block; }
   #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 560px;
-    padding: 24px 26px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+    padding: 24px 26px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent);
+    max-height: 88vh; display: flex; flex-direction: column; }
+  #panel.wide { width: 1080px; }
+  /* Список прокручивается внутри окна; шапка и сообщение всегда видны. */
+  #items { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 6px; }
+  #panel.wide #items { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; align-content: start; }
+  #items::-webkit-scrollbar { width: 6px; }
+  #items::-webkit-scrollbar-thumb { background: var(--line); }
+  #items::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.04); }
   header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
   h1 { margin: 0; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
   #wallet { font-size: 14px; color: var(--muted); }
@@ -73,6 +81,8 @@
   function renderItems(items) {
     const list = $("items");
     list.replaceChildren();
+    // Большой ассортимент — в две колонки, чтобы меньше прокручивать.
+    $("panel").classList.toggle("wide", (items || []).length > 8);
     for (const item of items || []) {
       const row = document.createElement("div");
       row.className = "item";
