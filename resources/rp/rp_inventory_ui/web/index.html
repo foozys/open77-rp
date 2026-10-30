@@ -846,7 +846,13 @@
     renderCyber();
   }));
 
-  Open77.on("inv:cyber", p => { cyber = p; renderCyber(); });
+  // Пустую Lua-таблицу сервер может прислать объектом или null — приводим списки к массивам.
+  const asArray = v => Array.isArray(v) ? v : (v && typeof v === "object" ? Object.values(v) : []);
+  Open77.on("inv:cyber", p => {
+    if (p && p.deck) { p.deck.scripts = asArray(p.deck.scripts); p.deck.pocket = asArray(p.deck.pocket); }
+    cyber = p;
+    renderCyber();
+  });
 
   // -- сервер ----------------------------------------------------------------------
 
