@@ -184,6 +184,37 @@ mapping("rp_scan_hack", "Сканер: отправить скрипт", "MOUSE1
     TriggerServerEvent("rp_cyberware:hack", scan.target)
 end)
 
+-- -- голоса при приступе психоза ---------------------------------------------------------
+-- Фразы синтезированы и обработаны (эхо между ушами, шёпот, сдвиг высоты); у тяжёлого
+-- приступа своя, более искажённая версия, и голосов два внахлёст. Слышит только сам игрок.
+
+local VOICES = 8
+local voiceHandles = {} -- [файл] = handle: закончившийся звук можно запустить снова
+
+local function playVoice(file, volume)
+    local handle = voiceHandles[file]
+    if handle then
+        Open77.audio.seek(handle, 0)
+        local ok = Open77.audio.play(handle)
+        if ok then return end
+        Open77.audio.destroy(handle)
+        voiceHandles[file] = nil
+    end
+    local created, why = Open77.audio.play2D(file, { volume = volume })
+    if created then voiceHandles[file] = created
+    else print("[rp_cyberware_ui] голос " .. file .. ": " .. tostring(why)) end
+end
+
+RegisterNetEvent("rp_cyberware:voices", function(p)
+    local severe = type(p) == "table" and p.severe == true
+    local first = math.random(VOICES)
+    playVoice(("audio/voice_%d%s.wav"):format(first, severe and "_severe" or ""), severe and 1.0 or 0.85)
+    if severe then
+        local second = (first + math.random(VOICES - 1) - 1) % VOICES + 1
+        SetTimeout(1400, function() playVoice(("audio/voice_%d_severe.wav"):format(second), 0.7) end)
+    end
+end)
+
 -- -- Сандевистан: X — включить / выключить ----------------------------------------------
 -- Сервер разрешает (rp_cyberware:overdrive) и списывает рассудок. Ускорение платформы
 -- (Open77.reflex.overdrive) живёт до 15 с — пока режим включён, продлеваем его, как

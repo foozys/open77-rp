@@ -633,14 +633,46 @@ local EPISODE_TEXT = {
     "Отражение в стекле смотрит на вас с ненавистью.",
 }
 
+-- Глитч приступа реликта из звуков игры (список звуков платформы помечен «проверить на 2.31»:
+-- не сработает — останутся наши голоса). Слышит только сам игрок: соседей исключаем.
+local function episodeGlitch(playerId, severe)
+    local place, others = placeOf(playerId), {}
+    if place then
+        for _, key in ipairs(GetPlayers() or {}) do
+            local id = math.tointeger(tonumber(key))
+            local other = id and id ~= playerId and placeOf(id)
+            if other and other.bucket == place.bucket and distance(place, other) <= 60 and #others < 32 then
+                others[#others + 1] = id
+            end
+        end
+    end
+    local event = severe and "vfx_fullscreen_johnny_sickness_heavy_glitch" or "vfx_fullscreen_johnny_sickness_low_glitch"
+    local ok, why = Open77.effects.sound({ kind = "player", id = tostring(playerId) }, event,
+        { duration = 4, excludePlayers = others })
+    if not ok then log("warn", "звук приступа игроку %d: %s", playerId, tostring(why)) end
+end
+
 local function episode(playerId, severe)
     local alias = pickScreen()
     if alias then Open77.effects.screen(playerId, alias, { strength = severe and 0.9 or 0.5, duration = severe and 12 or 8 }) end
+    -- Голоса в голове: свои звуковые файлы, играются только у этого игрока (rp_cyberware_ui).
+    send(playerId, "rp_cyberware:voices", { severe = severe })
+    local ok, err = pcall(episodeGlitch, playerId, severe)
+    if not ok then log("warn", "звук приступа: %s", tostring(err)) end
     notify(playerId, "%s%s", EPISODE_TEXT[math.random(#EPISODE_TEXT)],
         severe and " Вы теряете контроль над телом." or " Нейроблокатор поможет.")
     if severe then Open77.players.ragdoll(playerId, { durationMs = 3000 }) end
     log("info", "приступ у игрока %d (%s)", playerId, severe and "тяжёлый" or "лёгкий")
 end
+
+-- rp.episode <ID> [severe] — вызвать приступ сейчас (проверка эффектов и голосов; право rp.heal).
+RegisterCommand("rp.episode", function(source, args)
+    if not allowed(source, "rp.heal") then return end
+    local id = math.tointeger(tonumber(args[1]))
+    if not id or not state[id] then return notify(source, "Использование: rp.episode <ID> [severe]") end
+    episode(id, args[2] == "severe")
+    notify(source, "Приступ у игрока %d вызван.", id)
+end, false)
 
 -- Нейроблокатор (rp_inventory, предмет neuroblocker) — снижает психоз.
 AddEventHandler("rp_inventory:used", function(playerIdArg, itemId)
