@@ -21,6 +21,8 @@ TaxiConfig = {
     cab = {
         model = "Vehicle.v_standard2_villefort_cortes_delamain_taxi",
         fallbackModel = "Vehicle.v_standard2_villefort_cortes_delamain",
+        -- Водитель — NPC (без водителя игра машину не ведёт). Запись из профилей open77_traffic.
+        driver = "Character.CitizenRichFemaleDriver",
         -- spawn: точка полосы (server/roads.lua) в minMeters..maxMeters от игрока, не дальше
         -- maxDz по высоте; tries — сколько точек проверить лучом; clearance — без машин в
         -- стольких метрах. pickupRoadMeters / dropRoadMeters — такси подъезжает к полосе не

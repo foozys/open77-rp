@@ -9,7 +9,8 @@ dependency "rp_core"
 -- players.teleport: запасной переезд, если такси не доехало; world.vehicles: машина
 -- Деламейна, автопилот и посадка пассажира (server/cab.lua); world.query: проверка дороги
 -- под точкой появления такси
-permissions { "network.events", "players.life.read", "players.teleport", "world.vehicles", "world.query" }
+-- world.npcs: водитель такси
+permissions { "network.events", "players.life.read", "players.teleport", "world.vehicles", "world.query", "world.npcs" }
 
 server_script "server/config.lua"
 server_script "server/roads.lua"
