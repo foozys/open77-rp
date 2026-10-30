@@ -87,10 +87,11 @@
   #ep { display: none; position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   #ep.on { display: block; }
   #ep .edge { position: absolute; inset: 0;
-    box-shadow: inset 14px 0 40px -18px rgba(0, 255, 255, 0.55), inset -14px 0 40px -18px rgba(255, 0, 90, 0.55); }
+    box-shadow: inset 8px 0 24px -14px rgba(0, 255, 255, 0.4), inset -8px 0 24px -14px rgba(255, 0, 90, 0.4); }
+  #ep.severe .scan { opacity: 1; }
   #ep.severe .edge { box-shadow: inset 26px 0 60px -20px rgba(0, 255, 255, 0.7), inset -26px 0 60px -20px rgba(255, 20, 40, 0.8),
     inset 0 0 160px rgba(120, 0, 10, 0.55); }
-  #ep .scan { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px); }
+  #ep .scan { position: absolute; inset: 0; opacity: 0.5; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px); }
   #ep .bar { position: absolute; left: 0; mix-blend-mode: normal; }
   #ep .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
 </style>
@@ -305,7 +306,7 @@
   // -- приступ психоза: глитч ------------------------------------------------------------
   // Полосы «разорванного» сигнала: каждые 70 мс новые места, ширина и цвета.
   let epTimer = null;
-  const LIGHT = ["rgba(0,255,255,0.55)", "rgba(255,0,170,0.5)", "rgba(255,255,255,0.45)", "rgba(0,0,0,0.65)"];
+  const LIGHT = ["rgba(0,255,255,0.4)", "rgba(255,0,170,0.35)", "rgba(255,255,255,0.3)", "rgba(0,0,0,0.45)"];
   const HEAVY = ["rgba(255,30,50,0.75)", "rgba(255,255,255,0.7)", "rgba(0,255,255,0.6)", "rgba(0,0,0,0.85)", "rgba(255,0,140,0.6)"];
 
   function epFrame(severe) {
@@ -314,18 +315,18 @@
     // Тихие кадры между всплесками — глитч «дёргается», а не висит сплошной пеленой.
     if (Math.random() < (severe ? 0.2 : 0.4)) return;
     const colors = severe ? HEAVY : LIGHT;
-    const count = (severe ? 8 : 5) + Math.floor(Math.random() * (severe ? 8 : 5));
+    const count = (severe ? 8 : 3) + Math.floor(Math.random() * (severe ? 8 : 4));
     for (let i = 0; i < count; i++) {
       const bar = document.createElement("div");
       bar.className = "bar";
-      const h = 2 + Math.floor(Math.random() * (severe ? 30 : 18));
+      const h = 2 + Math.floor(Math.random() * (severe ? 30 : 12));
       const c1 = colors[Math.floor(Math.random() * colors.length)];
       const c2 = colors[Math.floor(Math.random() * colors.length)];
       const shift = Math.floor((Math.random() - 0.5) * (severe ? 120 : 50));
       bar.style.top = `${Math.random() * 100}%`;
       bar.style.height = `${h}px`;
       bar.style.left = `${Math.max(0, Math.random() * 60 - 20)}%`;
-      bar.style.width = `${20 + Math.random() * 80}%`;
+      bar.style.width = `${severe ? 20 + Math.random() * 80 : 10 + Math.random() * 40}%`;
       // Расслоение цвета: два канала со сдвигом, между ними «цифровой» шум.
       bar.style.background = `linear-gradient(90deg, transparent, ${c1} 8%, ${c1} 40%, transparent 41%, ${c2} 46%, ${c2} 92%, transparent)`;
       bar.style.transform = `translateX(${shift}px)`;

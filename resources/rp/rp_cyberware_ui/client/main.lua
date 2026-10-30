@@ -186,7 +186,7 @@ end)
 
 -- -- голоса при приступе психоза ---------------------------------------------------------
 -- Живая запись (tools/voices/audio.mp3), нарезана и обработана (эхо между ушами, шёпот, сдвиг высоты); у тяжёлого
--- приступа своя, более искажённая версия, и голосов два внахлёст. Слышит только сам игрок.
+-- приступа своя, более искажённая версия. Слышит только сам игрок.
 
 local VOICES = 8
 local voiceHandles = {} -- [файл] = handle: закончившийся звук можно запустить снова
@@ -205,39 +205,45 @@ local function playVoice(file, volume)
     else print("[rp_cyberware_ui] голос " .. file .. ": " .. tostring(why)) end
 end
 
--- Помехи на экране идут, пока звучит голос: нативный эффект игры плюс резкий глитч
--- страницы (полосы с расслоением цвета). Тяжёлый приступ — две фразы по очереди с паузой.
-local EPISODE_GAP_MS = 2000
+-- Помехи на экране идут, пока звучит голос: резкий глитч страницы (полосы с расслоением
+-- цвета) и эффект игры (лёгкий приступ — слабый уровень). У эффекта игры своё затухание
+-- после остановки, поэтому его снимаем заранее — NATIVE_LEAD_MS до конца фразы.
+local NATIVE_LEAD_MS = 1800
 local episodeRun = 0 -- номер текущего приступа: новый или нейроблокатор обрывают старый
 local screenAliases = nil
-local glitchHandle = nil -- нативный экранный эффект, пока звучит голос
+local nativeHandle = nil -- эффект игры
 
-local function screenAlias(severe)
+local function nativeAlias(severe)
     if not screenAliases then
         local ok, catalog = pcall(Open77.vfx.screenCatalog)
         screenAliases = ok and type(catalog) == "table" and catalog or {}
     end
     for _, alias in ipairs(severe and { "drugged.heavy", "drunk.heavy", "drugged.medium" }
-                                   or { "drugged.medium", "drugged.light", "drunk.medium" }) do
+                                   or { "drugged.light", "drunk.light" }) do
         if screenAliases[alias] then return alias end
     end
 end
 
+local function nativeStop()
+    if nativeHandle then Open77.vfx.stop(nativeHandle) nativeHandle = nil end
+end
+
 local function glitch(on, severe)
     if on then
-        local alias = screenAlias(severe)
-        if alias and not glitchHandle then
-            local handle, why = Open77.vfx.screen(alias, { duration = 0 }) -- держим до stop
-            if handle then glitchHandle = handle else print("[rp_cyberware_ui] экран: " .. tostring(why)) end
+        if not nativeHandle then
+            local alias = nativeAlias(severe)
+            local handle, why = alias and Open77.vfx.screen(alias, { duration = 0 }) -- держим до stop
+            if handle then nativeHandle = handle elseif alias then print("[rp_cyberware_ui] экран: " .. tostring(why)) end
         end
         send("ep:glitch", { on = true, severe = severe })
     else
-        if glitchHandle then Open77.vfx.stop(glitchHandle) glitchHandle = nil end
+        nativeStop()
         send("ep:glitch", { on = false })
     end
 end
 
--- Дождаться конца фразы (или обрыва приступа). Максимум 15 с на случай сбоя декодера.
+-- Дождаться конца фразы (или обрыва приступа). Эффект игры снимаем заранее.
+-- Максимум 15 с на случай сбоя декодера.
 local function waitVoice(file, run)
     local handle = voiceHandles[file]
     local deadline = GetGameTimer() + 15000
@@ -245,28 +251,23 @@ local function waitVoice(file, run)
     while episodeRun == run and handle and GetGameTimer() < deadline do
         local st = Open77.audio.getState(handle)
         if not st or (st.status ~= "playing" and st.status ~= "loading") then return end
+        local left = (tonumber(st.duration) or 0) - (tonumber(st.position) or 0)
+        if nativeHandle and st.status == "playing" and left * 1000 <= NATIVE_LEAD_MS then nativeStop() end
         Wait(100)
     end
 end
 
+-- Приступ: одна фраза, помехи на всё время её звучания.
 RegisterNetEvent("rp_cyberware:voices", function(p)
     local severe = type(p) == "table" and p.severe == true
     episodeRun = episodeRun + 1
     local run = episodeRun
     CreateThread(function()
-        local first = math.random(VOICES)
-        local phrases = { first }
-        if severe then phrases[2] = (first + math.random(VOICES - 1) - 1) % VOICES + 1 end
-        for i, n in ipairs(phrases) do
-            if episodeRun ~= run then return end
-            local file = ("audio/voice_%d%s.wav"):format(n, severe and "_severe" or "")
-            glitch(true, severe)
-            playVoice(file, severe and 1.0 or 0.85)
-            waitVoice(file, run)
-            if episodeRun ~= run then return end
-            glitch(false)
-            if i < #phrases then Wait(EPISODE_GAP_MS) end
-        end
+        local file = ("audio/voice_%d%s.wav"):format(math.random(VOICES), severe and "_severe" or "")
+        glitch(true, severe)
+        playVoice(file, severe and 1.0 or 0.85)
+        waitVoice(file, run)
+        if episodeRun == run then glitch(false) end
     end)
 end)
 
