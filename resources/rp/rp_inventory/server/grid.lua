@@ -1,7 +1,8 @@
 -- Раскладка по клеткам. Чистые функции над списком стопок:
 --   stack = { i = id предмета, n = количество, x, y = левая верхняя клетка (1..), r = повёрнут,
---             u = id экземпляра — для уникальных предметов (денежная щепка), всегда n = 1 }
--- Стопка без x — «не помещается»: предмет есть, а места под него нет.
+--             u = id экземпляра — для уникальных предметов (денежная щепка), всегда n = 1,
+--             c = где лежит вне сетки: "w1".."w3" — слот оружия, "b1".."b5" — пояс (без x, y) }
+-- Стопка без x и без c — «не помещается»: предмет есть, а места под него нет.
 
 Grid = {}
 
@@ -13,14 +14,15 @@ local function size(stack)
 end
 Grid.size = size
 
-local function placed(stack) return stack.x ~= nil end
+local function placed(stack) return stack.x ~= nil or stack.c ~= nil end
+Grid.placed = placed
 
 -- Свободен ли прямоугольник w×h в (x, y), не считая стопку ignore.
 function Grid.free(stacks, x, y, w, h, ignore)
     local cols, rows = InvConfig.grid.cols, InvConfig.grid.rows
     if x < 1 or y < 1 or x + w - 1 > cols or y + h - 1 > rows then return false end
     for index, other in ipairs(stacks) do
-        if index ~= ignore and placed(other) then
+        if index ~= ignore and other.x then
             local ow, oh = size(other)
             if x < other.x + ow and other.x < x + w and y < other.y + oh and other.y < y + h then return false end
         end
@@ -51,7 +53,7 @@ function Grid.add(stacks, itemId, count)
     if not def then return count end
     for _, stack in ipairs(stacks) do
         if count <= 0 then break end
-        if stack.i == itemId and not stack.u and placed(stack) and stack.n < def.stack then
+        if stack.i == itemId and not stack.u and stack.x and stack.n < def.stack then
             local put = math.min(count, def.stack - stack.n)
             stack.n, count = stack.n + put, count - put
         end

@@ -234,6 +234,27 @@ RegisterNetEvent("rp_shops:buy", function(itemId, count)
     if sync("rp_inventory", "fits", playerId, itemId, count) == false then
         return result(playerId, false, "Нет места в инвентаре.")
     end
+    -- Уникальный предмет (оружие, магазин) — каждый отдельным экземпляром со стартовыми данными.
+    local catalogAll = sync("rp_inventory", "catalog") or {}
+    local entry = catalogAll[itemId]
+    if entry and entry.unique then
+        session.busy = true
+        local bought = 0
+        for _ = 1, count do
+            local instance, whyInst = await("rp_inventory", "give_instance", playerId, itemId, entry.meta or {}, price)
+            if not instance then
+                session.busy = false
+                local text = whyInst == "no_space" and "Нет места в инвентаре." or whyInst == "insufficient_funds"
+                    and "Недостаточно денег на счёте." or ("Не получилось: " .. explain(whyInst or "busy") .. ".")
+                if bought > 0 then text = ("Куплено %d из %d. %s"):format(bought, count, text) end
+                return result(playerId, bought > 0, text)
+            end
+            bought = bought + 1
+        end
+        session.busy = false
+        log("info", "покупка %d: %s x%d за %d", playerId, itemId, count, price * count)
+        return result(playerId, true, string.format("Куплено: %s ×%d за %d €$.", entry.label, count, price * count))
+    end
     session.busy = true
     local total = price * count
     local opId = newOpId("rpshop")

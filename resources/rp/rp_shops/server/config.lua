@@ -31,6 +31,17 @@ ShopsConfig = {
             items = { toolbox = 450, lighter = 5, notebook = 15 },
         },
         -- Импланты — предметы; ставит рипердок (rp_cyberware), установка оплачивается отдельно.
+        weapons = {
+            label = "Оружейный магазин", labelEn = "Gun Store",
+            items = {
+                wpn_knife = 300, wpn_bat = 400,
+                wpn_lexington = 2500, wpn_unity = 3000, wpn_overture = 4500,
+                wpn_saratoga = 6500, wpn_pulsar = 7000,
+                wpn_ajax = 12000, wpn_copperhead = 11000, wpn_carnage = 9500,
+                mag_pistol9 = 150, mag_smg9 = 250, mag_rev44 = 120, mag_ar556 = 300, mag_sg12 = 300,
+                ammo_9mm = 4, ammo_44 = 10, ammo_556 = 6, ammo_12 = 12,
+            },
+        },
         implants = {
             label = "Импланты", labelEn = "Cyberware Store",
             items = {

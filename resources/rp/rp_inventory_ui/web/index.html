@@ -140,6 +140,32 @@
   #cyTip .tipFoot { margin-top: 10px; padding: 6px 8px; font-size: 12px; color: var(--muted);
     border: 1px solid rgba(243, 192, 24, 0.5); }
   #grids { display: flex; gap: 28px; align-items: flex-start; }
+  /* -- снаряжение: слоты оружия и пояс -- */
+  #gearBox { width: 270px; }
+  .gearTitle { color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; }
+  .gearTitle.belt { margin-top: 14px; }
+  .lootGearTitle { color: var(--warn); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 10px 0 6px; }
+  #lootGear { display: flex; flex-wrap: wrap; gap: 6px; min-height: 40px; max-width: 640px; }
+  #lootGear .item { position: relative; width: 120px; height: 56px; }
+  #lootGear .empty { color: var(--muted); font-size: 12px; }
+  .wslot, .bslot { position: relative; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.02); }
+  .wslot { width: 266px; height: 92px; margin-bottom: 8px; }
+  .beltRow { display: flex; gap: 6px; }
+  .bslot { width: 49px; height: 112px; }
+  .wslot.hover, .bslot.hover { border-color: var(--ok); background: rgba(120, 220, 140, 0.08); }
+  .wslot.deny, .bslot.deny { border-color: var(--warn); background: rgba(255, 94, 108, 0.08); }
+  .slotKey { position: absolute; right: 4px; top: 2px; font-size: 11px; font-weight: 700; color: var(--accent); z-index: 2;
+    pointer-events: none; text-shadow: 0 1px 2px #000; }
+  .slotHint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: rgba(255, 255, 255, 0.18); text-transform: uppercase; letter-spacing: 1px; pointer-events: none; }
+  .wslot .item, .bslot .item { left: 0; top: 0; width: 100%; height: 100%; }
+  .item .mag { position: absolute; left: 5px; bottom: 2px; font-size: 11px; color: #ffe08a; text-shadow: 0 1px 2px #000; }
+  #reload { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); width: 240px; display: none;
+    padding: 6px 10px 8px; background: rgba(8, 10, 16, 0.85); border: 1px solid var(--line); color: var(--accent);
+    font: 12px "Segoe UI", Arial, sans-serif; letter-spacing: 2px; text-transform: uppercase; pointer-events: none; }
+  #reload.on { display: block; }
+  #reload .track { height: 4px; margin-top: 5px; background: rgba(255, 255, 255, 0.1); }
+  #reload .fill { height: 100%; width: 0; background: var(--accent); }
   #lootBox { display: none; }
   #lootBox.visible { display: block; }
   .lootTitle { color: var(--warn); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; }
@@ -196,6 +222,7 @@
 </style>
 </head>
 <body>
+<div id="reload">Перезарядка<div class="track"><div class="fill"></div></div></div>
 <div id="root">
   <div id="panel">
     <div id="tabs">
@@ -216,9 +243,26 @@
         <div id="grid"></div>
         <div id="overflow"><div class="title">Не помещается — переложите или выбросьте</div><div id="overflowList"></div></div>
       </div>
+      <div id="gearBox">
+        <div class="gearTitle">Оружие</div>
+        <div class="wslot" data-target="w1"><span class="slotKey">1</span><div class="slotHint">Оружие</div></div>
+        <div class="wslot" data-target="w2"><span class="slotKey">2</span><div class="slotHint">Оружие</div></div>
+        <div class="wslot" data-target="w3"><span class="slotKey">3</span><div class="slotHint">Оружие</div></div>
+        <div class="gearTitle belt">Пояс</div>
+        <div class="beltRow">
+          <div class="bslot" data-target="b1"><span class="slotKey">4</span></div>
+          <div class="bslot" data-target="b2"><span class="slotKey">5</span></div>
+          <div class="bslot" data-target="b3"><span class="slotKey">6</span></div>
+          <div class="bslot" data-target="b4"><span class="slotKey">7</span></div>
+          <div class="bslot" data-target="b5"><span class="slotKey">8</span></div>
+        </div>
+        <div class="hint" style="margin-top: 8px">R — перезарядка магазином с пояса · 4–8 — применить с пояса</div>
+      </div>
       <div id="lootBox">
         <div class="lootTitle">Обыск<span id="lootName"></span><button id="lootSearch" hidden>Обыскать</button></div>
         <div id="lootGrid"></div>
+        <div class="lootGearTitle">Снаряжение</div>
+        <div id="lootGear"></div>
       </div>
     </div>
     </div>
@@ -337,9 +381,12 @@
     el.style.height = `${h * CELL}px`;
     el.style.background = `linear-gradient(160deg, ${d.color}cc, ${d.color}55)`;
     const badge = stack.a != null ? `${stack.a} €$` : stack.t ? stack.t : stack.n > 1 ? `×${stack.n}` : "";
-    el.innerHTML = `<div class="name"></div>${badge ? `<div class="count"></div>` : ""}`;
+    // магазин: патроны / ёмкость; оружие: патроны во вставленном магазине
+    const magText = d.mag ? `${stack.m || 0}/${d.mag}` : d.weapon && !d.melee ? (stack.wm ? `▮ ${stack.wm.n}` : "без магазина") : "";
+    el.innerHTML = `<div class="name"></div>${badge ? `<div class="count"></div>` : ""}${magText ? `<div class="mag"></div>` : ""}`;
     el.querySelector(".name").textContent = d.label;
     if (badge) el.querySelector(".count").textContent = badge;
+    if (magText) el.querySelector(".mag").textContent = magText;
     el.addEventListener("pointerdown", e => startDrag(e, index, stack, el, side));
     // Действия (использовать, передать…) — только со своими вещами.
     if (side === "mine") el.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(e, index, stack); });
@@ -379,6 +426,11 @@
         grid.append(el);
         return;
       }
+      if (stack.c) {
+        // в слоте оружия или на поясе: своё — рисует renderGear, у задержанного — ряд «Снаряжение»
+        if (side === "loot") $("lootGear").append(tile(stack, index, 1, 1, side));
+        return;
+      }
       if (stack.x) {
         const [w, h] = size(stack, stack.r);
         const el = tile(stack, index, w, h, side);
@@ -396,11 +448,31 @@
     });
   }
 
+  // Снаряжение: стопки с c = "w1".."w3" / "b1".."b5" — в свои ячейки.
+  function renderGear() {
+    document.querySelectorAll("#gearBox [data-target]").forEach(slot => {
+      slot.querySelectorAll(".item").forEach(el => el.remove());
+      const hint = slot.querySelector(".slotHint");
+      if (hint) hint.style.display = "";
+    });
+    state.stacks.forEach((stack, i) => {
+      if (!stack.c) return;
+      const slot = document.querySelector(`#gearBox [data-target="${stack.c}"]`);
+      if (!slot) return;
+      const el = tile(stack, i + 1, 1, 1, "mine");
+      el.style.width = el.style.height = "";
+      slot.append(el);
+      const hint = slot.querySelector(".slotHint");
+      if (hint) hint.style.display = "none";
+    });
+  }
+
   function render() {
     if (!state) return;
     const overflow = $("overflowList");
     overflow.replaceChildren();
     renderGrid("mine", overflow);
+    renderGear();
     const looting = !!state.loot;
     $("lootBox").classList.toggle("visible", looting);
     $("grids").classList.toggle("looting", looting);
@@ -408,7 +480,11 @@
       const status = state.loot.done ? "обыскано" : state.loot.started ? "идёт обыск…" : "не обыскано";
       $("lootName").textContent = `${state.loot.name} [${state.loot.target}] · ${status}`;
       $("lootSearch").hidden = state.loot.started;
+      $("lootGear").replaceChildren();
       renderGrid("loot", null);
+      if (!$("lootGear").children.length) {
+        $("lootGear").innerHTML = `<div class="empty">${state.loot.started ? "нет" : "откроется при обыске"}</div>`;
+      }
     }
     $("overflow").classList.toggle("visible", overflow.children.length > 0);
     const ratio = state.capacityG ? Math.min(1, state.weightG / state.capacityG) : 0;
@@ -426,8 +502,11 @@
     tip.innerHTML = `<div class="label"></div><div class="muted"></div>`;
     tip.querySelector(".label").textContent = d.label +
       (stack.a != null ? ` — ${stack.a} €$` : stack.t ? ` — ${stack.t}` : stack.n > 1 ? ` ×${stack.n}` : "");
+    let extra = "";
+    if (d.mag) extra = ` · патронов: ${stack.m || 0} из ${d.mag}`;
+    else if (d.weapon && !d.melee) extra = stack.wm ? ` · магазин: ${def({ i: stack.wm.i }).label}, ${stack.wm.n} патр.` : " · без магазина";
     tip.querySelector(".muted").textContent =
-      `${kg(d.weightG * stack.n)} кг · ${d.w}×${d.h}${d.stack > 1 ? ` · до ${d.stack} в клетке` : ""}`;
+      `${kg(d.weightG * stack.n)} кг · ${d.w}×${d.h}${d.stack > 1 ? ` · до ${d.stack} в клетке` : ""}${extra}`;
     tip.style.display = "block";
     moveTooltip(e);
   }
@@ -500,7 +579,30 @@
     return found;
   }
 
+  // Ячейка снаряжения под курсором (призрак не ловит мышь).
+  function gearSlotAt(e) {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    return el && el.closest ? el.closest("#gearBox [data-target]") : null;
+  }
+  function gearAllows(stack, target) {
+    const d = def(stack);
+    return target[0] === "w" ? !!d.weapon : !!d.belt;
+  }
+  function markGear(e) {
+    document.querySelectorAll("#gearBox [data-target]").forEach(el => el.classList.remove("hover", "deny"));
+    const slot = drag && drag.side === "mine" ? gearSlotAt(e) : null;
+    if (slot) slot.classList.add(gearAllows(drag.stack, slot.dataset.target) ? "hover" : "deny");
+    return slot;
+  }
+
   function updateGhost(e) {
+    if (markGear(e)) {
+      const ghost = $("ghost");
+      ghost.style.left = `${e.clientX - CELL / 2}px`;
+      ghost.style.top = `${e.clientY - CELL / 2}px`;
+      ghost.classList.remove("bad");
+      return;
+    }
     const side = dropSide(e);
     const t = target(e, side);
     const ghost = $("ghost");
@@ -532,12 +634,23 @@
 
   document.addEventListener("pointerup", e => {
     if (!drag) return;
+    const slot = drag.side === "mine" ? gearSlotAt(e) : null;
     const side = dropSide(e);
     const t = target(e, side);
     const d = drag;
     d.el.classList.remove("dragging");
     $("ghost").style.display = "none";
+    markGear({ clientX: -1, clientY: -1 });
     drag = null;
+    if (slot) {
+      if (slot.dataset.target !== d.stack.c) emit("inv:gear", { index: d.index, item: d.stack.i, target: slot.dataset.target });
+      return;
+    }
+    if (d.stack.c && side === "mine") {
+      // из слота/пояса — в рюкзак, в клетку под курсором
+      emit("inv:gear", { index: d.index, item: d.stack.i, target: "grid", a: t.x, b: t.y, c: d.rotated });
+      return;
+    }
     if (side !== d.side) {
       emit("inv:loot", { from: d.side, index: d.index, item: d.stack.i, a: t.x, b: t.y, c: d.rotated });
       return;
@@ -596,6 +709,20 @@
     menu.replaceChildren();
     const base = { index, item: stack.i };
     if (d.usable) addButton(menu, d.useLabel || "Использовать", () => emit("inv:use", base));
+    if (d.mag) {
+      addButton(menu, "Зарядить", () => emit("inv:magLoad", base));
+      if (stack.m > 0) addButton(menu, "Разрядить", () => emit("inv:magUnload", base));
+    }
+    if (d.weapon && stack.wm) addButton(menu, "Извлечь магазин", () => emit("inv:weaponEject", base));
+    if (stack.c) {
+      addButton(menu, "Снять в рюкзак", () => emit("inv:gear", { ...base, target: "grid" }));
+    } else {
+      // Быстро: в первый свободный слот оружия / ячейку пояса.
+      const taken = new Set(state.stacks.filter(s => s.c).map(s => s.c));
+      const free = prefix => [1, 2, 3, 4, 5].map(n => prefix + n).find(t => document.querySelector(`#gearBox [data-target="${t}"]`) && !taken.has(t));
+      if (d.weapon && free("w")) addButton(menu, "В слот оружия", () => emit("inv:gear", { ...base, target: free("w") }));
+      if (d.belt && free("b")) addButton(menu, "На пояс", () => emit("inv:gear", { ...base, target: free("b") }));
+    }
     if (stack.n > 1 && stack.x) {
       addButton(menu, "Разделить", () => askCount(e, "Сколько отделить", stack.n - 1,
         n => emit("inv:split", { ...base, a: n })));
@@ -876,6 +1003,21 @@
     else s.loot = null;
     state = s;
     if (!drag) render();
+  });
+
+  // Полоска перезарядки (видна и при закрытом окне).
+  let reloadTimer = null;
+  Open77.on("inv:reloading", p => {
+    const box = $("reload"), fill = box.querySelector(".fill");
+    clearTimeout(reloadTimer);
+    fill.style.transition = "none";
+    fill.style.width = "0";
+    box.classList.add("on");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      fill.style.transition = `width ${p.ms}ms linear`;
+      fill.style.width = "100%";
+    }));
+    reloadTimer = setTimeout(() => box.classList.remove("on"), p.ms + 150);
   });
 
   Open77.ready();

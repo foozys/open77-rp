@@ -86,7 +86,11 @@ local function catalog()
     for id, def in pairs(InvConfig.items) do
         items[id] = { label = def.label, w = def.w, h = def.h, weightG = def.weightG, stack = def.stack,
                       color = def.color, usable = def.use ~= nil,
-                      useLabel = def.useLabel or (def.use == "chip" and "Вставить в нейропорт") or "Использовать" }
+                      useLabel = def.useLabel or (def.use == "chip" and "Вставить в нейропорт") or "Использовать",
+                      -- снаряжение: оружие (в слоты), магазин (ёмкость), можно ли на пояс
+                      weapon = def.weapon ~= nil, melee = def.weapon ~= nil and def.weapon.mags == nil,
+                      mag = def.mag and def.mag.capacity or nil, ammo = def.ammo,
+                      belt = def.weapon == nil and def.w * def.h <= InvConfig.gear.beltMaxCells }
     end
     return items
 end
@@ -103,9 +107,14 @@ local function windowStacks(state, revealed)
             stacks[index] = { hidden = true, x = stack.x, y = stack.y, w = w, h = h }
         else
             local record = stack.u and state.instances and state.instances[stack.u]
-            stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r,
-                              a = record and tonumber(record.meta.amount) or nil,
-                              t = record and type(record.meta.plate) == "string" and record.meta.plate or nil }
+            local meta = record and record.meta or {}
+            local inserted = type(meta.mag) == "table" and meta.mag or nil
+            stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r, c = stack.c,
+                              a = tonumber(meta.amount),
+                              t = type(meta.plate) == "string" and meta.plate or nil,
+                              -- патроны в магазине; в оружии — вставленный магазин и патроны в нём
+                              m = tonumber(meta.rounds),
+                              wm = inserted and { i = inserted.item, n = Gear and Gear.liveRounds(state, stack) or tonumber(inserted.rounds) or 0 } or nil }
         end
     end
     return stacks
@@ -143,6 +152,7 @@ local function refresh(playerId)
     end
     state.weightG, state.instances = weight, instances
     if Grid.reconcile(state.stacks, items, instances) then Store.saveLayout(state.characterId, state.stacks) end
+    if Gear then Gear.sync(playerId, state) end
     push(playerId)
     -- Кто сейчас обыскивает этого игрока — видит его карманы свежими.
     for officer, session in pairs(loot) do
@@ -240,6 +250,7 @@ end)
 RegisterNetEvent("rp_inventory:move", function(index, itemId, x, y, rotated, target)
     local playerId = tonumber(source)
     withStack(playerId, index, itemId, function(state, stack)
+        if stack.c then return push(playerId) end -- из слота/пояса — через rp_inventory:gear
         local def = InvConfig.items[stack.i]
         target = math.tointeger(tonumber(target))
         local other = target and target ~= index and state.stacks[target]
@@ -282,8 +293,7 @@ RegisterNetEvent("rp_inventory:split", function(index, itemId, count)
     end)
 end)
 
-RegisterNetEvent("rp_inventory:use", function(index, itemId)
-    local playerId = tonumber(source)
+local function useItem(playerId, index, itemId)
     withStack(playerId, index, itemId, function(state, stack, at)
         local def = InvConfig.items[stack.i]
         if def.use == "chip" then
@@ -332,7 +342,9 @@ RegisterNetEvent("rp_inventory:use", function(index, itemId)
         notify(playerId, "Вы использовали: %s.", def.label)
         TriggerEvent("rp_inventory:used", playerId, itemId, state.characterId)
     end)
-end)
+end
+
+RegisterNetEvent("rp_inventory:use", function(index, itemId) useItem(tonumber(source), index, itemId) end)
 
 RegisterNetEvent("rp_inventory:give", function(index, itemId, count, targetId)
     local playerId = tonumber(source)
@@ -459,6 +471,7 @@ end)
 AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     local playerId = tonumber(playerIdStr)
     if not playerId then return end
+    if Gear and inv[playerId] then pcall(Gear.flush, playerId, inv[playerId]) end
     inv[playerId], loot[playerId] = nil, nil
     -- Обыскиваемый ушёл — у обыскивающих чужая сетка закрывается.
     for officer, session in pairs(loot) do
@@ -474,7 +487,7 @@ exports("catalog", function()
     local items = {}
     for id, def in pairs(InvConfig.items) do
         items[id] = { label = def.label, labelEn = def.labelEn, w = def.w, h = def.h, weightG = def.weightG,
-                      stack = def.stack }
+                      stack = def.stack, unique = def.unique == true, meta = def.meta }
     end
     return items
 end)
@@ -682,6 +695,11 @@ RegisterNetEvent("rp_inventory:lootSearch", function()
         return notify(officer, "Обыск закончен.")
     end
     session.started = true
+    -- Снаряжение (оружие в слотах, пояс) видно на теле — открыто сразу.
+    local target = inv[session.target]
+    for _, stack in ipairs(target and target.stacks or {}) do
+        if stack.c then session.revealed[stack] = true end
+    end
     CreateThread(function()
         while loot[officer] == session do
             local other = inv[session.target]
@@ -806,12 +824,30 @@ RegisterCommand("rp.giveitem", function(source, args)
         return
     end
     if not InvConfig.items[itemId] then return notify(source, "Нет предмета %s.", tostring(itemId)) end
-    if InvConfig.items[itemId].unique then
+    local unique = InvConfig.items[itemId].unique
+    if unique and (InvConfig.items[itemId].meta == nil or count < 1) then
         return notify(source, "%s выдаётся иначе: щепку записывают со счёта (/chip <сумма>), ключ делают в гараже.",
             labelOf(itemId))
     end
     local state, problem = ensure(target)
     if not state then return notify(source, "Игрок %d: %s", target, problem) end
+    if unique then
+        -- Оружие, магазины: каждый экземпляр со стартовыми данными.
+        if not Grid.fits(state.stacks, itemId, count) then
+            return notify(source, "У игрока нет места для %s ×%d.", labelOf(itemId), count)
+        end
+        local lines = {}
+        local opId = Store.newOpId("rpadmin")
+        for n = 1, count do
+            lines[n] = { instance = itemId .. "." .. tostring(opId):gsub("^[^:]+:", "") .. "." .. n, item = itemId,
+                         from = SOURCE, to = state.account, meta = InvConfig.items[itemId].meta }
+        end
+        local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.admin", reason = "admin", lines = lines })
+        if not receipt then return notify(source, "Не выполнено: %s.", explain(why or "busy")) end
+        refresh(target)
+        notify(source, "%s [%d]: +%d %s.", nameOf(target), target, count, labelOf(itemId))
+        return notify(target, "Администрация: +%d %s.", count, labelOf(itemId))
+    end
     if count > 0 and not Grid.fits(state.stacks, itemId, count) then
         return notify(source, "У игрока нет места для %s ×%d.", labelOf(itemId), count)
     end
@@ -873,3 +909,8 @@ RegisterCommand("rp.inventory", function(source, args)
     notify(source, "%s [%d], %.1f / %.1f кг: %s", nameOf(target), target, state.weightG / 1000,
         InvConfig.capacityG / 1000, #parts > 0 and table.concat(parts, ", ") or "пусто")
 end, false)
+
+-- Для server/gear.lua (снаряжение): общее состояние и помощники.
+InvCore = { inv = inv, ensure = ensure, refresh = refresh, push = push, notify = notify, log = log,
+            withStack = withStack, takeFrom = takeFrom, explain = explain, labelOf = labelOf,
+            useItem = useItem, positionOf = positionOf, SOURCE = SOURCE }

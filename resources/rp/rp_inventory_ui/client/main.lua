@@ -78,6 +78,31 @@ AddEventHandler("onClientResourceStart", function(name)
         if type(p) == "table" then TriggerServerEvent("rp_cyberware:deckEject", tonumber(p.index)) end
     end)
 
+    -- Снаряжение: перенос в слоты оружия и на пояс (target "w1".."w3", "b1".."b5", "grid"),
+    -- магазины и оружие.
+    page:on("inv:gear", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_inventory:gear", p.index, p.item, p.target, p.a, p.b, p.c) end
+    end)
+    for _, name in ipairs({ "magLoad", "magUnload", "weaponEject" }) do
+        page:on("inv:" .. name, function(p)
+            if type(p) == "table" then TriggerServerEvent("rp_inventory:" .. name, p.index, p.item) end
+        end)
+    end
+
+    -- R — перезарядка магазином с пояса; 4–8 — ячейки пояса (магазин — перезарядить им).
+    local function key(id, label, default, fn)
+        local okKey, whyKey = RegisterKeyMapping(id, label, default, fn)
+        if not okKey then print("[rp_inventory_ui] клавиша " .. id .. ": " .. tostring(whyKey)) end
+    end
+    key("rp_reload", "Перезарядка (магазин с пояса)", "R", function()
+        if not isOpen then TriggerServerEvent("rp_inventory:reload") end
+    end)
+    for n = 1, 5 do
+        key("rp_belt" .. n, "Пояс: ячейка " .. n, tostring(n + 3), function()
+            if not isOpen then TriggerServerEvent("rp_inventory:belt", n) end
+        end)
+    end
+
     -- Пока окно держит ввод, привязки молчат: закрывает сама страница (I, Esc).
     local ok, why = RegisterKeyMapping("rp_inventory", "Инвентарь", "I", function()
         if isOpen then close() else open() end
@@ -98,6 +123,11 @@ RegisterNetEvent("rp_inventory:openWindow", function()
     send("inv:open")
     page:setFocus(true, true)
     TriggerServerEvent("rp_cyberware:panel")
+end)
+
+-- Перезарядка идёт: полоска на экране.
+RegisterNetEvent("rp_inventory:reloading", function(ms)
+    send("inv:reloading", { ms = tonumber(ms) or 1500 })
 end)
 
 -- Сервер отказал (персонаж не выбран и т.п.): закрыть окно.
