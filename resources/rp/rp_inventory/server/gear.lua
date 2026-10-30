@@ -125,20 +125,15 @@ local function applyAmmo(playerId, state, slot)
     if not live or live.melee then return end
     local weapon = stackByU(state, live.u)
     if not weapon then return end
-    local ammo
-    if live.inserting then
-        -- R нажата, анимация идёт: в оружии 0, запас — ровно новый магазин.
-        live.next, live.reserve, live.native = nil, live.rounds, 0
-        ammo = { magazine = 0, reserve = live.rounds }
-    else
-        local nxt, nxtRounds = nextMag(state, InvConfig.items[weapon.i], live)
-        live.next, live.reserve = nxt and nxt.u or nil, nxtRounds or 0
-        ammo = { reserve = live.reserve }
-        if live.cap and live.cap > 0 then
-            live.native = math.min(live.rounds, live.cap)
-            ammo.magazine = live.native
-        end
+    if live.inserting then return end -- идёт перезарядка: числа поставим, когда она закончится
+    local nxt, nxtRounds = nextMag(state, InvConfig.items[weapon.i], live)
+    live.next, live.reserve = nxt and nxt.u or nil, nxtRounds or 0
+    local ammo = { reserve = live.reserve }
+    if live.cap and live.cap > 0 then
+        live.native = math.min(live.rounds, live.cap)
+        ammo.magazine = live.native
     end
+    live.settleUntil = GetGameTimer() + 1500 -- пока игра применяет числа, рост не считать перезарядкой
     request(playerId, slot, live.u, live.cap and "ammo" or "probe", ammo)
 end
 
@@ -196,7 +191,7 @@ function Gear.sync(playerId, state)
             flushSlot(playerId, state, slot)
             state.gear[slot] = nil
             Open77.weapons.remove(playerId, slot)
-        elseif live and not live.melee and live.ready then
+        elseif live and not live.melee and live.ready and not live.inserting then
             -- Пояс мог измениться: другой следующий магазин — другой запас.
             local nxt, nxtRounds = nextMag(state, InvConfig.items[stack.i], live)
             if (nxt and nxt.u or nil) ~= live.next or (nxtRounds or 0) ~= live.reserve then
@@ -434,11 +429,9 @@ local function reloadStart(playerId)
     local nxt, nxtRounds = nextMag(state, InvConfig.items[weapon.i], live)
     if not nxt then return end
     local oldRounds = live.rounds
-    -- Сразу, до записи: перезарядка идёт, в игре 0 и запас = ровно новый магазин — анимация
-    -- с самого начала работает с этими числами, а рост патронов не примется за автоперезарядку.
-    live.inserting, live.committing, live.sawEmpty, live.insertingAt = true, true, false, GetGameTimer()
-    live.next, live.reserve, live.native = nil, nxtRounds, 0
-    request(playerId, slot, live.u, "insert", { magazine = 0, reserve = nxtRounds })
+    -- Перезарядка идёт: игре ничего не шлём (её анимация работает сама; «в оружии 0» вызвало
+    -- бы вторую перезарядку). Рост патронов против baseline — анимация закончилась.
+    live.inserting, live.committing, live.insertingAt, live.baseline = true, true, GetGameTimer(), live.native
     local function undo(text)
         live.inserting, live.committing = false, false
         applyAmmo(playerId, state, slot)
@@ -526,14 +519,14 @@ CreateThread(function()
                 local live = slot and state.gear[slot]
                 local mag = w and tonumber(w.magazine)
                 if live and live.inserting and mag and not live.committing then
-                    -- Вставка нового магазина: ждём, пока игра покажет 0 (наша команда дошла), затем
-                    -- рост — анимация закончилась. Не показала 0 за 6 с — закончить по таймауту.
-                    if mag == 0 then live.sawEmpty = true end
-                    if (live.sawEmpty and mag > 0) or (GetGameTimer() - (live.insertingAt or 0) > 6000 and mag > 0) then
-                        live.inserting, live.sawEmpty, live.native = false, false, mag
+                    -- Анимация закончилась (патронов больше, чем до R) или прервана (6 с без роста):
+                    -- поставить точные числа одним запросом.
+                    if mag > (live.baseline or 0) or GetGameTimer() - (live.insertingAt or 0) > 6000 then
+                        live.inserting, live.native = false, mag
                         applyAmmo(playerId, state, slot)
                     end
-                elseif live and not live.inserting and not live.melee and live.ready and mag and w.drawn and not state.busy then
+                elseif live and not live.inserting and not live.melee and live.ready and mag and w.drawn and not state.busy
+                    and GetGameTimer() >= (live.settleUntil or 0) then
                     if mag < live.native then
                         live.rounds = math.max(0, live.rounds - (live.native - mag))
                         live.dirty = true
@@ -543,7 +536,8 @@ CreateThread(function()
                         if live.next and live.reserve > 0 then
                             -- Игра перезарядилась из запаса — это наш следующий магазин.
                             CreateThread(function() swapMagazines(playerId, state, slot, live) end)
-                        else
+                        elseif GetGameTimer() - (live.fixAt or 0) > 2000 then
+                            live.fixAt = GetGameTimer()
                             applyAmmo(playerId, state, slot) -- патроны не от нас — вернуть как было
                         end
                     end
