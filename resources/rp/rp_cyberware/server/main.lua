@@ -1103,6 +1103,10 @@ local function psychoDeath(playerId)
     stopPsychoPresentation(playerId, s)
     s.psycho = nil
     setOverdrive(playerId, false)
+    -- Брони больше нет: подкожная броня вырезана вместе с остальным хромом.
+    s.armor, s.seenArmor = 0, 0
+    Open77.players.setArmor(playerId, 0)
+    send(playerId, "rp_hud:armorMax", 0)
 
     -- Импланты из тела и скрипты из деки — добыча на месте смерти.
     -- Постоянные импланты платформы снимаются, когда тело снова живо (после больницы).
@@ -1139,6 +1143,7 @@ local function psychoDeath(playerId)
     if state[playerId] ~= s then return end
     reconcilePlatform(playerId) -- наша запись уже пуста: снять всё с платформы (с повторами)
     applyPassives(playerId)
+    Open77.players.setArmor(playerId, 0) -- на случай, если подъём вернул старую броню
 end
 
 AddEventHandler("rp_medical:flatlined", function(playerIdArg)
