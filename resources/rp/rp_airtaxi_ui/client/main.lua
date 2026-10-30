@@ -93,6 +93,71 @@ RegisterNetEvent("rp_airtaxi:depart", function(payload)
     send("air:depart", payload)
 end)
 
+-- -- камера пассажира АВ-бота ------------------------------------------------------------
+-- Сервер шлёт каждый отрезок пути заранее (rp_airtaxi:seg): камера летит по той же траектории
+-- сама, каждый кадр, и не трясётся вместе с моделью АВ (её сервер переставляет рывками).
+
+local cam = { id = nil, queue = {}, view = { distance = 22, height = 7 } }
+
+local function segPos(seg, now)
+    local t = math.max(0, math.min(1, (now - seg.startAt) / math.max(1, seg.ms)))
+    if seg.ease then t = t * t * (3 - 2 * t) end
+    return { x = seg.a.x + (seg.b.x - seg.a.x) * t, y = seg.a.y + (seg.b.y - seg.a.y) * t,
+             z = seg.a.z + (seg.b.z - seg.a.z) * t }
+end
+
+local function camStop()
+    cam.queue = {}
+    if not cam.id then return end
+    Open77.camera.deactivate({ blendMs = 600 })
+    Open77.camera.destroy(cam.id)
+    cam.id = nil
+end
+
+local function camShot(p, yaw)
+    local r = math.rad(yaw or 0)
+    local fx, fy = -math.sin(r), math.cos(r)
+    return { x = p.x - fx * cam.view.distance, y = p.y - fy * cam.view.distance, z = p.z + cam.view.height },
+           { x = p.x + fx * 10, y = p.y + fy * 10, z = p.z + 1.5 }
+end
+
+local function camLoop()
+    while cam.id do
+        local now = GetGameTimer()
+        -- Текущий отрезок: последний начавшийся; закончившиеся до него — выбросить.
+        while #cam.queue > 1 and cam.queue[2].startAt <= now do table.remove(cam.queue, 1) end
+        local seg = cam.queue[1]
+        if seg then
+            local position, target = camShot(segPos(seg, now), seg.yaw)
+            Open77.camera.setTransform(cam.id, { position = position })
+            Open77.camera.lookAt(cam.id, target)
+        end
+        Wait(0)
+    end
+end
+
+RegisterNetEvent("rp_airtaxi:seg", function(seg)
+    if type(seg) ~= "table" or type(seg.a) ~= "table" or type(seg.b) ~= "table" then return end
+    local now = GetGameTimer()
+    local last = cam.queue[#cam.queue]
+    -- Отрезки идут встык; клиент отстаёт на задержку сети — догоняем, если отстал больше 0,3 с.
+    local startAt = last and (last.startAt + last.ms) or now
+    if startAt < now - 300 or startAt > now + 300 then startAt = now end
+    seg.startAt, seg.ms = startAt, tonumber(seg.ms) or 500
+    cam.queue[#cam.queue + 1] = seg
+    if cam.id then return end
+    local position, target = camShot(seg.a, seg.yaw)
+    local id, why = Open77.camera.create({ position = position, lookAt = target, fov = 60 })
+    if not id then return print("[rp_airtaxi_ui] камера: " .. tostring(why)) end
+    local ok, reason = Open77.camera.activate(id, { blendMs = 900 })
+    if not ok then
+        Open77.camera.destroy(id)
+        return print("[rp_airtaxi_ui] камера: " .. tostring(reason))
+    end
+    cam.id = id
+    CreateThread(camLoop)
+end)
+
 -- Полёт на АВ-боте: плашка с этапом (arriving — АВ садится за вами, flying — в полёте).
 RegisterNetEvent("rp_airtaxi:bot", function(payload)
     if type(payload) ~= "table" then return end
@@ -102,11 +167,16 @@ RegisterNetEvent("rp_airtaxi:bot", function(payload)
         send("air:close")
     end
     flying = true
+    if type(payload.camera) == "table" then
+        cam.view.distance = tonumber(payload.camera.distance) or cam.view.distance
+        cam.view.height = tonumber(payload.camera.height) or cam.view.height
+    end
     send("air:bot", payload)
 end)
 
 RegisterNetEvent("rp_airtaxi:arrive", function(payload)
     if type(payload) ~= "table" then return end
+    camStop()
     flying = false
     lockControls(false)
     send("air:arrive", payload)
@@ -166,4 +236,5 @@ AddEventHandler("onClientResourceStop", function(name)
     if name ~= GetCurrentResourceName() then return end
     if page then page:setFocus(false, false) end
     if flying then lockControls(false) end
+    camStop()
 end)

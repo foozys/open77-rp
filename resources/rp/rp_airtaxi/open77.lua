@@ -7,9 +7,10 @@ dependency "rp_core"
 
 -- database.access: площадки (rp_airpads); network.events: окно и сцена полёта (rp_airtaxi_ui);
 -- players.life.read: позиция игрока у площадки; players.teleport: перелёт;
--- world.effects: звук взлёта; world.vehicles: АВ-бот (server/bot.lua)
+-- world.effects: звук взлёта; world.vehicles: АВ-бот (server/bot.lua); world.query: высота крыш
+-- по трассе (облёт зданий)
 permissions { "database.access", "network.events", "players.life.read", "players.teleport", "world.effects",
-              "world.vehicles" }
+              "world.vehicles", "world.query" }
 
 server_script "server/config.lua"
 server_script "server/bot.lua"

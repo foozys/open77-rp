@@ -24,10 +24,18 @@ AirTaxiConfig = {
     -- АВ-бот. model — запись машины-АВ; altitude — высота полёта над точками, м; speed — м/с
     -- (быстрее, если иначе крейсерский участок дольше maxCruiseSeconds); arriveSeconds —
     -- снижение, takeoffSeconds — набор высоты; sideOffset — АВ садится на столько метров
-    -- правее игрока; seat — место пассажира; tickMs — как часто сервер двигает АВ.
+    -- правее игрока; seat — место пассажира; tickMs — пауза между перестановками АВ (0 — каждый
+    -- кадр сервера: клиенты перестановку не сглаживают, чем чаще — тем мельче рывки).
+    -- camera — кинокамера пассажира: distance м позади АВ, height м выше.
     bot = { enabled = true, model = "Vehicle.av_zetatech_valgus", altitude = 80, speed = 70, maxCruiseSeconds = 60,
-            arriveSeconds = 8, takeoffSeconds = 6, sideOffset = 8, seat = "rearLeft", tickMs = 50,
-            boardTimeoutMs = 8000, departDelayMs = 3000 },
+            arriveSeconds = 8, takeoffSeconds = 6, sideOffset = 8, seat = "rearLeft", tickMs = 0,
+            boardTimeoutMs = 8000, departDelayMs = 3000, camera = { distance = 22, height = 7 },
+            -- Облёт зданий: трасса прощупывается лучом сверху вниз (с fromZ) ячейками по cellMeters
+            -- на lookAhead м вперёд; высота — над самой высокой крышей + clearance. climbRate и
+            -- descendRate — м/с вверх и вниз; chunkSeconds — длина отрезка, который сервер заранее
+            -- шлёт камере пассажира.
+            avoid = { cellMeters = 40, lookAhead = 300, clearance = 35, fromZ = 900, climbRate = 15,
+                      descendRate = 8, chunkSeconds = 0.5 } },
     flightBucketBase = 62000, -- + playerId: bucket на время полёта
 
     -- Звук взлёта у площадки (слышат все рядом). Звук из каталога игры, в игре не проверен;
