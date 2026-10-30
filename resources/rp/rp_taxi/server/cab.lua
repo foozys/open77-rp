@@ -51,6 +51,7 @@ local function driveTo(cab, target, arrival, seconds, radius, watch)
         return false, tostring(why)
     end
     local deadline = GetGameTimer() + seconds * 1000 + 5000
+    local waited -- чего автопилот ждал (waiting_for_simulator: simulator_capacity — все слоты клиента заняты)
     while GetGameTimer() < deadline do
         Wait(500)
         local stop = watch and watch()
@@ -58,15 +59,20 @@ local function driveTo(cab, target, arrival, seconds, radius, watch)
         local state = Open77.vehicles.ai.state(cab)
         local status = state and state.status
         if status == "arrived" then return true end
+        if status == "waiting_for_simulator" then waited = tostring(state.reason) end
         local at = Open77.vehicles.getPosition(cab)
         if at and distance2d(at, target) <= radius and (status ~= "running" or distance2d(at, target) <= arrival * 2) then
             return true
         end
         if status == "failed" or status == "cancelled" or status == "detached" then
             if at and distance2d(at, target) <= radius then return true end
-            log("warn", "автопилот такси %s: status=%s reason=%s phase=%s execution=%s owner=%s, до цели %.0f м",
+            log("warn", "автопилот такси %s: status=%s reason=%s phase=%s execution=%s owner=%s ждал=%s, до цели %.0f м",
                 tostring(cab), tostring(status), tostring(state.reason), tostring(state.phase),
-                tostring(state.execution), tostring(state.owner), at and distance2d(at, target) or -1)
+                tostring(state.execution), tostring(state.owner), tostring(waited), at and distance2d(at, target) or -1)
+            if waited == "simulator_capacity" then
+                log("warn", "такси некому вести: все слоты автопилота у игроков заняты трафиком. Оператору: "
+                    .. "tunable.set open77_traffic maxCarsPerArea 24 (меньше maximumAiVehiclesPerSimulator в server.jsonc)")
+            end
             return false, tostring(state.reason or status)
         end
     end
