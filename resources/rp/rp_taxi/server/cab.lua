@@ -1,9 +1,12 @@
--- Машина Деламейна: появляется на дороге, автопилот (Open77.vehicles.ai) с NPC за рулём
--- везёт её к игроку, игрок садится назад (warpPlayerIntoVehicle, выход закрыт), автопилот
--- везёт к месту назначения, высадка, оплата, такси уезжает в трафик и исчезает.
--- Без водителя игра машину не ведёт: клиент берёт её, но команда так и не исполняется
--- (enrolling, через 20 с no_route) — поэтому водитель, как у open77_traffic. Едет
--- клиент-симулятор (рядом стоящий игрок), движение сглаживается как у обычной машины.
+-- Такси Деламейна на потоке. Команда автопилота «ехать к точке» (driveTo, followRoute, follow)
+-- на этой сборке не исполняется: клиент отвергает её (vehicle.ai malformed_request), поэтому
+-- работает только «ехать в потоке» (joinTraffic) — на ней ездит весь open77_traffic.
+--
+-- Подъезд: такси ставится выше по течению на той же полосе, что и точка у игрока, едет в
+-- потоке и останавливается рядом (setTrafficPattern "stop"). Игрок садится назад (выход
+-- закрыт), такси едет в потоке rideSeconds. Затемнение: игрока переносят к метке, ставят
+-- новое такси выше по течению на полосе у метки и сажают в него; экран светлеет, такси
+-- подъезжает и высаживает. Водитель — NPC (без водителя игра машину не ведёт).
 
 Cab = {}
 
@@ -28,6 +31,21 @@ local function placeOf(playerId)
     return read and read.position and { x = read.position.x, y = read.position.y, z = read.position.z } or nil
 end
 
+-- Остановить ("stop") или пустить дальше ("default") такси в потоке. setTrafficPattern есть
+-- на сервере с .160+ (им пользуется open77_traffic), но не в индексе devkit (.156); без него —
+-- снять задачу (ai.stop) и снова joinTraffic.
+local function pattern(cab, name)
+    local ai = Open77.vehicles["ai"]
+    local set = ai and ai["setTrafficPattern"]
+    if set then
+        local ok, why = set(cab, name)
+        if ok then return true end
+        log("warn", "такси %s: шаблон %s не принят: %s", tostring(cab), name, tostring(why))
+    end
+    if name == "stop" then return Open77.vehicles.ai.stop(cab) end
+    return Open77.vehicles.ai.joinTraffic(cab)
+end
+
 local function removeCab(cab)
     local driver = active[cab]
     active[cab] = nil
@@ -37,89 +55,19 @@ local function removeCab(cab)
     Open77.vehicles.remove(cab)
 end
 
--- Убрать такси: уехать в трафик и исчезнуть через leaveSeconds (или сразу).
+-- Убрать такси: уехать в поток и исчезнуть через leaveSeconds (или сразу).
 local function dismiss(cab, now)
     if now then return removeCab(cab) end
-    Open77.vehicles.ai.joinTraffic(cab)
+    pattern(cab, "default")
     CreateThread(function()
         Wait(C.leaveSeconds * 1000)
         if active[cab] ~= nil then removeCab(cab) end
     end)
 end
 
--- Ехать к точке. true — доехали (или ближе radius); false, причина — нет.
--- watch() каждые полсекунды: вернёт причину — прервать поездку.
--- afterStart() — сразу после того, как задача принята (разморозить машину).
-local function driveTo(cab, target, arrival, seconds, radius, watch, afterStart)
-    local task, why = Open77.vehicles.ai.driveTo(cab, {
-        position = { x = target.x, y = target.y, z = target.z }, speed = C.speed, behavior = C.behavior,
-        arrivalRadius = arrival, timeoutMilliseconds = math.floor(seconds * 1000),
-    })
-    if not task then
-        log("warn", "автопилот такси %s: задача не принята: %s", tostring(cab), tostring(why))
-        return false, tostring(why)
-    end
-    if afterStart then afterStart() end
-    local deadline = GetGameTimer() + seconds * 1000 + 5000
-    local waited -- чего автопилот ждал (waiting_for_simulator: simulator_capacity — все слоты клиента заняты)
-    local started, last = GetGameTimer(), nil
-    while GetGameTimer() < deadline do
-        Wait(500)
-        local stop = watch and watch()
-        if stop then return false, stop end
-        local state = Open77.vehicles.ai.state(cab)
-        local status = state and state.status
-        if status == "arrived" then return true end
-        if status == "waiting_for_simulator" then waited = tostring(state.reason) end
-        -- Каждая смена состояния — в лог (пока такси не поехало, это единственный способ понять,
-        -- на чём оно стоит).
-        local now = state and ("%s/%s/%s owner=%s"):format(tostring(status), tostring(state.phase),
-            tostring(state.execution), tostring(state.owner)) or "нет состояния"
-        if now ~= last then
-            last = now
-            log("info", "такси %s, %.1f с: %s", tostring(cab), (GetGameTimer() - started) / 1000, now)
-        end
-        local at = Open77.vehicles.getPosition(cab)
-        if at and distance2d(at, target) <= radius and (status ~= "running" or distance2d(at, target) <= arrival * 2) then
-            return true
-        end
-        if status == "failed" or status == "cancelled" or status == "detached" then
-            if at and distance2d(at, target) <= radius then return true end
-            log("warn", "автопилот такси %s: status=%s reason=%s phase=%s execution=%s owner=%s ждал=%s, до цели %.0f м",
-                tostring(cab), tostring(status), tostring(state.reason), tostring(state.phase),
-                tostring(state.execution), tostring(state.owner), tostring(waited), at and distance2d(at, target) or -1)
-            if waited == "simulator_capacity" then
-                log("warn", "такси некому вести: все слоты автопилота у игроков заняты трафиком. Оператору: "
-                    .. "tunable.set open77_traffic maxCarsPerArea 24 (меньше maximumAiVehiclesPerSimulator в server.jsonc)")
-            end
-            return false, tostring(state.reason or status)
-        end
-    end
-    local at = Open77.vehicles.getPosition(cab)
-    if at and distance2d(at, target) <= radius then return true end
-    return false, "timeout"
-end
-
-local function seatedIn(playerId, cab)
-    local seat = Open77.vehicles.getPlayerSeat(playerId)
-    return seat ~= nil and seat.vehicleId == cab and not seat.forcedEntry
-end
-
-local function dropOff(playerId, cab)
-    Open77.vehicles.setPlayerExitLocked(playerId, false, cab)
-    local ok, why = Open77.vehicles.forcePlayerOutOfVehicle(playerId, cab)
-    if not ok then log("warn", "игрок %d не высажен из такси: %s", playerId, tostring(why)) end
-    for _ = 1, 16 do
-        if not Open77.vehicles.getPlayerSeat(playerId) then return true end
-        Wait(250)
-    end
-    return false
-end
-
--- Машина с водителем на полосе. Как у open77_traffic: машина закрыта сразу при создании,
--- зажигание и заморозка до водителя (автопилот двигатель не включает), водитель — NPC без
--- своего ИИ и неуязвимый, автопилот с ним; разморозить — после первой задачи.
--- cab, или nil, причина.
+-- Машина с водителем на месте spot, пущенная в поток. Как у open77_traffic: закрыта сразу при
+-- создании, зажигание и заморозка до водителя (автопилот двигатель не включает), водитель —
+-- NPC без своего ИИ и неуязвимый, автопилот с ним, joinTraffic, разморозка. cab или nil, причина.
 local function spawnCab(playerId, spot, bucket, records)
     local where = { x = spot.x, y = spot.y, z = spot.z + 0.35 }
     local cab, why
@@ -151,104 +99,178 @@ local function spawnCab(playerId, spot, bucket, records)
         removeCab(cab)
         return nil, "автопилот: " .. tostring(reason)
     end
+    local joined, joinWhy = Open77.vehicles.ai.joinTraffic(cab)
+    Open77.vehicles.setFrozen(cab, false)
+    if not joined then
+        removeCab(cab)
+        return nil, "поток: " .. tostring(joinWhy)
+    end
     return cab
 end
 
--- spot — место появления на дороге { x, y, z, yaw }, pick — куда подъехать (полоса у игрока),
--- waitAt — где игрок ждёт (ушёл дальше stayRadius — такси уезжает), to — куда
--- { name, x, y, z, bucket }; status(stage, extra) — плашка игроку; pay() — списать, сумма.
--- Ответ: "done", "fallback" (не доехали — main.lua перенесёт игрока сам) или "aborted".
-function Cab.ride(playerId, spot, pick, to, bucket, status, pay, waitAt)
-    waitAt = waitAt or pick
-    local cab, why = spawnCab(playerId, spot, bucket, { C.model, C.fallbackModel })
+-- Ждать, пока такси в потоке доедет до target, и остановить его. true — стоит рядом
+-- (ближе stopRadius или проехало ближайшую точку), false, причина — нет.
+-- watch() каждые 0,25 с: вернёт причину — прервать.
+local function pullUp(cab, target, seconds, watch)
+    local deadline = GetGameTimer() + seconds * 1000
+    local closest = math.huge
+    local stopped = false
+    while GetGameTimer() < deadline do
+        Wait(250)
+        local stop = watch and watch()
+        if stop then return false, stop end
+        local state = Open77.vehicles.ai.state(cab)
+        if state and (state.status == "failed" or state.status == "detached" or state.status == "cancelled") then
+            log("warn", "такси %s в потоке: %s %s", tostring(cab), tostring(state.status), tostring(state.reason))
+            return false, tostring(state.reason or state.status)
+        end
+        local at = Open77.vehicles.getPosition(cab)
+        if at then
+            local d = distance2d(at, target)
+            if not stopped and (d <= C.stopRadius or (closest <= C.stopRadius * 3 and d > closest + 3)) then
+                stopped = true
+                pattern(cab, "stop")
+            end
+            closest = math.min(closest, d)
+            if stopped and (Open77.vehicles.getSpeed(cab) or 0) < 0.5 then
+                if d <= C.stopRadius * 4 then return true end
+                return false, ("встало в %.0f м"):format(d)
+            end
+            if not stopped and closest < 40 and d > closest + 40 then return false, "проехало мимо" end
+        end
+    end
+    return false, "timeout"
+end
+
+local function seatedIn(playerId, cab)
+    local seat = Open77.vehicles.getPlayerSeat(playerId)
+    return seat ~= nil and seat.vehicleId == cab and not seat.forcedEntry
+end
+
+local function board(playerId, cab)
+    local warped, why = Open77.vehicles.warpPlayerIntoVehicle(playerId, cab, C.seat, { moveBucket = false, exitLocked = true })
+    if warped then
+        for _ = 1, math.floor(C.boardTimeoutMs / 250) do
+            if seatedIn(playerId, cab) then return true end
+            Wait(250)
+        end
+    end
+    log("warn", "игрок %d не сел в такси: %s", playerId, tostring(warped and "timeout" or why))
+    if Open77.vehicles.getPlayerSeat(playerId) then Open77.vehicles.forcePlayerOutOfVehicle(playerId, cab) end
+    return false
+end
+
+local function dropOff(playerId, cab)
+    Open77.vehicles.setPlayerExitLocked(playerId, false, cab)
+    local ok, why = Open77.vehicles.forcePlayerOutOfVehicle(playerId, cab)
+    if not ok then log("warn", "игрок %d не высажен из такси: %s", playerId, tostring(why)) end
+    for _ = 1, 16 do
+        if not Open77.vehicles.getPlayerSeat(playerId) then return true end
+        Wait(250)
+    end
+    return false
+end
+
+local function teleport(playerId, at, bucket)
+    local pending, why = Open77.players.teleport(playerId, { x = at.x, y = at.y, z = at.z + 0.5 },
+        { bucket = bucket, fade = false, dismount = true })
+    if not pending then return false, why end
+    local landed, err = pending:await()
+    return landed ~= nil, err
+end
+
+-- pickup — точка полосы у игрока, drop — точка полосы у метки (обе из Lanes, с lane и arc);
+-- waitAt — где игрок ждёт; status(stage, info) — плашка; scene(on, ms) — затемнение у
+-- клиента; pay() — списать, сумма. Ответ: "done", сумма | "fallback" (main.lua перенесёт
+-- игрока сам) | "aborted", текст.
+function Cab.ride(playerId, pickup, drop, bucket, waitAt, status, scene, pay)
+    local records = { C.model, C.fallbackModel }
+
+    -- Подъезд: выше по течению на полосе игрока.
+    local spot, meters = Lanes.upstream(pickup, C.approachMeters, playerId, bucket)
+    if not spot then
+        log("info", "игрок %d: на его полосе нет места выше по течению", playerId)
+        return "fallback"
+    end
+    local cab, why = spawnCab(playerId, spot, bucket, records)
     if not cab then
         log("warn", "такси для игрока %d не создано: %s", playerId, tostring(why))
         return "fallback"
     end
-    local function thaw() Open77.vehicles.setFrozen(cab, false) end
-
-    -- Подъезд к игроку. Игрок ждёт на месте.
-    status("arriving", { meters = math.floor(distance2d(spot, pick)) })
-    local ok, failure = driveTo(cab, pick, C.pickupRadius, C.pickupSeconds, C.pickupRadius * 2.5, function()
+    status("arriving", { meters = math.floor(meters) })
+    local ok, failure = pullUp(cab, pickup, C.pickupSeconds, function()
         if not alive(playerId) then return "player_gone" end
         local here = placeOf(playerId)
         if not here or distance2d(here, waitAt) > TaxiConfig.call.stayRadius then return "player_left" end
-    end, thaw)
+    end)
     if not ok then
         log("warn", "такси не подъехало к игроку %d: %s", playerId, tostring(failure))
-        dismiss(cab, failure ~= "player_left" and failure ~= "player_gone")
+        dismiss(cab, failure ~= "player_left")
         if failure == "player_left" then return "aborted", "Вы ушли с места посадки — такси уехало." end
         if failure == "player_gone" then return "aborted" end
         return "fallback"
     end
-    Open77.vehicles.ai.stop(cab)
-
-    -- Посадка.
-    local warped, warpWhy = Open77.vehicles.warpPlayerIntoVehicle(playerId, cab, C.seat, { moveBucket = false, exitLocked = true })
-    local boarded = false
-    if warped then
-        for _ = 1, math.floor(C.boardTimeoutMs / 250) do
-            if seatedIn(playerId, cab) then boarded = true break end
-            Wait(250)
-        end
-    end
-    if not boarded then
-        log("warn", "игрок %d не сел в такси: %s", playerId, tostring(warped and "timeout" or warpWhy))
-        if Open77.vehicles.getPlayerSeat(playerId) then Open77.vehicles.forcePlayerOutOfVehicle(playerId, cab) end
+    if not board(playerId, cab) then
         dismiss(cab, false)
         return "fallback"
     end
 
-    -- Поездка.
-    local meters = distance2d(waitAt, to)
-    status("riding", { meters = math.floor(meters) })
-    local seconds = math.max(C.minRideSeconds, meters / 1000 * C.rideSecondsPerKm)
-    local lastShown = 0
-    ok, failure = driveTo(cab, to, 15, seconds, C.dropRadius, function()
-        if not alive(playerId) then return "player_gone" end
-        if GetGameTimer() - lastShown > 3000 then
-            lastShown = GetGameTimer()
-            local at = Open77.vehicles.getPosition(cab)
-            if at then status("riding", { meters = math.floor(distance2d(at, to)) }) end
+    -- Поездка в потоке, потом затемнение.
+    pattern(cab, "default")
+    status("riding", { meters = math.floor(distance2d(waitAt, drop)) })
+    local started = GetGameTimer()
+    while GetGameTimer() - started < C.rideSeconds * 1000 do
+        Wait(500)
+        if not alive(playerId) then
+            dismiss(cab, true)
+            return "aborted"
         end
+    end
+    local transit = math.min(C.transitMaxSeconds, C.transitSeconds + distance2d(waitAt, drop) / 1000 * C.transitPerKm)
+    scene(true, math.floor(transit * 1000))
+    local dark = GetGameTimer()
+    Wait(1200) -- экран успевает потемнеть
+    dropOff(playerId, cab)
+    removeCab(cab)
+
+    -- У метки: игрок на полосе, такси выше по течению, игрок — в такси.
+    local landed, landWhy = teleport(playerId, drop, bucket)
+    if not landed then
+        log("warn", "игрок %d не перенесён к метке: %s", playerId, tostring(landWhy))
+        scene(false)
+        return "aborted", "Поездка прервана, деньги не списаны."
+    end
+    local arrive = Lanes.upstream(drop, C.approachMeters, playerId, bucket)
+    local cab2 = arrive and spawnCab(playerId, arrive, bucket, records)
+    if cab2 then pattern(cab2, "stop") end -- ждёт посадки
+    local seated = cab2 and board(playerId, cab2)
+    local left = transit * 1000 - (GetGameTimer() - dark)
+    if left > 0 then Wait(math.floor(left)) end
+    if not seated then
+        -- Подъехать не на чем — просто у метки.
+        if cab2 then removeCab(cab2) end
+        scene(false)
+        return "done", pay()
+    end
+    pattern(cab2, "default")
+    scene(false)
+    status("riding", { meters = math.floor(distance2d(arrive, drop)) })
+    ok, failure = pullUp(cab2, drop, C.dropSeconds, function()
+        if not alive(playerId) then return "player_gone" end
     end)
-    if not ok and failure == "player_gone" then
-        dismiss(cab, true)
-        return "aborted"
-    end
-    Open77.vehicles.ai.stop(cab)
-    local outside = dropOff(playerId, cab)
-    dismiss(cab, false)
-    if not ok then
-        log("warn", "такси игрока %d не доехало: %s", playerId, tostring(failure))
-        return "fallback"
-    end
-    if not outside then return "fallback" end
+    if not ok then log("warn", "такси игрока %d не встало у метки: %s", playerId, tostring(failure)) end
+    pattern(cab2, "stop")
+    Wait(500)
+    dropOff(playerId, cab2)
+    dismiss(cab2, false)
     return "done", pay()
 end
 
--- Диагностика (rp.taxitest): машина record с водителем на spot, команда mode:
---   drive  — driveTo к target со скоростью и поведением; plain — driveTo только с позицией;
---   route  — followRoute по точкам полосы route; follow — follow за игроком; join — joinTraffic.
--- seconds секунд состояния автопилота в лог, потом машина убирается.
-function Cab.test(playerId, spot, bucket, record, mode, target, seconds, route)
+-- Диагностика (rp.taxitest): машина record с водителем на spot, в потоке, seconds секунд
+-- состояния автопилота в лог, потом машина убирается.
+function Cab.test(playerId, spot, bucket, record, seconds)
     local cab, why = spawnCab(playerId, spot, bucket, { record })
     if not cab then return log("warn", "тест такси: %s", tostring(why)) end
-    local task, taskWhy
-    if mode == "join" then
-        task, taskWhy = Open77.vehicles.ai.joinTraffic(cab)
-    elseif mode == "plain" then
-        task, taskWhy = Open77.vehicles.ai.driveTo(cab, { position = target })
-    elseif mode == "route" then
-        task, taskWhy = Open77.vehicles.ai.followRoute(cab, { points = route, speed = C.speed })
-    elseif mode == "follow" then
-        task, taskWhy = Open77.vehicles.ai.follow(cab, { targetKind = "player", targetId = playerId, distance = 10, speed = C.speed })
-    else
-        task, taskWhy = Open77.vehicles.ai.driveTo(cab, { position = target, speed = C.speed, behavior = C.behavior,
-            arrivalRadius = 10, timeoutMilliseconds = seconds * 1000 })
-    end
-    Open77.vehicles.setFrozen(cab, false)
-    log("info", "тест такси %s: %s %s — задача %s", tostring(cab), record, mode, task and "принята" or ("отказ: " .. tostring(taskWhy)))
     local started, last = GetGameTimer(), nil
     local from = Open77.vehicles.getPosition(cab)
     while GetGameTimer() - started < seconds * 1000 do

@@ -15,23 +15,26 @@ TaxiConfig = {
     -- перерыв между вызовами; offerSeconds — сколько окно с ценой действует.
     call = { stayRadius = 30, minMeters = 200, cooldownSeconds = 60, offerSeconds = 120 },
 
-    -- Машина и автопилот. model — запись машины (запасная — fallbackModel); speed — м/с; pickupSeconds / rideSecondsPerKm —
-    -- сколько ждать доезда, дольше — запасной вариант; dropRadius — до метки ближе этого «доехали», даже если автопилот не
-    -- смог подъехать вплотную; leaveSeconds — сколько такси после высадки ездит в трафике.
+    -- Машина и поездка (server/cab.lua). Автопилот «к точке» на этой сборке не работает, такси
+    -- ездит в потоке: model — запись машины (запасная — fallbackModel).
     cab = {
         model = "Vehicle.v_standard2_villefort_cortes_delamain_taxi",
         fallbackModel = "Vehicle.v_standard2_villefort_cortes_delamain",
         -- Водитель — NPC (без водителя игра машину не ведёт). Запись из профилей open77_traffic.
         driver = "Character.CitizenRichFemaleDriver",
-        -- spawn: точка полосы (server/roads.lua) в minMeters..maxMeters от игрока, не дальше
-        -- maxDz по высоте; tries — сколько точек проверить лучом; clearance — без машин в
-        -- стольких метрах. pickupRoadMeters / dropRoadMeters — такси подъезжает к полосе не
-        -- дальше этого от игрока и высаживает у полосы не дальше этого от метки.
-        spawn = { minMeters = 60, maxMeters = 180, maxDz = 10, tries = 8, clearance = 6 },
+        -- pickupRoadMeters / dropRoadMeters — полоса не дальше этого от игрока / от метки.
+        -- approachMeters — такси появляется на той же полосе выше по течению на столько метров
+        -- (по очереди, пока не найдётся место) и подъезжает в потоке; stopRadius — ближе этого
+        -- к точке такси останавливается; pickupSeconds / dropSeconds — сколько ждать подъезда.
         pickupRoadMeters = 40, dropRoadMeters = 80,
-        speed = 16, behavior = "normal", seat = "rearLeft",
-        pickupSeconds = 90, rideSecondsPerKm = 150, minRideSeconds = 90,
-        pickupRadius = 12, dropRadius = 120, boardTimeoutMs = 8000, leaveSeconds = 40,
+        approachMeters = { 60, 40, 90, 25 }, stopRadius = 8, pickupSeconds = 60, dropSeconds = 40,
+        -- rideSeconds — сколько ехать в потоке после посадки до затемнения; затемнение
+        -- transitSeconds + transitPerKm за км по прямой, не дольше transitMaxSeconds.
+        rideSeconds = 20, transitSeconds = 6, transitPerKm = 3, transitMaxSeconds = 15,
+        seat = "rearLeft", boardTimeoutMs = 8000, leaveSeconds = 40,
+        -- spawn — для rp.taxitest: полоса в minMeters..maxMeters, maxDz по высоте, tries точек;
+        -- clearance — без машин в стольких метрах (и для такси).
+        spawn = { minMeters = 60, maxMeters = 180, maxDz = 10, tries = 8, clearance = 6 },
     },
 
     -- Запасной переезд: сколько длится затемнение; bucket на это время — base + playerId.

@@ -197,81 +197,24 @@ RegisterNetEvent("rp_taxi:waypoint", function(position, reason)
     state(playerId, { stage = "offer", km = math.floor(km * 10) / 10, price = price })
 end)
 
--- -- дороги ---------------------------------------------------------------------------------
--- Точки полос — server/roads.lua (выгрузка каталога open77_traffic). Платформа дорог не
--- знает, а автопилоту нужен старт на полосе.
-
-local function roadPoints(center, radius)
-    local R = TaxiRoads
-    local list = {}
-    local cx0, cx1 = math.floor((center.x - radius) / R.grid), math.floor((center.x + radius) / R.grid)
-    local cy0, cy1 = math.floor((center.y - radius) / R.grid), math.floor((center.y + radius) / R.grid)
-    for cx = cx0, cx1 do
-        for cy = cy0, cy1 do
-            local cell = R.cells[cx .. ":" .. cy]
-            if cell then
-                for i = 1, #cell, 4 do
-                    local dx, dy = cell[i] - center.x, cell[i + 1] - center.y
-                    local d = math.sqrt(dx * dx + dy * dy)
-                    if d <= radius then
-                        list[#list + 1] = { x = cell[i], y = cell[i + 1], z = cell[i + 2], yaw = cell[i + 3], d = d }
-                    end
-                end
-            end
-        end
-    end
-    return list
-end
-
--- Ближайшая к точке полоса (в пределах radius и maxDz по высоте) или nil.
-local function nearestRoad(point, radius, maxDz)
-    local best
-    for _, p in ipairs(roadPoints(point, radius)) do
-        if math.abs(p.z - point.z) <= maxDz and (not best or p.d < best.d) then best = p end
-    end
-    return best
-end
-
--- Место появления такси: точка полосы в minMeters..maxMeters от игрока, на его уровне
--- (не эстакада над ним и не тоннель под ним), с настоящей дорогой под ней (луч от 1,5 м над
--- точкой, как у open77_traffic) и без машин рядом.
-local function roadSpot(playerId, from)
-    local S = TaxiConfig.cab.spawn
-    local target = (S.minMeters + S.maxMeters) / 2
-    local candidates = {}
-    for _, p in ipairs(roadPoints(from, S.maxMeters)) do
-        if p.d >= S.minMeters and math.abs(p.z - from.z) <= S.maxDz then candidates[#candidates + 1] = p end
-    end
-    table.sort(candidates, function(a, b) return math.abs(a.d - target) < math.abs(b.d - target) end)
-    for i = 1, math.min(#candidates, S.tries) do
-        local p = candidates[i]
-        local ground, why = Open77.world.groundZ({ x = p.x, y = p.y }, { playerId = playerId, cache = false, fromZ = p.z + 1.5 })
-        ground = tonumber(ground)
-        if ground and math.abs(ground - p.z) <= 1.5 then
-            local near = Open77.vehicles.nearby({ x = p.x, y = p.y, z = ground }, S.clearance, { bucket = from.bucket, limit = 1 })
-            if type(near) == "table" and next(near) == nil then
-                return { x = p.x, y = p.y, z = ground, yaw = p.yaw }
-            end
-        elseif not ground then
-            log("info", "игрок %d: точка полосы в %d м — нет дороги под ней (%s)", playerId, math.floor(p.d), tostring(why))
-        end
-    end
-    log("info", "игрок %d: места на полосе не нашлось (кандидатов %d)", playerId, #candidates)
-end
-
 local function ride(playerId, call)
     call.stage = "riding"
-    local spot = roadSpot(playerId, call.from)
-    if calls[playerId] ~= call then return end
-    if not spot then return scene(playerId, call) end
     local C = TaxiConfig.cab
-    -- Подъехать к полосе рядом с игроком и высадить у полосы рядом с меткой.
-    local pickup = nearestRoad(call.from, C.pickupRoadMeters, 6) or call.from
-    local dropAt = nearestRoad(call.to, C.dropRoadMeters, 15)
-    local to = dropAt and { x = dropAt.x, y = dropAt.y, z = dropAt.z } or call.to
-    local outcome, extra = Cab.ride(playerId, spot, pickup, to, call.from.bucket,
+    -- Точка полосы у игрока (подъезд) и у метки (высадка).
+    local pickup = Lanes.nearest(call.from, C.pickupRoadMeters, 6)
+    local drop = Lanes.nearest(call.to, C.dropRoadMeters, 15)
+    if not pickup or not drop then
+        log("info", "игрок %d: дороги рядом нет (у игрока %s, у метки %s)", playerId, tostring(pickup ~= nil), tostring(drop ~= nil))
+        return scene(playerId, call)
+    end
+    local outcome, extra = Cab.ride(playerId, pickup, drop, call.from.bucket, call.from,
         function(stage, info) state(playerId, { stage = stage, meters = info and info.meters }) end,
-        function() return charge(playerId, call.price) end, call.from)
+        function(on, ms)
+            if on then TriggerClientEvent("rp_taxi:scene", playerId, { ms = ms, ride = true })
+            else TriggerClientEvent("rp_taxi:sceneEnd", playerId) end
+        end,
+        function() return charge(playerId, call.price) end)
+    if calls[playerId] ~= call then return end
     if outcome == "done" then
         return finish(playerId, ("Приехали. Списано %d €$."):format(extra or 0), true)
     end
@@ -303,8 +246,8 @@ RegisterNetEvent("rp_taxi:answer", function(accept)
     end
 end)
 
--- rp.taxitest [cab|cortes|galena] [drive|plain|route|follow|join] — диагностика автопилота (право rp.vehicles):
--- машина с водителем на полосе рядом, команда, 25 с состояний в лог сервера.
+-- rp.taxitest [cab|cortes|galena] — диагностика (право rp.vehicles): машина с водителем на
+-- полосе рядом, пущенная в поток, 25 с состояний автопилота в лог сервера.
 local TEST_MODELS = {
     cab = "Vehicle.v_standard2_villefort_cortes_delamain_taxi",
     cortes = "Vehicle.v_standard2_villefort_cortes",
@@ -315,24 +258,12 @@ RegisterCommand("rp.taxitest", function(source, args)
     if not playerId or playerId < 1 then return end
     if core("can", playerId, "rp.vehicles") ~= true then return notify(playerId, "Недостаточно прав (rp.vehicles).") end
     local record = TEST_MODELS[args[1] or "cab"] or args[1]
-    local modes = { drive = true, plain = true, route = true, follow = true, join = true }
-    local mode = modes[args[2] or ""] and args[2] or "drive"
     local here = placeOf(playerId)
     if not here then return notify(playerId, "Ваша позиция неизвестна.") end
-    local spot = roadSpot(playerId, here)
+    local spot = Lanes.spotNear(playerId, here)
     if not spot then return notify(playerId, "Рядом нет свободной полосы.") end
-    local target = nearestRoad(here, 40, 6) or here
-    notify(playerId, "Тест: %s, %s. Смотрите лог сервера (тест такси …), 25 с.", record, mode)
-    -- Маршрут для route: точки полос между машиной и игроком (по 1 из каждых ~30 м).
-    local route = {}
-    for i = 1, 4 do
-        local t = i / 4
-        local p = nearestRoad({ x = spot.x + (target.x - spot.x) * t, y = spot.y + (target.y - spot.y) * t,
-                                z = spot.z + (target.z - spot.z) * t }, 30, 8)
-        if p then route[#route + 1] = { x = p.x, y = p.y, z = p.z } end
-    end
-    if #route == 0 then route[1] = { x = target.x, y = target.y, z = target.z } end
-    Cab.test(playerId, spot, here.bucket, record, mode, { x = target.x, y = target.y, z = target.z }, 25, route)
+    notify(playerId, "Тест: %s. Смотрите лог сервера (тест такси …), 25 с.", record)
+    Cab.test(playerId, spot, here.bucket, record, 25)
     notify(playerId, "Тест закончен.")
 end, false)
 

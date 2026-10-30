@@ -44,11 +44,16 @@ RegisterNetEvent("rp_taxi:state", function(payload)
     if payload.stage == "none" then lockControls(false) end
 end)
 
--- Запасной переезд: экран темнеет, персонаж не двигается.
+-- Затемнение (переезд к метке): экран темнеет, персонаж не двигается.
 RegisterNetEvent("rp_taxi:scene", function(payload)
     if type(payload) ~= "table" then return end
     lockControls(true)
     send("taxi:scene", payload)
+end)
+
+RegisterNetEvent("rp_taxi:sceneEnd", function()
+    lockControls(false)
+    send("taxi:sceneEnd", {})
 end)
 
 AddEventHandler("onClientResourceStart", function(name)

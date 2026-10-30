@@ -14,5 +14,6 @@ permissions { "network.events", "players.life.read", "players.teleport", "world.
 
 server_script "server/config.lua"
 server_script "server/roads.lua"
+server_script "server/lanes.lua"
 server_script "server/cab.lua"
 server_script "server/main.lua"
