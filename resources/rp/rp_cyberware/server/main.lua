@@ -712,7 +712,8 @@ CreateThread(function()
                     pushPanel(playerId)
                 end
                 local now = Open77.time.unix()
-                if s.psychosis >= CyberConfig.episodeFrom and now >= s.nextEpisode and not Open77.players.isDead(playerId) then
+                if not CyberConfig.testEpisodes and s.psychosis >= CyberConfig.episodeFrom and now >= s.nextEpisode
+                    and not Open77.players.isDead(playerId) then
                     episode(playerId, s.psychosis >= CyberConfig.severeFrom)
                     s.nextEpisode = now + math.floor(CyberConfig.episodeMinutes * 60 * (0.5 + math.random()))
                 end
@@ -837,7 +838,17 @@ end)
 CreateThread(function()
     while true do
         Wait(1000)
+        local test = CyberConfig.testEpisodes
         for playerId, s in pairs(state) do
+            -- Тестовый режим приступов (CyberConfig.testEpisodes): по секундам, а не по минутам.
+            if test and s.psychosis >= CyberConfig.episodeFrom and not Open77.players.isDead(playerId) and not isDowned(playerId) then
+                local severe = s.psychosis >= CyberConfig.severeFrom
+                local now = Open77.time.unix()
+                if not s.testEpisodeAt or now >= s.testEpisodeAt then
+                    episode(playerId, severe)
+                    s.testEpisodeAt = now + (severe and test.severe or test.light)
+                end
+            end
             if s.overdrive then
                 local def = overdriveDef(s)
                 if not def or Open77.players.isDead(playerId) or isDowned(playerId) then

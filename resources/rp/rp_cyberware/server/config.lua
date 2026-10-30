@@ -27,6 +27,9 @@ CyberConfig = {
     episodeFrom = 40,
     severeFrom = 75,
     episodeMinutes = 10,
+    -- ТЕСТ: приступы чаще — лёгкие раз в light секунд, тяжёлые раз в severe секунд (вместо
+    -- episodeMinutes). Перед запуском живого сервера — testEpisodes = nil.
+    testEpisodes = { light = 10, severe = 5 },
 
     clinicPriceFactor = 1.5,
     removePrice = 500,       -- снять имплант (у рипердока; в клинике × clinicPriceFactor)
