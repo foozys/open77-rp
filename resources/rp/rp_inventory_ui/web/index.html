@@ -13,6 +13,8 @@
     --ok: #78dc8c;
     --text: #e8f1f2;
     --muted: #8fa3a8;
+    --red: #ff6158;
+    --gold: #f3c018;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
@@ -35,23 +37,81 @@
     border: 1px solid transparent; font: inherit; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; }
   .tab:hover { color: var(--text); }
   .tab.active { color: var(--accent); border-color: var(--line); background: rgba(94, 246, 255, 0.06); }
-  #cyberView { display: none; width: 720px; min-height: 460px; }
+  /* -- вкладка «Импланты»: тело в центре, слоты по бокам, шкалы по краям -- */
+  #cyberView { display: none; width: 1080px; }
   #panel.cyber #invView { display: none; }
   #panel.cyber #cyberView { display: block; }
-  .meter { margin: 14px 0; }
-  .meterHead { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-  .meterHead b { color: var(--text); }
-  .meterBar { position: relative; height: 8px; margin-top: 5px; background: rgba(255, 255, 255, 0.08); }
-  .meterFill { height: 100%; background: var(--accent); }
-  .meterMark { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--warn); }
-  .meterNote { font-size: 12px; color: var(--muted); margin-top: 4px; min-height: 16px; }
-  #slotList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
-  .slot { padding: 9px 12px; border: 1px solid rgba(255, 255, 255, 0.08); min-height: 58px; }
-  .slot .slotName { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-  .slot .impl { font-weight: 600; margin-top: 2px; }
-  .slot .impl.none { color: rgba(255, 255, 255, 0.25); font-weight: 400; }
-  .slot small { display: block; color: var(--muted); font-size: 12px; }
-  .slot.filled { border-color: rgba(200, 120, 255, 0.45); background: rgba(200, 120, 255, 0.05); }
+  #panel.cyber { background: radial-gradient(ellipse 60% 70% at 55% 50%, rgba(140, 24, 32, 0.45), transparent 75%), var(--bg);
+    border-top-color: var(--red); }
+  #cyberView h1 { color: var(--red); }
+  .cyMain { display: grid; grid-template-columns: 110px 1fr 260px 1fr 110px; gap: 10px; align-items: center;
+    height: 560px; margin-top: 6px; }
+  .vMeter { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .vTitle { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+  .vBar { position: relative; width: 44px; height: 380px;
+    background: repeating-linear-gradient(to top, rgba(255, 255, 255, 0.08) 0 5px, transparent 5px 8px);
+    -webkit-mask: linear-gradient(90deg, #000 0 44%, transparent 44% 56%, #000 56%); }
+  .vFill { position: absolute; left: 0; right: 0; bottom: 0; transition: height 0.4s;
+    background: repeating-linear-gradient(to top, var(--c) 0 5px, transparent 5px 8px); }
+  .vWrap { position: relative; }
+  .vMark { position: absolute; left: -8px; right: -8px; height: 2px; background: var(--warn); }
+  .vMark span { position: absolute; right: calc(100% + 4px); top: -9px; padding: 0 4px; font-size: 11px;
+    border: 1px solid var(--warn); color: var(--warn); background: rgba(10, 12, 18, 0.9); }
+  .vValue { padding: 2px 10px; border: 1px solid var(--c); color: var(--c); font-weight: 700; font-size: 15px; }
+  .vNote { width: 110px; min-height: 44px; text-align: center; font-size: 11px; color: var(--muted); }
+  .cyCol { display: flex; flex-direction: column; gap: 22px; }
+  .cyCol.left { align-items: flex-end; text-align: right; }
+  .cyHead { color: var(--red); font-size: 13px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .cyHead::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 8px; border-radius: 50%;
+    background: var(--accent); vertical-align: middle; opacity: 0; }
+  .cyCol.right .cyHead::after { display: none; }
+  .cyCol.right .cyHead::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px;
+    border-radius: 50%; background: var(--accent); vertical-align: middle; opacity: 0; }
+  .cyGroup.has .cyHead::after, .cyGroup.has .cyHead::before { opacity: 1; }
+  .cyTiles { display: flex; gap: 6px; }
+  .cyTile { position: relative; width: 84px; height: 84px; padding: 6px; cursor: default; overflow: hidden;
+    border: 1px solid rgba(94, 246, 255, 0.35); background: rgba(0, 0, 0, 0.4); text-align: left; }
+  .cyTile::after { content: ""; position: absolute; right: 0; bottom: 0; border: 7px solid transparent;
+    border-right-color: var(--accent); border-bottom-color: var(--accent); }
+  .cyTile.filled { border-left: 4px solid var(--gold); background: linear-gradient(160deg, rgba(94, 246, 255, 0.10), rgba(0, 0, 0, 0.5)); }
+  .cyTile.empty { border: 1px dashed rgba(255, 97, 88, 0.55); background: rgba(80, 10, 16, 0.25); }
+  .cyTile.empty::after { display: none; }
+  .cyTile:hover, .cyTile.sel { border-color: var(--accent); box-shadow: 0 0 12px rgba(94, 246, 255, 0.35); }
+  .cyTile .tName { font-size: 11px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 2px #000; }
+  .cyTile .tSlot { position: absolute; left: 6px; bottom: 4px; font-size: 9px; color: var(--muted); text-transform: uppercase; }
+  .cyTile .tCost { position: absolute; right: 16px; bottom: 3px; font-size: 11px; font-weight: 700; color: var(--gold); }
+  .cyTile .tPlus { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 26px; color: rgba(255, 97, 88, 0.6); }
+  .cyBodyBox { position: relative; height: 540px; display: flex; justify-content: center; overflow: hidden; }
+  #cyBody { height: 100%; }
+  .cyScan { position: absolute; left: 10%; right: 10%; height: 60px; top: -60px; pointer-events: none;
+    background: linear-gradient(transparent, rgba(94, 246, 255, 0.12), transparent); animation: cyScan 5s linear infinite; }
+  @keyframes cyScan { to { top: 100%; } }
+  #cyBody .solid { fill: url(#cyGlass); stroke: rgba(255, 200, 196, 0.7); stroke-width: 1; transition: fill 0.2s, stroke 0.2s; }
+  #cyBody .limb { fill: none; stroke: url(#cyGlass); stroke-linecap: round; transition: stroke 0.2s; }
+  #cyBody .bones path, #cyBody .bones ellipse { fill: none; stroke: rgba(255, 236, 232, 0.45); stroke-width: 1.4; transition: stroke 0.2s; }
+  #cyBody .heart { fill: rgba(255, 97, 88, 0.75); transform-origin: 108px 120px; animation: cyBeat 1.1s ease-in-out infinite; }
+  @keyframes cyBeat { 50% { transform: scale(1.12); } }
+  #cyBody .has .solid { stroke: rgba(94, 246, 255, 0.8); }
+  #cyBody .has.bones path, #cyBody .has.bones ellipse { stroke: rgba(94, 246, 255, 0.6); }
+  #cyBody .lit .solid { fill: rgba(94, 246, 255, 0.35); stroke: var(--accent); }
+  #cyBody .lit .limb { stroke: rgba(94, 246, 255, 0.5); }
+  #cyBody .lit.bones path, #cyBody .lit.bones ellipse { stroke: var(--accent); stroke-width: 2; }
+  #cyBody .lit .heart, #cyBody .lit.heart { fill: var(--accent); }
+  .cyFoot { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .cyFoot b { color: var(--text); }
+  #cyTip { position: fixed; display: none; z-index: 30; width: 300px; background: rgba(8, 10, 16, 0.97);
+    border: 1px solid rgba(94, 246, 255, 0.6); pointer-events: none; }
+  #cyTip .tipHead { padding: 4px 12px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    background: rgba(94, 246, 255, 0.14); color: var(--accent); }
+  #cyTip .tipHead.empty { background: rgba(255, 97, 88, 0.15); color: #ff6158; }
+  #cyTip .tipBody { padding: 10px 12px 12px; }
+  #cyTip .tipName { font-size: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); }
+  #cyTip .tipSlot { color: #ff6158; font-size: 13px; margin: 2px 0 8px; }
+  #cyTip .tipCost { display: inline-block; padding: 2px 8px; border: 1px solid #f3c018; color: #f3c018; font-weight: 700; margin-bottom: 8px; }
+  #cyTip .tipDesc { font-size: 13px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+  #cyTip .tipFoot { margin-top: 10px; padding: 6px 8px; font-size: 12px; color: var(--muted);
+    border: 1px solid rgba(243, 192, 24, 0.5); }
   #grids { display: flex; gap: 28px; align-items: flex-start; }
   #lootBox { display: none; }
   #lootBox.visible { display: block; }
@@ -137,18 +197,84 @@
     </div>
     <div id="cyberView">
       <h1>Импланты</h1>
-      <div class="hint">Ставит и снимает рипердок. Нейроблокатор (аптека) снижает психоз.</div>
-      <div class="meter"><div class="meterHead"><span>Человечность</span><b id="humValue"></b></div>
-        <div class="meterBar"><div class="meterFill" id="humFill"></div><div class="meterMark" id="humMark"></div></div>
-        <div class="meterNote" id="humNote"></div></div>
-      <div class="meter"><div class="meterHead"><span>Рассудок</span><b id="sanityValue"></b></div>
-        <div class="meterBar"><div class="meterFill" id="sanityFill"></div></div>
-        <div class="meterNote" id="sanityNote"></div></div>
-      <div id="slotList"></div>
+      <div class="hint">Наведите на слот — подробности. Ставит и снимает рипердок. Нейроблокатор (аптека) снижает психоз.</div>
+      <div class="cyMain">
+        <div class="vMeter" id="humMeter">
+          <div class="vTitle" style="color: #f3c018">Человечность</div>
+          <div class="vWrap"><div class="vBar"><div class="vFill" id="humFill"></div></div><div class="vMark" id="humMark"><span></span></div></div>
+          <div class="vValue" id="humValue"></div>
+          <div class="vNote" id="humNote"></div>
+        </div>
+        <div class="cyCol left" id="cyLeft"></div>
+        <div class="cyBodyBox">
+          <svg id="cyBody" viewBox="0 0 200 440">
+            <defs>
+              <linearGradient id="cyGlass" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="440">
+                <stop offset="0" stop-color="#ffc4bf" stop-opacity="0.55"/>
+                <stop offset="0.5" stop-color="#ff8a80" stop-opacity="0.35"/>
+                <stop offset="1" stop-color="#ff6158" stop-opacity="0.22"/>
+              </linearGradient>
+              <filter id="cyGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="2.5" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <g id="r-skin" filter="url(#cyGlow)">
+              <g id="r-legs">
+                <path class="limb" d="M85 236 L81 330" stroke-width="27"/>
+                <path class="limb" d="M81 330 L79 410" stroke-width="18"/>
+                <path class="limb" d="M115 236 L119 330" stroke-width="27"/>
+                <path class="limb" d="M119 330 L121 410" stroke-width="18"/>
+                <ellipse class="solid" cx="76" cy="422" rx="11" ry="7"/>
+                <ellipse class="solid" cx="124" cy="422" rx="11" ry="7"/>
+              </g>
+              <g id="r-arms">
+                <path class="limb" d="M61 94 L47 176" stroke-width="17"/>
+                <path class="limb" d="M47 176 L35 250" stroke-width="12"/>
+                <path class="limb" d="M139 94 L153 176" stroke-width="17"/>
+                <path class="limb" d="M153 176 L165 250" stroke-width="12"/>
+                <ellipse class="solid" cx="32" cy="267" rx="7" ry="13"/>
+                <ellipse class="solid" cx="168" cy="267" rx="7" ry="13"/>
+              </g>
+              <g id="r-torso">
+                <path class="solid" d="M62 84 Q100 72 138 84 Q148 92 145 114 Q140 160 134 196 Q137 222 131 242 Q100 254 69 242 Q63 222 66 196 Q60 160 55 114 Q52 92 62 84 Z"/>
+              </g>
+              <g id="r-head">
+                <path class="solid" d="M91 56 L109 56 L112 80 L88 80 Z"/>
+                <ellipse class="solid" cx="100" cy="35" rx="21" ry="26"/>
+              </g>
+            </g>
+            <g id="r-bones" class="bones">
+              <ellipse cx="100" cy="33" rx="14" ry="18"/>
+              <path d="M100 62 L100 232"/>
+              <path d="M70 90 Q100 84 130 90"/>
+              <path d="M100 100 Q80 101 70 112 M100 100 Q120 101 130 112"/>
+              <path d="M100 112 Q80 113 70 124 M100 112 Q120 113 130 124"/>
+              <path d="M100 124 Q82 125 72 136 M100 124 Q118 125 128 136"/>
+              <path d="M100 136 Q84 137 75 148 M100 136 Q116 137 125 148"/>
+              <path d="M76 224 Q100 248 124 224 Q112 214 100 220 Q88 214 76 224 Z"/>
+              <path d="M61 94 L47 176 L35 250 M139 94 L153 176 L165 250"/>
+              <path d="M85 236 L81 330 L79 410 M115 236 L119 330 L121 410"/>
+            </g>
+            <g id="r-heart"><path class="heart" d="M108 128 L98 117 Q95 110 101 108 Q105 107 108 111 Q111 107 115 108 Q121 110 118 117 Z"/></g>
+          </svg>
+          <div class="cyScan"></div>
+        </div>
+        <div class="cyCol right" id="cyRight"></div>
+        <div class="vMeter" id="sanMeter">
+          <div class="vTitle" style="color: var(--accent)">Рассудок</div>
+          <div class="vWrap"><div class="vBar"><div class="vFill" id="sanityFill"></div></div>
+            <div class="vMark" id="sanEpisode"><span></span></div><div class="vMark" id="sanSevere"><span></span></div></div>
+          <div class="vValue" id="sanityValue"></div>
+          <div class="vNote" id="sanityNote"></div>
+        </div>
+      </div>
+      <div class="cyFoot"><span id="cyCount"></span><span>Снять или заменить имплант — у рипердока</span></div>
     </div>
   </div>
   <div id="ghost"><div class="name"></div></div>
   <div id="tooltip"></div>
+  <div id="cyTip"></div>
   <div id="menu"></div>
   <div id="dialog"><label id="dialogLabel"></label><input id="dialogInput" type="number" min="1"><button id="dialogOk">OK</button></div>
 </div>
@@ -492,40 +618,131 @@
 
   // -- вкладка «Импланты» ------------------------------------------------------------
 
+  // Раскладка слотов по системам организма (только вид; слоты задаёт rp_cyberware).
+  const CY_GROUPS = {
+    left: [
+      { label: "Операционная система", slots: ["os"] },
+      { label: "Руки", slots: ["arms"] },
+      { label: "Скелет", slots: ["skeleton", "tendons"] },
+      { label: "Покровы", slots: ["skin"] },
+    ],
+    right: [
+      { label: "Кровообращение", slots: ["heart", "blood"] },
+      { label: "Метаболизм", slots: ["metabolism"] },
+      { label: "Защита разума", slots: ["ice", "purge"] },
+      { label: "Ноги", slots: ["legs"] },
+    ],
+  };
+  // Какая часть тела подсвечивается для слота.
+  const CY_REGION = { os: "head", ice: "head", purge: "head", arms: "arms", legs: "legs", tendons: "legs",
+    skeleton: "bones", skin: "skin", heart: "heart", blood: "torso", metabolism: "torso" };
+
   let cyber = null;
+  const shortName = label => String(label).replace(/^Имплант: /, "");
+
+  function cyLight(slotId, on) {
+    const region = document.getElementById("r-" + (CY_REGION[slotId] || "skin"));
+    if (region) region.classList.toggle("lit", on);
+  }
+
+  function cyShowTip(tile, slot, side) {
+    const tip = $("cyTip");
+    const it = slot.implant;
+    tip.innerHTML = it
+      ? `<div class="tipHead">Установлен</div><div class="tipBody"><div class="tipName"></div><div class="tipSlot"></div>
+         <div class="tipCost"></div><div class="tipDesc"></div><div class="tipFoot">Снять или заменить — в клинике рипердока</div></div>`
+      : `<div class="tipHead empty">Пустой слот</div><div class="tipBody"><div class="tipName"></div><div class="tipSlot"></div>
+         <div class="tipDesc">Имплант для этого слота можно купить в магазине имплантов и поставить у рипердока.</div></div>`;
+    tip.querySelector(".tipName").textContent = it ? shortName(it.label) : "Пусто";
+    tip.querySelector(".tipSlot").textContent = slot.label;
+    if (it) {
+      tip.querySelector(".tipCost").textContent = `−${it.humanity} человечности`;
+      tip.querySelector(".tipDesc").textContent = it.description || "";
+    }
+    tip.style.display = "block";
+    const r = tile.getBoundingClientRect();
+    const left = side === "left" ? r.right + 12 : r.left - 12 - tip.offsetWidth;
+    const top = Math.min(Math.max(8, r.top - 10), window.innerHeight - tip.offsetHeight - 8);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+  }
+
+  function cyHideTip() { $("cyTip").style.display = "none"; }
+
+  function cyTile(slot, side) {
+    const el = document.createElement("div");
+    el.className = "cyTile " + (slot.implant ? "filled" : "empty");
+    if (slot.implant) {
+      el.innerHTML = `<div class="tName"></div><div class="tCost"></div>`;
+      el.querySelector(".tName").textContent = shortName(slot.implant.label);
+      el.querySelector(".tCost").textContent = `−${slot.implant.humanity}`;
+    } else {
+      el.innerHTML = `<div class="tPlus">+</div><div class="tSlot"></div>`;
+      el.querySelector(".tSlot").textContent = slot.label;
+    }
+    el.addEventListener("mouseenter", () => { el.classList.add("sel"); cyLight(slot.id, true); cyShowTip(el, slot, side); });
+    el.addEventListener("mouseleave", () => { el.classList.remove("sel"); cyLight(slot.id, false); cyHideTip(); });
+    return el;
+  }
+
+  function cyColumn(parent, groups, bySlot, side) {
+    parent.replaceChildren();
+    for (const g of groups) {
+      const slots = g.slots.map(id => bySlot.get(id)).filter(Boolean);
+      if (!slots.length) continue;
+      const box = document.createElement("div");
+      box.className = "cyGroup" + (slots.some(s => s.implant) ? " has" : "");
+      const head = document.createElement("div");
+      head.className = "cyHead";
+      head.textContent = g.label;
+      const tiles = document.createElement("div");
+      tiles.className = "cyTiles";
+      for (const s of slots) tiles.append(cyTile(s, side));
+      box.append(head, tiles);
+      parent.append(box);
+    }
+  }
+
   function renderCyber() {
     if (!cyber) return;
+    cyHideTip();
     const max = cyber.humanityMax || 100;
+    const low = cyber.humanity < cyber.threshold;
+    $("humMeter").style.setProperty("--c", low ? "var(--warn)" : "#f3c018");
     $("humValue").textContent = `${cyber.humanity} / ${max}`;
-    $("humFill").style.width = `${Math.max(0, cyber.humanity) / max * 100}%`;
-    $("humFill").style.background = cyber.humanity < cyber.threshold ? "var(--warn)" : "var(--accent)";
-    $("humMark").style.left = `${cyber.threshold / max * 100}%`;
-    $("humNote").textContent = cyber.humanity < cyber.threshold
-      ? "Ниже порога — психоз растёт, пока вы в игре." : `Порог психоза — ${cyber.threshold}.`;
+    $("humFill").style.height = `${Math.max(0, cyber.humanity) / max * 100}%`;
+    $("humMark").style.bottom = `${cyber.threshold / max * 100}%`;
+    $("humMark").querySelector("span").textContent = cyber.threshold;
+    $("humNote").textContent = low ? "Ниже порога — психоз растёт, пока вы в игре." : `Порог психоза — ${cyber.threshold}.`;
+
     const sanity = Math.max(0, 100 - cyber.psychosis);
+    $("sanMeter").style.setProperty("--c", cyber.psychosis >= cyber.severeFrom ? "var(--warn)"
+      : cyber.psychosis >= cyber.episodeFrom ? "#f3a600" : "var(--accent)");
     $("sanityValue").textContent = `${sanity} / 100`;
-    $("sanityFill").style.width = `${sanity}%`;
-    $("sanityFill").style.background = cyber.psychosis >= cyber.severeFrom ? "var(--warn)"
-      : cyber.psychosis >= cyber.episodeFrom ? "#f3a600" : "var(--ok)";
+    $("sanityFill").style.height = `${sanity}%`;
+    $("sanEpisode").style.bottom = `${100 - cyber.episodeFrom}%`;
+    $("sanEpisode").querySelector("span").textContent = 100 - cyber.episodeFrom;
+    $("sanSevere").style.bottom = `${100 - cyber.severeFrom}%`;
+    $("sanSevere").querySelector("span").textContent = 100 - cyber.severeFrom;
     $("sanityNote").textContent = cyber.psychosis >= cyber.severeFrom ? "Киберпсихоз: тяжёлые приступы, теряете контроль."
       : cyber.psychosis >= cyber.episodeFrom ? "Приступы: голоса, помехи. Примите нейроблокатор." : "Рассудок в порядке.";
-    const list = $("slotList");
-    list.replaceChildren();
-    for (const slot of (Array.isArray(cyber.slots) ? cyber.slots : [])) {
-      const el = document.createElement("div");
-      el.className = "slot" + (slot.implant ? " filled" : "");
-      el.innerHTML = `<div class="slotName"></div><div class="impl"></div><small></small>`;
-      el.querySelector(".slotName").textContent = slot.label;
-      const impl = el.querySelector(".impl");
-      if (slot.implant) {
-        impl.textContent = slot.implant.label.replace(/^Имплант: /, "");
-        el.querySelector("small").textContent = `${slot.implant.description} · −${slot.implant.humanity} человечности`;
-      } else {
-        impl.textContent = "пусто";
-        impl.classList.add("none");
-      }
-      list.append(el);
+
+    // Слоты: известные — по группам, новые из конфига — в «Прочее» справа.
+    const slots = Array.isArray(cyber.slots) ? cyber.slots : [];
+    const bySlot = new Map(slots.map(s => [s.id, s]));
+    const known = new Set([...CY_GROUPS.left, ...CY_GROUPS.right].flatMap(g => g.slots));
+    const rest = slots.filter(s => !known.has(s.id)).map(s => s.id);
+    cyColumn($("cyLeft"), CY_GROUPS.left, bySlot, "left");
+    cyColumn($("cyRight"), rest.length ? [...CY_GROUPS.right, { label: "Прочее", slots: rest }] : CY_GROUPS.right, bySlot, "right");
+
+    // На теле обводкой отмечены части, где что-то стоит.
+    document.querySelectorAll("#cyBody .has").forEach(el => el.classList.remove("has"));
+    for (const s of slots) {
+      if (!s.implant) continue;
+      const region = document.getElementById("r-" + (CY_REGION[s.id] || "skin"));
+      if (region) region.classList.add("has");
     }
+    $("cyCount").innerHTML = `Установлено: <b>${slots.filter(s => s.implant).length}</b> из ${slots.length}`;
   }
 
   document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {
