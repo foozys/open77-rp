@@ -17,13 +17,16 @@ TaxiConfig = {
 
     -- Машина и автопилот. model — запись машины (запасная — fallbackModel); spawn — где
     -- появиться: на дороге в minMeters..maxMeters от игрока (место берётся у городского
-    -- трафика); speed — м/с; pickupSeconds / rideSecondsPerKm — сколько ждать доезда, дольше —
-    -- запасной вариант; dropRadius — до метки ближе этого «доехали», даже если автопилот не
+    -- трафика, нет трафика — см. ground); speed — м/с; pickupSeconds / rideSecondsPerKm —
+    -- сколько ждать доезда, дольше — запасной вариант; dropRadius — до метки ближе этого «доехали», даже если автопилот не
     -- смог подъехать вплотную; leaveSeconds — сколько такси после высадки ездит в трафике.
     cab = {
         model = "Vehicle.v_standard2_villefort_cortes_delamain_taxi",
         fallbackModel = "Vehicle.v_standard2_villefort_cortes_delamain",
         spawn = { minMeters = 50, maxMeters = 180 },
+        -- Запасное место, если трафика рядом нет: точки вокруг игрока на расстояниях meters
+        -- (directions направлений), где земля не дальше maxStep м по высоте от ног игрока.
+        ground = { meters = { 45, 30, 60 }, directions = 8, maxStep = 2.5, fromAbove = 6 },
         speed = 16, behavior = "normal", seat = "rearLeft",
         pickupSeconds = 90, rideSecondsPerKm = 150, minRideSeconds = 90,
         pickupRadius = 12, dropRadius = 120, boardTimeoutMs = 8000, leaveSeconds = 40,

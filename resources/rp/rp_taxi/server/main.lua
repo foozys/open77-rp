@@ -157,7 +157,7 @@ RegisterCommand("taxi", function(source)
     local why = blocked(playerId)
     if why then return notify(playerId, why) end
     local wait = TaxiConfig.call.cooldownSeconds - (Open77.time.unix() - (lastCall[playerId] or 0))
-    if wait > 0 then return notify(playerId, "Свободных машин нет, попробуйте через %d с.", wait) end
+    if wait > 0 then return notify(playerId, "Свободных машин нет, попробуйте через %d с.", math.ceil(wait)) end
     calls[playerId] = { stage = "asking", at = Open77.time.unix() }
     TriggerClientEvent("rp_taxi:askWaypoint", playerId)
     CreateThread(function()
@@ -211,9 +211,35 @@ RegisterNetEvent("rp_taxi:spot", function(spot)
         if d >= S.minMeters * 0.5 and d <= S.maxMeters * 1.5 then
             call.spot = { x = x, y = y, z = z, yaw = tonumber(spot.yaw) or 0 }
         end
+    elseif type(spot) == "table" and spot.reason then
+        log("info", "игрок %d: место по трафику не найдено (%s)", playerId, tostring(spot.reason))
     end
     call.spotAnswered = true
 end)
+
+-- Запасное место появления, без трафика: точки вокруг игрока на расстояниях ground.meters,
+-- где земля (луч сверху, меряет клиент игрока) на уровне его ног — улица, а не крыша или
+-- двор выше/ниже. Сначала — позади игрока (по взгляду), чтобы такси подъезжало, а не
+-- появлялось на глазах.
+local function groundSpot(playerId, from)
+    local G = TaxiConfig.cab.ground
+    local back = math.rad((from.heading or 0) + 180)
+    for _, meters in ipairs(G.meters) do
+        for step = 0, G.directions - 1 do
+            local turn = (step % 2 == 0 and 1 or -1) * math.floor((step + 1) / 2) * (360 / G.directions)
+            local a = back + math.rad(turn)
+            local p = { x = from.x - math.sin(a) * meters, y = from.y + math.cos(a) * meters }
+            local ok, z = pcall(Open77.world.groundZ, p, { playerId = playerId, fromZ = from.z + G.fromAbove, timeout = 1500 })
+            z = ok and tonumber(z) or nil
+            if z and math.abs(z - from.z) <= G.maxStep then
+                -- Нос машины — к игроку.
+                local yaw = math.deg(math.atan(-(from.x - p.x), from.y - p.y))
+                log("info", "игрок %d: такси появится без трафика, %d м от него", playerId, meters)
+                return { x = p.x, y = p.y, z = z, yaw = yaw }
+            end
+        end
+    end
+end
 
 local function ride(playerId, call)
     -- Дорога рядом: ждём ответа клиента до 6 с.
@@ -226,8 +252,9 @@ local function ride(playerId, call)
     end
     if calls[playerId] ~= call then return end
     call.stage = "riding"
+    call.spot = call.spot or groundSpot(playerId, call.from)
     if not call.spot then
-        log("info", "игрок %d: дороги рядом не нашлось, такси без подъезда", playerId)
+        log("info", "игрок %d: места для такси рядом не нашлось, такси без подъезда", playerId)
         return scene(playerId, call)
     end
     local outcome, extra = Cab.ride(playerId, call.spot, call.from, call.to, call.from.bucket,

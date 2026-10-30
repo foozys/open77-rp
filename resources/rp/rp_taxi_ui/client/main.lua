@@ -50,7 +50,8 @@ RegisterNetEvent("rp_taxi:findSpot", function(range)
     local minM = tonumber(type(range) == "table" and range.min) or 50
     local maxM = tonumber(type(range) == "table" and range.max) or 180
     CreateThread(function()
-        local before = Open77.vehicles.adoptable({ radius = math.min(200, maxM), limit = 32 }) or {}
+        local before, why = Open77.vehicles.adoptable({ radius = math.min(200, maxM), limit = 32 })
+        if not before then return TriggerServerEvent("rp_taxi:spot", { reason = tostring(why) }) end
         Wait(3000)
         local after = Open77.vehicles.adoptable({ radius = 200, limit = 32 }) or {}
         local best, bestScore
@@ -70,7 +71,8 @@ RegisterNetEvent("rp_taxi:findSpot", function(range)
                 if free and (not best or score < bestScore) then best, bestScore = car, score end
             end
         end
-        local spot = best and { x = best.position.x, y = best.position.y, z = best.position.z, yaw = yawOf(best) } or nil
+        local spot = best and { x = best.position.x, y = best.position.y, z = best.position.z, yaw = yawOf(best) }
+            or { reason = ("машин трафика рядом: %d, подходящих мест нет"):format(#before) }
         TriggerServerEvent("rp_taxi:spot", spot)
     end)
 end)
