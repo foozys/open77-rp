@@ -69,15 +69,16 @@ InvConfig = {
         neuroblocker       = { label = "Нейроблокатор",                 labelEn = "Neuroblocker",        w = 1, h = 1, weightG = 30,   stack = 10, color = "#5ef6ff",
                                use = "consume", useLabel = "Принять" }, -- снижает психоз (rp_cyberware)
 
-        -- Оружие, магазины, патроны (server/gear.lua). Оружие и магазины — уникальные:
-        -- в магазине meta.rounds патронов; в оружии meta.mag = { item, rounds } — вставленный
-        -- магазин. ammo — калибр патрона; mag = { ammo, capacity } — калибр и ёмкость магазина;
-        -- weapon = { record, mags = { допустимые магазины } } (mags = nil — холодное оружие).
+        -- Оружие и патроны (server/gear.lua). Оружие — уникальное, патроны в нём — meta.loaded.
+        -- ammo — калибр патрона; weapon = { record, ammo = калибр } (ammo = nil — холодное оружие).
+        -- Запас оружия — патроны его калибра на поясе, перезарядка — родная (R игры).
         ammo_9mm   = { label = "Патроны 9 мм",       labelEn = "9mm rounds",   w = 1, h = 1, weightG = 12, stack = 60, color = "#b8a26a", ammo = "9mm" },
         ammo_44    = { label = "Патроны .44",        labelEn = ".44 rounds",   w = 1, h = 1, weightG = 20, stack = 30, color = "#a8925a", ammo = "44" },
         ammo_556   = { label = "Патроны 5,56 мм",    labelEn = "5.56 rounds",  w = 1, h = 1, weightG = 12, stack = 60, color = "#9a9a5a", ammo = "556" },
         ammo_12    = { label = "Патроны 12 калибра", labelEn = "12ga shells",  w = 1, h = 1, weightG = 40, stack = 20, color = "#a0583a", ammo = "12" },
 
+        -- Магазины — устарели (не продаются, в оружие не вставляются). Остаются в каталоге, пока
+        -- лежат у игроков: предмет вне каталога ломает операции с ним. Разрядить — ПКМ.
         mag_pistol9 = { label = "Магазин пистолетный 9 мм", labelEn = "Pistol magazine", w = 1, h = 1, weightG = 120, stack = 1, color = "#55606e",
                         unique = true, mag = { ammo = "9mm", capacity = 15 }, meta = { rounds = 0 } },
         mag_smg9    = { label = "Магазин ПП 9 мм",          labelEn = "SMG magazine",    w = 1, h = 2, weightG = 200, stack = 1, color = "#55606e",
@@ -90,21 +91,21 @@ InvConfig = {
                         unique = true, mag = { ammo = "12", capacity = 6 }, meta = { rounds = 0 } },
 
         wpn_lexington  = { label = "Пистолет Lexington (9 мм)",   labelEn = "Lexington",  w = 2, h = 1, weightG = 900,  stack = 1, color = "#3d4652", unique = true,
-                           weapon = { record = "Items.Preset_Lexington_Default", mags = { "mag_pistol9" } }, meta = {} },
+                           weapon = { record = "Items.Preset_Lexington_Default", ammo = "9mm" }, meta = {} },
         wpn_unity      = { label = "Пистолет Unity (9 мм)",       labelEn = "Unity",      w = 2, h = 1, weightG = 1000, stack = 1, color = "#3d4652", unique = true,
-                           weapon = { record = "Items.Preset_Unity_Default", mags = { "mag_pistol9" } }, meta = {} },
+                           weapon = { record = "Items.Preset_Unity_Default", ammo = "9mm" }, meta = {} },
         wpn_overture   = { label = "Револьвер Overture (.44)",   labelEn = "Overture",   w = 2, h = 1, weightG = 1300, stack = 1, color = "#3d4652", unique = true,
-                           weapon = { record = "Items.Preset_Overture_Default", mags = { "mag_rev44" } }, meta = {} },
+                           weapon = { record = "Items.Preset_Overture_Default", ammo = "44" }, meta = {} },
         wpn_saratoga   = { label = "ПП Saratoga (9 мм)",          labelEn = "Saratoga",   w = 3, h = 2, weightG = 2500, stack = 1, color = "#3d4652", unique = true,
-                           weapon = { record = "Items.Preset_Saratoga_Default", mags = { "mag_smg9" } }, meta = {} },
+                           weapon = { record = "Items.Preset_Saratoga_Default", ammo = "9mm" }, meta = {} },
         wpn_pulsar     = { label = "ПП Pulsar (9 мм)",            labelEn = "Pulsar",     w = 3, h = 2, weightG = 2700, stack = 1, color = "#3d4652", unique = true,
-                           weapon = { record = "Items.Preset_Pulsar_Default", mags = { "mag_smg9" } }, meta = {} },
+                           weapon = { record = "Items.Preset_Pulsar_Default", ammo = "9mm" }, meta = {} },
         wpn_ajax       = { label = "Штурмовая винтовка Ajax (5,56)",       labelEn = "Ajax",       w = 4, h = 2, weightG = 3800, stack = 1, color = "#3d4652", unique = true,
-                           weapon = { record = "Items.Preset_Ajax_Default", mags = { "mag_ar556" } }, meta = {} },
+                           weapon = { record = "Items.Preset_Ajax_Default", ammo = "556" }, meta = {} },
         wpn_copperhead = { label = "Штурмовая винтовка Copperhead (5,56)", labelEn = "Copperhead", w = 4, h = 2, weightG = 3600, stack = 1, color = "#3d4652", unique = true,
-                           weapon = { record = "Items.Preset_Copperhead_Default", mags = { "mag_ar556" } }, meta = {} },
+                           weapon = { record = "Items.Preset_Copperhead_Default", ammo = "556" }, meta = {} },
         wpn_carnage    = { label = "Дробовик Carnage (12 кал.)",     labelEn = "Carnage",    w = 4, h = 2, weightG = 4200, stack = 1, color = "#3d4652", unique = true,
-                           weapon = { record = "Items.Preset_Carnage_Default", mags = { "mag_sg12" } }, meta = {} },
+                           weapon = { record = "Items.Preset_Carnage_Default", ammo = "12" }, meta = {} },
         wpn_knife      = { label = "Нож",                  labelEn = "Knife",      w = 1, h = 2, weightG = 300,  stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Knife_Default" }, meta = {} },
         wpn_katana     = { label = "Катана",               labelEn = "Katana",     w = 1, h = 4, weightG = 1500, stack = 1, color = "#3d4652", unique = true,
@@ -115,6 +116,6 @@ InvConfig = {
 
     -- Снаряжение (окно «Снаряжение» рядом с сеткой): слоты оружия w1..w3 (слоты платформы
     -- 1..3) и пояс b1..b5 — клавиши 4–8. На пояс — предметы не больше beltMaxCells клеток.
-    -- Перезарядка — R самой игры, только магазином с пояса (его патроны — запас оружия).
-    gear = { weaponSlots = 3, beltSlots = 5, beltMaxCells = 2, reloadMs = 1600 },
+    -- Перезарядка — R самой игры: запас оружия = патроны его калибра на поясе.
+    gear = { weaponSlots = 3, beltSlots = 5, beltMaxCells = 2 },
 }

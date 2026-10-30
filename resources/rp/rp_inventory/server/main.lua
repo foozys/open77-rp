@@ -87,8 +87,9 @@ local function catalog()
         items[id] = { label = def.label, w = def.w, h = def.h, weightG = def.weightG, stack = def.stack,
                       color = def.color, usable = def.use ~= nil,
                       useLabel = def.useLabel or (def.use == "chip" and "Вставить в нейропорт") or "Использовать",
-                      -- снаряжение: оружие (в слоты), магазин (ёмкость), можно ли на пояс
-                      weapon = def.weapon ~= nil, melee = def.weapon ~= nil and def.weapon.mags == nil,
+                      -- снаряжение: оружие (в слоты), калибр, магазин (устаревший), можно ли на пояс
+                      weapon = def.weapon ~= nil, melee = def.weapon ~= nil and def.weapon.ammo == nil,
+                      caliber = def.weapon and def.weapon.ammo or nil,
                       mag = def.mag and def.mag.capacity or nil, ammo = def.ammo,
                       belt = def.weapon == nil and def.w * def.h <= InvConfig.gear.beltMaxCells }
     end
@@ -108,13 +109,12 @@ local function windowStacks(state, revealed)
         else
             local record = stack.u and state.instances and state.instances[stack.u]
             local meta = record and record.meta or {}
-            local inserted = type(meta.mag) == "table" and meta.mag or nil
             stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r, c = stack.c,
                               a = tonumber(meta.amount),
                               t = type(meta.plate) == "string" and meta.plate or nil,
-                              -- патроны в магазине; в оружии — вставленный магазин и патроны в нём
+                              -- патроны в (устаревшем) магазине; в огнестрельном оружии — патроны в нём
                               m = tonumber(meta.rounds),
-                              wm = inserted and { i = inserted.item, n = Gear and Gear.liveRounds(state, stack) or tonumber(inserted.rounds) or 0 } or nil }
+                              wr = Gear and Gear.isFirearm(stack) and Gear.liveRounds(state, stack) or nil }
         end
     end
     return stacks

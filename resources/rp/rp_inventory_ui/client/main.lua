@@ -102,26 +102,20 @@ AddEventHandler("onClientResourceStart", function(name)
     end)
 
     -- Снаряжение: перенос в слоты оружия и на пояс (target "w1".."w3", "b1".."b5", "grid"),
-    -- магазины и оружие.
+    -- разрядка оружия (и старых магазинов).
     page:on("inv:gear", function(p)
         if type(p) == "table" then TriggerServerEvent("rp_inventory:gear", p.index, p.item, p.target, p.a, p.b, p.c) end
     end)
-    for _, name in ipairs({ "magLoad", "magUnload", "weaponEject" }) do
-        page:on("inv:" .. name, function(p)
-            if type(p) == "table" then TriggerServerEvent("rp_inventory:" .. name, p.index, p.item) end
-        end)
-    end
+    page:on("inv:unload", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_inventory:unload", p.index, p.item) end
+    end)
 
-    -- 4–8 — ячейки пояса (магазин — следующий для перезарядки). Перезарядка — R самой игры:
-    -- запас оружия = патроны следующего магазина с пояса (rp_inventory, server/gear.lua).
+    -- 4–8 — ячейки пояса. Перезарядка — R самой игры: запас оружия = патроны его калибра
+    -- на поясе (rp_inventory, server/gear.lua).
     local function key(id, label, default, fn)
         local okKey, whyKey = RegisterKeyMapping(id, label, default, fn)
         if not okKey then print("[rp_inventory_ui] клавиша " .. id .. ": " .. tostring(whyKey)) end
     end
-    -- R: родная перезарядка игры идёт сама; сервер в этот момент меняет магазины в данных.
-    key("rp_reload", "Перезарядка (магазин с пояса)", "R", function()
-        if not isOpen then TriggerServerEvent("rp_inventory:reloadStart") end
-    end)
     for n = 1, 5 do
         key("rp_belt" .. n, "Пояс: ячейка " .. n, tostring(n + 3), function()
             if not isOpen then TriggerServerEvent("rp_inventory:belt", n) end
@@ -148,20 +142,6 @@ RegisterNetEvent("rp_inventory:openWindow", function()
     send("inv:open")
     page:setFocus(true, true)
     TriggerServerEvent("rp_cyberware:panel")
-end)
-
--- Перезарядка идёт: полоска на экране.
--- Перезарядка идёт: полоска на экране, стрельба на это время заблокирована.
-local reloadToken = 0
-RegisterNetEvent("rp_inventory:reloading", function(ms)
-    ms = tonumber(ms) or 1500
-    send("inv:reloading", { ms = ms })
-    reloadToken = reloadToken + 1
-    local mine = reloadToken
-    Open77.input.setActionBlocked("Attack", true)
-    SetTimeout(ms, function()
-        if reloadToken == mine then Open77.input.setActionBlocked("Attack", false) end
-    end)
 end)
 
 -- Сервер отказал (персонаж не выбран и т.п.): закрыть окно.

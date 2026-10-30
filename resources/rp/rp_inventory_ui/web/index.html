@@ -160,12 +160,6 @@
     font-size: 11px; color: rgba(255, 255, 255, 0.18); text-transform: uppercase; letter-spacing: 1px; pointer-events: none; }
   .wslot .item, .bslot .item { left: 0; top: 0; width: 100%; height: 100%; }
   .item .mag { position: absolute; left: 5px; bottom: 2px; font-size: 11px; color: #ffe08a; text-shadow: 0 1px 2px #000; }
-  #reload { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); width: 240px; display: none;
-    padding: 6px 10px 8px; background: rgba(8, 10, 16, 0.85); border: 1px solid var(--line); color: var(--accent);
-    font: 12px "Segoe UI", Arial, sans-serif; letter-spacing: 2px; text-transform: uppercase; pointer-events: none; }
-  #reload.on { display: block; }
-  #reload .track { height: 4px; margin-top: 5px; background: rgba(255, 255, 255, 0.1); }
-  #reload .fill { height: 100%; width: 0; background: var(--accent); }
   #lootBox { display: none; }
   #lootBox.visible { display: block; }
   .lootTitle { color: var(--warn); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; }
@@ -222,7 +216,6 @@
 </style>
 </head>
 <body>
-<div id="reload">Перезарядка<div class="track"><div class="fill"></div></div></div>
 <div id="root">
   <div id="panel">
     <div id="tabs">
@@ -256,7 +249,7 @@
           <div class="bslot" data-target="b4"><span class="slotKey">7</span></div>
           <div class="bslot" data-target="b5"><span class="slotKey">8</span></div>
         </div>
-        <div class="hint" style="margin-top: 8px">R — перезарядка магазином с пояса · 4–8 — применить с пояса</div>
+        <div class="hint" style="margin-top: 8px">Патроны на поясе — запас оружия, R — перезарядка · 4–8 — применить с пояса</div>
       </div>
       <div id="lootBox">
         <div class="lootTitle">Обыск<span id="lootName"></span><button id="lootSearch" hidden>Обыскать</button></div>
@@ -381,8 +374,8 @@
     el.style.height = `${h * CELL}px`;
     el.style.background = `linear-gradient(160deg, ${d.color}cc, ${d.color}55)`;
     const badge = stack.a != null ? `${stack.a} €$` : stack.t ? stack.t : stack.n > 1 ? `×${stack.n}` : "";
-    // магазин: патроны / ёмкость; оружие: патроны во вставленном магазине
-    const magText = d.mag ? `${stack.m || 0}/${d.mag}` : d.weapon && !d.melee ? (stack.wm ? `▮ ${stack.wm.n}` : "без магазина") : "";
+    // старый магазин: патроны / ёмкость; оружие: патроны в нём
+    const magText = d.mag ? `${stack.m || 0}/${d.mag}` : d.weapon && !d.melee ? `▮ ${stack.wr || 0}` : "";
     el.innerHTML = `<div class="name"></div>${badge ? `<div class="count"></div>` : ""}${magText ? `<div class="mag"></div>` : ""}`;
     el.querySelector(".name").textContent = d.label;
     if (badge) el.querySelector(".count").textContent = badge;
@@ -503,8 +496,8 @@
     tip.querySelector(".label").textContent = d.label +
       (stack.a != null ? ` — ${stack.a} €$` : stack.t ? ` — ${stack.t}` : stack.n > 1 ? ` ×${stack.n}` : "");
     let extra = "";
-    if (d.mag) extra = ` · патронов: ${stack.m || 0} из ${d.mag}`;
-    else if (d.weapon && !d.melee) extra = stack.wm ? ` · магазин: ${def({ i: stack.wm.i }).label}, ${stack.wm.n} патр.` : " · без магазина";
+    if (d.mag) extra = ` · старый магазин, патронов: ${stack.m || 0} (разрядите)`;
+    else if (d.weapon && !d.melee) extra = ` · в оружии ${stack.wr || 0} патр. · запас — патроны на поясе`;
     tip.querySelector(".muted").textContent =
       `${kg(d.weightG * stack.n)} кг · ${d.w}×${d.h}${d.stack > 1 ? ` · до ${d.stack} в клетке` : ""}${extra}`;
     tip.style.display = "block";
@@ -709,11 +702,7 @@
     menu.replaceChildren();
     const base = { index, item: stack.i };
     if (d.usable) addButton(menu, d.useLabel || "Использовать", () => emit("inv:use", base));
-    if (d.mag) {
-      addButton(menu, "Зарядить", () => emit("inv:magLoad", base));
-      if (stack.m > 0) addButton(menu, "Разрядить", () => emit("inv:magUnload", base));
-    }
-    if (d.weapon && stack.wm) addButton(menu, "Извлечь магазин", () => emit("inv:weaponEject", base));
+    if ((d.mag && stack.m > 0) || (d.weapon && !d.melee && stack.wr > 0)) addButton(menu, "Разрядить", () => emit("inv:unload", base));
     if (stack.c) {
       addButton(menu, "Снять в рюкзак", () => emit("inv:gear", { ...base, target: "grid" }));
     } else {
@@ -1005,21 +994,6 @@
     else s.loot = null;
     state = s;
     if (!drag) render();
-  });
-
-  // Полоска перезарядки (видна и при закрытом окне).
-  let reloadTimer = null;
-  Open77.on("inv:reloading", p => {
-    const box = $("reload"), fill = box.querySelector(".fill");
-    clearTimeout(reloadTimer);
-    fill.style.transition = "none";
-    fill.style.width = "0";
-    box.classList.add("on");
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      fill.style.transition = `width ${p.ms}ms linear`;
-      fill.style.width = "100%";
-    }));
-    reloadTimer = setTimeout(() => box.classList.remove("on"), p.ms + 150);
   });
 
   Open77.ready();
