@@ -34,7 +34,7 @@ $("close").onclick=exit;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&mode==="choose")exit();});
 function show(){ $("screen").classList.add("open");$("message").textContent=""; }
 function choose(p){
- mode="choose";show();patient=p.patient;$("headline").textContent="УСТАНОВКА ИМПЛАНТА";$("hint").textContent="Выберите имплант из инвентаря пациента. После его согласия начнётся операция.";
+ mode="choose";show();$("close").disabled=false;patient=p.patient;$("headline").textContent="УСТАНОВКА ИМПЛАНТА";$("hint").textContent="Выберите имплант из инвентаря пациента. После его согласия начнётся операция.";
  $("game").classList.remove("show");$("choice").classList.add("show");$("items").replaceChildren();$("skill").textContent="";
  for(const item of p.items||[]){let b=document.createElement("button");b.textContent=item.label+" ("+item.id+")";b.onclick=()=>{Open77.emit("surgery:offer",{patient,implant:item.id});exit();};$("items").append(b);}
  if(!(p.items||[]).length)$("items").textContent="У пациента нет имплантов.";
