@@ -375,6 +375,79 @@
  #weight{width:240px}
 }
 
+
+/* V2: конструкция двух экранов по концепту, поверх исходной темы.
+   Вся игровая сетка и ID DOM остаются на месте. */
+#panel{padding:110px 25px 28px 248px}
+#hudHeader{position:absolute;top:0;left:0;right:0;height:96px;display:flex;align-items:center;gap:18px;padding:12px 28px 14px 44px;background:linear-gradient(90deg,#1b101b,#0c1420 60%,#10131b);border-bottom:1px solid #ff4f657a;z-index:1}
+#hudHeader::after{content:"";position:absolute;bottom:0;left:28px;right:28px;height:2px;background:linear-gradient(90deg,#ff6470 0%,#ff6470 55%,#18dae8 90%);box-shadow:0 0 12px #ff455b66}
+.hudMark{width:58px;height:58px;border:2px solid #ff5a6c;display:grid;place-items:center;font-size:38px;color:#ff6e7d;clip-path:polygon(15% 0,100% 0,100% 85%,85% 100%,0 100%,0 15%);text-shadow:0 0 16px #ff5968}
+.hudBrand{flex:1;min-width:0}.hudEyebrow{font:10px Consolas,monospace;letter-spacing:3px;color:#7ec7cf}
+#hudTitle{color:#fff2ec;font:bold italic 33px/1.1 "Segoe UI",Arial,sans-serif;letter-spacing:2px;text-shadow:0 0 18px #f1435d6f}
+#hudSubtitle{color:#e1dbde;font:12px "Segoe UI",Arial,sans-serif;letter-spacing:.6px;margin-top:5px}
+.hudRight{display:flex;gap:16px;align-items:center;align-self:flex-start}
+.hudSignal{font:10px Consolas,monospace;color:#ff8390;letter-spacing:1px}
+.hudSignal.cyan{color:#55e1eb;font-weight:700;font-size:16px}
+#panel::before{top:94px}#tabs{top:113px}#tabs::before{display:none}
+.sidebarExtras{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.sidebarExtras>div{padding:15px 11px;color:#8dabb6;border-bottom:1px solid #2f424a;font:bold 14px "Segoe UI",Arial,sans-serif;letter-spacing:.8px;opacity:.6}
+.sidebarFooter{margin-top:auto;padding:16px 10px;border-top:1px solid #783847;font:11px Consolas,monospace;color:#ff7889;letter-spacing:1px}
+.sidebarFooter span{color:#58dfe9}
+#invView>header.invInternalHeader{min-height:36px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+#invView>header.invInternalHeader>div:first-child>h1,#cyberView>h1{display:none}
+#invView>header.invInternalHeader .hint{font-size:11px;letter-spacing:.2px}
+#weight{margin-left:auto;flex-shrink:0}
+#grids{height:calc(100% - 95px);overflow:auto;padding:20px 10px 24px 12px;gap:28px}
+.inventoryCells{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}
+.inventoryFrame{display:flex;width:max-content;max-width:100%;padding:4px;border:2px solid #4bbec6;box-shadow:inset 0 0 0 4px #061c24,0 0 22px #22dfec35;background:#071823;overflow:auto}
+#grid{outline:none;box-shadow:inset 0 0 30px #0008}
+#gearBox{flex:0 0 325px;width:325px;display:flex;flex-direction:column;align-self:flex-start}
+.gearCaption{font:10px Consolas,monospace;float:right;color:#7ab7c5;letter-spacing:1px}
+.gearTitle{border-top:1px solid #395661;padding-top:8px}
+#gearBox .wslot{height:86px}
+.beltRow{width:100%}.bslot{height:84px}
+.bottomSystemStrip{position:absolute;bottom:5px;left:250px;right:25px;height:25px;display:flex;align-items:center;justify-content:space-between;color:#a9c4cb;font:10px Consolas,monospace;letter-spacing:.5px;border-top:1px solid #214654;padding:7px 0 0;pointer-events:none}
+.item .name{position:absolute;top:5px;left:7px;right:7px;z-index:2;font-size:10px;max-height:27px;overflow:hidden;text-shadow:0 1px 4px #000,0 0 6px #000}
+.itemArt{position:absolute;inset:12px 4px 9px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:1;filter:drop-shadow(0 5px 4px #000b)}
+.itemArt svg{height:100%;width:100%;max-height:130px}
+.item .count{z-index:3;bottom:4px;right:5px;color:#fff1d0;text-shadow:0 2px 5px #000}
+.item .mag{z-index:3}
+.item{border:2px solid #d2ab56!important;box-shadow:inset 0 0 16px #ffc44820,0 0 5px #dca93629}
+.item:hover{border-color:#5ff7ff!important;box-shadow:0 0 18px #47ecff7a,inset 0 0 18px #37ebfa34}
+.item.hidden{border-color:#6c6d74!important}
+.wslot .item .itemArt{inset:5px 14px 5px 8px}.wslot .item .name{font-size:10px;max-width:130px}
+.bslot .item .itemArt{inset:10px 0 2px}
+#panel.cyber{padding-left:242px}
+#cyberView{height:100%;overflow:hidden}
+#cyberView>.hint{position:relative;z-index:2;font-size:11px;max-width:100%;margin-bottom:4px}
+#cyberView .cyMain{height:calc(100% - 99px);min-height:490px;max-height:715px;grid-template-columns:140px minmax(175px,1fr) minmax(210px,280px) minmax(175px,1fr) 145px;gap:8px;align-items:center;position:relative}
+#cyberView .cyBodyBox{height:100%;min-height:470px}
+#cyberView .cyCol{gap:18px;position:relative;z-index:2}
+#cyberView .cyHead{margin-bottom:6px;font-size:13px;color:#ffacb5;letter-spacing:1px}
+#cyberView .cyTile{height:clamp(73px,9vh,97px);width:clamp(60px,5.4vw,88px);background:linear-gradient(135deg,#152632e8,#150d19eb);clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
+#cyberView .cyTile.filled{border:2px solid #f1bf49;border-left:5px solid #ffbe34;background:linear-gradient(140deg,#533f2145,#13272cc2)}
+#cyberView .cyTile .itemArt{inset:3px 1px 11px;opacity:.93}
+#cyberView .cyTile .tName{position:absolute;top:2px;left:4px;right:3px;z-index:3;font-size:9px;text-shadow:0 0 5px #000,0 0 5px #000;max-height:22px;overflow:hidden}
+#cyberView .cyTile .tCost{display:none}
+#cyberView .cyTile .tSlot{font-size:9px;z-index:3}
+#cyberView .cyBodyBox{background:radial-gradient(ellipse at 50% 50%,rgba(248,52,78,.24),transparent 60%)}
+#cyBody{filter:drop-shadow(0 0 9px #fa607f) drop-shadow(0 0 24px #fc435e96)}
+#cyberView #humMeter{position:relative;align-self:center;background:linear-gradient(140deg,#3b142370,#10131bd9);border:1px solid #e45b69;padding:12px 5px 16px;min-height:375px;justify-content:center}
+#cyberView #sanMeter{position:relative;align-self:center;background:linear-gradient(140deg,#081c26d9,#11141bd9);border:1px solid #26b7cc;padding:12px 5px 16px;min-height:375px;justify-content:center}
+#cyberView .vBar{height:240px;width:33px}
+#cyberView .vTitle{font-size:10px;letter-spacing:1px;text-align:center;word-break:break-word}
+#cyberView .vValue{font-size:13px}
+#cyberView .vNote{width:auto;font-size:10px}
+#cyberView .cyFoot{position:relative;margin-top:8px}
+#panel.cyber #hudTitle{color:#fff2ec}
+#panel.cyber .hudMark{color:#ff6478}
+@media(max-width:1450px){
+ #panel{padding-left:203px}#tabs{width:170px}.bottomSystemStrip{left:205px}
+ #cyberView .cyMain{grid-template-columns:95px minmax(140px,1fr) 210px minmax(140px,1fr) 95px;gap:6px}
+ #cyberView .cyTile{width:59px;height:74px}
+ #cyberView #humMeter,#cyberView #sanMeter{padding:8px 3px}
+ #gearBox{width:260px;flex-basis:260px}
+}
 </style>
 </head>
 <body>
@@ -1012,7 +1085,6 @@
     const el = document.createElement("div");
     el.className = "cyTile " + (slot.implant ? "filled" : "empty");
     if (slot.implant) {
-      el.append(itemIllustration(slot.implant.id || slot.id || "implant", { label: slot.implant.label }));
       el.innerHTML = `<div class="tName"></div><div class="tCost"></div>`;
       el.querySelector(".tName").textContent = shortName(slot.implant.label);
       el.querySelector(".tCost").textContent = `−${slot.implant.humanity}`;
@@ -1188,6 +1260,17 @@
     else s.loot = null;
     state = s;
     if (!drag) render();
+  });
+
+  // UI-only header title; no effect on the existing tab logic.
+  document.querySelectorAll("#tabs .tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      const cyber = tab.dataset.tab === "cyber";
+      $("hudTitle").textContent = cyber ? "ИМПЛАНТЫ" : "ИНВЕНТАРЬ";
+      $("hudSubtitle").textContent = cyber
+        ? "УПРАВЛЕНИЕ КИБЕРНЕТИЧЕСКИМИ МОДИФИКАЦИЯМИ"
+        : "УПРАВЛЕНИЕ СНАРЯЖЕНИЕМ, ОРУЖИЕМ И ПРЕДМЕТАМИ";
+    });
   });
 
   Open77.ready();
