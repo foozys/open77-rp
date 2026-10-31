@@ -75,6 +75,18 @@ local function finish(d,success)
         return
     end
     if op.stage=="remove" then
+        local latest=stateOf(p)
+        local unchanged=false
+        if type(latest)=="table" then
+            for _,slot in ipairs(latest.slots or {}) do
+                if slot.id==op.slot and slot.implant==op.expectedOld then unchanged=true;break end
+            end
+        end
+        if not unchanged then
+            clear(d);notify(d,"Имплант пациента изменился. Операция отменена.")
+            TriggerClientEvent("rp_surgery:finish",d,{success=false,cancelled=true})
+            return
+        end
         local removed,info=await("rp_cyberware","surgery_remove",p,op.slot,not success)
         if not removed then
             clear(d);notify(d,"Снятие не выполнено: "..tostring(info))
@@ -192,7 +204,7 @@ local function consent(p,accepted,token)
     if not selected or selected.current~=o.selection.current or operations[d] or occupied[p] then
         return notify(p,"Операция недоступна: "..tostring(why or "изменилось состояние"))
     end
-    operations[d]={patient=p,slot=selected.slot,implant=selected.implant,
+    operations[d]={patient=p,slot=selected.slot,implant=selected.implant,expectedOld=selected.current,
         stage=selected.current and "remove" or "install"}
     occupied[p]=d
     notify(p,"Операция началась. Оставайтесь рядом с рипером.")
