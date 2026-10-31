@@ -1460,6 +1460,7 @@ local function scanPayload(playerId, target, distanceValue)
     if type(contract) == "table" then
         payload.contractHint = "Человек по приметам похож на цель заказа №"..tostring(contract.id)
         if contract.confirmed then payload.contractConfirmed = contract.id end
+        if tier ~= "public" and contract.downed then payload.contractCanVerify = true end
     end
     if tier == "public" or not revealed then return payload end
 
