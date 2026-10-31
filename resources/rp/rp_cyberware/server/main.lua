@@ -532,9 +532,9 @@ local function remove(patient, slot, price, payTo, destroy)
     local def = implantId and CyberConfig.implants[implantId]
     if not def then return nil, "В этом слоте ничего нет." end
     if not destroy and sync("rp_inventory", "fits", patient, implantId, 1) == false then return nil, "Некуда положить снятый имплант: освободите карманы." end
-    local bank = bankOf(patient)
-    if not bank then return nil, "Счёт недоступен." end
+    local bank = price > 0 and bankOf(patient) or nil
     if price > 0 then
+        if not bank then return nil, "Счёт недоступен." end
         local paid, why = transfer(bank, payTo, price, "rp.cyber.remove")
         if not paid then return nil, why == "insufficient_funds" and "Недостаточно денег на счёте." or ("Оплата не прошла: " .. tostring(why)) end
     end
@@ -611,6 +611,23 @@ exports("surgery_state", function(patient)
         end
     end
     return {slots=slots, options=options}
+end)
+
+-- Ошибка демонтажа: имплант остаётся установленным, пациент получает травму.
+exports("surgery_remove_fail", function(patientArg, slot)
+    if GetInvokingResource() ~= "rp_surgery" then return nil, "caller_denied" end
+    local patient = math.tointeger(tonumber(patientArg))
+    local st = patient and state[patient]
+    if not st or type(slot) ~= "string" or not st.slots[slot] then return nil, "empty_slot" end
+    local saved, err = db("update",
+        "INSERT IGNORE INTO rp_surgery_injuries (character_id) VALUES (?)", { st.characterId })
+    if saved == nil then
+        log("error", "не удалось сохранить травму после демонтажа: %s", tostring(err))
+        return nil, "database_error"
+    end
+    surgeryInjuries[st.characterId] = true
+    applyPassives(patient)
+    return true, slot == "os"
 end)
 
 exports("surgery_remove", function(patient, slot, destroy)
