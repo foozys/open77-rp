@@ -464,7 +464,7 @@ end)
 -- Денежное обеспечение заказов. Списание и выплата всегда через журнал
 -- open77_transactions; опId детерминированный для каждого контракта/этапа.
 local CONTRACT_VAULT = "soc:rp.contracts"
-exports("contract_escrow", function(action, contractId, playerId, amount, recipientCharacterId)
+exports("contract_escrow", function(action, contractId, playerId, amount, recipientCharacterId, payoutRole)
     if GetInvokingResource() ~= "rp_contracts" then return nil, "caller_denied" end
     local id = math.tointeger(tonumber(contractId))
     local n = math.tointeger(tonumber(amount))
@@ -479,7 +479,7 @@ exports("contract_escrow", function(action, contractId, playerId, amount, recipi
         local subject = core("character_subject", recipientCharacterId)
         if type(subject) ~= "string" then return nil, "invalid_recipient" end
         to = "bank:" .. subject
-        op = "rpcontract:release:" .. id
+        op = "rpcontract:release:" .. id .. ":" .. (payoutRole == "fixer" and "fixer" or "hunter")
     elseif action == "refund" then
         from = CONTRACT_VAULT
         local subject = core("character_subject", recipientCharacterId)
