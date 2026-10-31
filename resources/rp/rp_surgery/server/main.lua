@@ -150,7 +150,7 @@ local function startStage(d)
     local c=char(d);if not c then clear(d);return end
     local row=db("single","SELECT operations FROM rp_surgery_skill WHERE character_id = ?",{c.id})
     local count=tonumber(row and row.operations) or 0
-    local amount=math.max(2,6-math.floor(count/5))
+    local amount=math.max(3,6-math.floor(count/5))
     local seconds=math.min(100,45+math.floor(count/5)*5)
     local order,labels={},{}
     for i=1,amount do order[i]=i end
