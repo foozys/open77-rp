@@ -125,6 +125,7 @@
       "open77_rp_basics",
       "open77_hacking",
       "rp/rp_clothes",
+      "rp/rp_player_ids",
       "rp/rp_core",
       "rp/rp_factions",
       "rp/rp_charselect",
