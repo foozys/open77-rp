@@ -72,7 +72,7 @@ local function finish(d,success)
             return
         end
         if isOs then
-            local down,why=sync("rp_medical","surgery_downed",p)
+            local down,why=await("rp_medical","surgery_downed",p)
             if not down then Open77.log.error("[rp_surgery] medical downed: "..tostring(why)) end
         end
     end
@@ -110,14 +110,14 @@ RegisterCommand("ripperaccept",function(src)
     local count=tonumber(row and row.operations) or 0
     local difficulty=math.max(2,6-math.floor(count/5))
     local seconds=math.min(100,45+math.floor(count/5)*5)
-    local mapping,order={},{}
+    local mapping,order,labels={},{},{}
     for i=1,difficulty do order[i]=i end
     for i=difficulty,2,-1 do local j=math.random(i);order[i],order[j]=order[j],order[i] end
-    for i=1,difficulty do mapping[i]=order[i] end
+    for i=1,difficulty do mapping[i]=order[i];labels[order[i]]=i end
     local token=tostring(Open77.time.unix())..":"..tostring(math.random(100000,999999))
     operations[d]={patient=p,implant=o.implant,solution=mapping,expires=Open77.time.unix()+seconds,token=token}
     busyPatient[p]=d
-    TriggerClientEvent("rp_surgery:game",d,{token=token,wires=difficulty,seconds=seconds,experience=count})
+    TriggerClientEvent("rp_surgery:game",d,{token=token,wires=difficulty,seconds=seconds,experience=count,labels=labels})
     note(p,"Операция началась. Оставайтесь рядом с рипером.")
     SetTimeout((seconds+2)*1000,function()
         local op=operations[d]
@@ -173,4 +173,13 @@ AddEventHandler("onPlayerDisconnected",function(idArg)
     if operations[id] then clear(id) end
     local doctor=busyPatient[id]
     if doctor then clear(doctor) end
+end)
+
+RegisterNetEvent("rp_surgery:ready",function()
+    local d=tonumber(source)
+    if d then TriggerClientEvent("rp_surgery:eligible",d,ripper(d)) end
+end)
+AddEventHandler("rp_core:characterLoaded",function(idArg)
+    local id=tonumber(idArg)
+    if id then SetTimeout(3000,function() TriggerClientEvent("rp_surgery:eligible",id,ripper(id)) end) end
 end)
