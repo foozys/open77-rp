@@ -1,6 +1,7 @@
 -- Фиксерская биржа. Контракт фиксирует character_id, не временный playerId.
 local ready=false
 local busy={}
+local activeTargets={} -- [mercenaryCharacterId][targetCharacterId] = contractId
 local function call(r,name,...) local ok,a,b=pcall(Open77.exports.callSync,r,name,...);if ok then return a,b end end
 local function await(r,name,...) local p,why=Open77.exports.call(r,name,...);if not p then return nil,why end;return p:await() end
 local function person(id) return call("rp_core","character",id) end
@@ -56,6 +57,18 @@ Open77.database.ready(function()
         KEY idx_target (target_id, status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
     ready=result~=nil
+    if ready then
+        local rows=sql("query",[[SELECT id,mercenary_id,target_id FROM rp_fixer_contracts
+            WHERE status='active']]) or {}
+        activeTargets={}
+        for _,row in ipairs(rows) do
+            local merc,target,contract=tonumber(row.mercenary_id),tonumber(row.target_id),tonumber(row.id)
+            if merc and target and contract then
+                activeTargets[merc]=activeTargets[merc] or {}
+                activeTargets[merc][target]=activeTargets[merc][target] or contract
+            end
+        end
+    end
     if not ready then Open77.log.error("[rp_contracts] migration: "..tostring(err)) end
 end)
 local function create(p,data)
@@ -134,7 +147,12 @@ local function assign(p,contractId,merc)
             WHERE id=? AND status='assigning']],{contractId})
         return note(p,"Щепка не выдана: "..tostring(why))
     end
-    sql("update","UPDATE rp_fixer_contracts SET status='active' WHERE id=? AND status='assigning'",{contractId})
+    local activated=sql("update","UPDATE rp_fixer_contracts SET status='active' WHERE id=? AND status='assigning'",{contractId})
+    if tonumber(activated or 0)<1 then
+        return note(p,"Щепка выдана, но контракт не активирован. Обратитесь к администратору.")
+    end
+    activeTargets[hunter.id]=activeTargets[hunter.id] or {}
+    activeTargets[hunter.id][tonumber(row.target_id)]=contractId
     note(p,"Наёмник назначен, щепка выдана.")
     note(merc,"Получена информационная щепка по заказу #"..contractId..". Откройте её в инвентаре.")
     broadcast()
@@ -166,11 +184,11 @@ exports("kiroshi_contract",function(hacker,target,revealed)
     if GetInvokingResource()~="rp_cyberware" then return nil end
     local h,t=person(hacker),person(target)
     if not h or not t then return nil end
-    local row=sql("single",[[SELECT id FROM rp_fixer_contracts
-        WHERE target_id=? AND mercenary_id=? AND status='active'
-        ORDER BY id LIMIT 1]],{t.id,h.id})
-    if not row then return nil end
-    return {id=tonumber(row.id),possible=true,confirmed=revealed==true}
+    -- Синхронный экспорт не должен вызывать SQL .await: Kiroshi опрашивает
+    -- карточку постоянно. В кэше только активные назначения, загруженные из БД.
+    local contract=activeTargets[h.id] and activeTargets[h.id][t.id]
+    if not contract then return nil end
+    return {id=contract,possible=true,confirmed=revealed==true}
 end)
 
 -- Верификация цели только по ID персонажа. Ранение цели проверяет rp_medical.
@@ -199,6 +217,9 @@ local function verify(hunter,target)
         end
     end
     sql("update","UPDATE rp_fixer_contracts SET status='completed' WHERE id=? AND status='settling'",{row.id})
+    if activeTargets[a.id] and activeTargets[a.id][b.id]==tonumber(row.id) then
+        activeTargets[a.id][b.id]=nil
+    end
     note(hunter,"Контракт #"..row.id.." подтверждён. Награда зачислена.")
     broadcast()
 end
