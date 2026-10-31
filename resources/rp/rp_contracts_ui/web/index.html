@@ -1,0 +1,71 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Fixer Network</title><style>
+:root{--bg:#0d1217;--gold:#f5bd58;--line:#775b3c;--text:#e9e2d3;--dim:#a4a298}
+*{box-sizing:border-box}body{margin:0;background:transparent;color:var(--text);font:15px/1.45 Segoe UI,Arial,sans-serif}
+#shade{display:none;position:absolute;inset:0;background:#050a0bd8;justify-content:center;align-items:center}
+#shade.on{display:flex}.frame{width:min(1100px,94vw);max-height:88vh;overflow:auto;background:linear-gradient(120deg,#161b20,#0b1318);border:1px solid var(--line);border-top:4px solid var(--gold);padding:28px;box-shadow:0 0 80px #000}
+header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:14px}
+h1{margin:0;font-size:26px;letter-spacing:3px;color:var(--gold)}h2{font-size:17px;color:var(--gold)}
+small,.muted{color:var(--dim)}button,input,select,textarea{font:inherit;background:#101d22;color:var(--text);border:1px solid #62615b;padding:10px}
+button{cursor:pointer;border-color:var(--gold);color:var(--gold)}button:hover{background:#463a29}
+input,textarea,select{width:100%}textarea{min-height:100px;resize:vertical}
+label{display:block;margin-bottom:12px;font-size:13px;color:var(--dim)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+article{padding:14px 17px;margin:12px 0;border:1px solid #3b4448;background:#121e23}
+article h3{margin:0 0 7px;color:#f6dfac}article .meta{font-size:12px;color:var(--dim)}
+article p{white-space:pre-wrap;margin:8px 0}article .actions{display:flex;gap:8px;margin-top:9px}
+#journal,#dossier{display:none}.shown{display:block!important}
+#status{color:var(--gold);padding:10px 0}.toolbar{display:flex;gap:8px;align-items:center}
+</style></head><body><div id="shade"><div class="frame"><header><div><small>NIGHT CITY // FIXER NETWORK</small><h1 id="heading">ЖУРНАЛ ЗАКАЗОВ</h1></div><button id="close">Закрыть · ESC</button></header>
+<section id="journal"><p class="muted">Заказы едины для всех Фиксеров. Кража и сбор информации пока не активны.</p>
+<div class="grid"><div><h2>Открытые задания</h2><div id="orders"></div></div><div><h2>Создать контракт</h2>
+<label>Название<input id="name" maxlength="100" placeholder="Последний долг"></label>
+<label>Тип заказа<select id="type"><option value="kill">Убийство</option><option disabled>Кража (позже)</option><option disabled>Сбор информации (позже)</option></select></label>
+<label>Описание<textarea id="description" maxlength="1500" placeholder="Известные приметы, последнее место встречи, причина заказа"></textarea></label>
+<label>ID игрока-цели в текущей сессии<input id="target" type="number" min="1" placeholder="Используется только для выбора персонажа при создании"></label>
+<label>Вознаграждение (€$)<input id="reward" type="number" min="1" max="1000000" value="5000"></label>
+<button id="create">Опубликовать и зарезервировать награду</button>
+<p class="muted">После создания договор закрепляется за постоянным персонажем. При выходе и входе его ID на сервере может измениться.</p>
+<div id="status"></div></div></div></section>
+<section id="dossier"><h2 id="dossierTitle"></h2><p id="dossierName"></p><p id="dossierBio"></p><article id="dossierDesc"></article><p class="muted">Досье не содержит точной позиции. Биометрию проверяйте через ALT → Контракт рядом с человеком.</p></section>
+</div></div><script>
+const $=id=>document.getElementById(id);let state=null;
+function emit(n,p){Open77.emit(n,p||{});}
+function show(which){$("shade").classList.add("on");$("journal").classList.toggle("shown",which==="journal");$("dossier").classList.toggle("shown",which==="dossier");}
+function close(){$("shade").classList.remove("on");emit("contract:close");}
+$("close").onclick=close;document.addEventListener("keydown",e=>{if(e.key==="Escape")close();});
+function render(data){
+ state=data;show("journal");$("heading").textContent=data.fixer?"ЖУРНАЛ ФИКСЕРОВ":"БИРЖА ЗАКАЗОВ";
+ $("orders").replaceChildren();
+ const labels={open:"Доступен",review:"В работе у фикcера",active:"Передан наёмнику",completed:"Выполнен",settling:"Ожидает расчёта"};
+ for(const order of data.orders||[]){
+  const el=document.createElement("article");
+  const h=document.createElement("h3");h.textContent="#"+order.id+" · "+order.title;el.append(h);
+  const m=document.createElement("div");m.className="meta";m.textContent=(labels[order.status]||order.status)+" · "+order.reward+" €$ · цель: "+order.target_name;el.append(m);
+  const d=document.createElement("p");d.textContent=order.description;el.append(d);
+  const acts=document.createElement("div");acts.className="actions";
+  if(data.fixer&&order.status==="open"){
+   const b=document.createElement("button");b.textContent="Взять в обработку";b.onclick=()=>{emit("contract:claim",{id:order.id});$("status").textContent="Запрос отправлен.";};acts.append(b);
+  }
+  if(data.fixer&&order.status==="review"&&Number(order.fixer_id)===Number(data.ownId)){
+   const input=document.createElement("input");input.type="number";input.min="1";input.placeholder="ID наёмника";input.style.maxWidth="125px";
+   const b=document.createElement("button");b.textContent="Выдать щепку";b.onclick=()=>{emit("contract:assign",{id:order.id,player:Number(input.value)});$("status").textContent="Запрос выдачи отправлен.";};
+   acts.append(input,b);
+  }
+  el.append(acts);$("orders").append(el);
+ }
+ if(!(data.orders||[]).length)$("orders").textContent="Пока нет опубликованных заказов.";
+}
+$("create").onclick=()=>{
+ const payload={title:$("name").value,description:$("description").value,type:$("type").value,
+  targetPlayer:Number($("target").value),reward:Number($("reward").value)};
+ emit("contract:create",payload);$("status").textContent="Запрос на публикацию отправлен. Проверьте чат.";
+};
+Open77.on("contract:journal",render);
+Open77.on("contract:dossier",p=>{
+ show("dossier");$("heading").textContent="ИНФОЩЕПКА // ДОСЬЕ";$("dossierTitle").textContent="КОНТРАКТ #"+p.id+" · "+p.title;
+ $("dossierName").textContent="Цель: "+p.targetName;$("dossierBio").textContent="Биометрическая сигнатура: "+p.biometric;
+ $("dossierDesc").textContent=p.description;
+});
+Open77.on("contract:close",()=>{$("shade").classList.remove("on");});
+Open77.emit("ui:ready",{});
+</script></body></html>
