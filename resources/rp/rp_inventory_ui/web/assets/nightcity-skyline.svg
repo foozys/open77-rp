@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="270" viewBox="0 0 1600 270">
+<defs>
+<linearGradient id="sky" x2="0" y2="1"><stop stop-color="#050c19"/><stop offset=".55" stop-color="#181025"/><stop offset="1" stop-color="#210c18"/></linearGradient>
+<linearGradient id="r" x1="0" x2="1"><stop stop-color="#ff245b"/><stop offset=".5" stop-color="#862147"/><stop offset="1" stop-color="#1bc9ea"/></linearGradient>
+<radialGradient id="halo"><stop stop-color="#e3257b" stop-opacity=".6"/><stop offset="1" stop-color="#e3257b" stop-opacity="0"/></radialGradient>
+<pattern id="windows" width="14" height="21" patternUnits="userSpaceOnUse"><rect x="4" y="3" width="4" height="8" fill="#ec397c" opacity=".4"/><rect x="11" y="4" width="2" height="6" fill="#26a0c8" opacity=".65"/></pattern>
+<pattern id="scan" width="7" height="6" patternUnits="userSpaceOnUse"><path d="M0 5 H7" stroke="#fff" stroke-opacity=".07" stroke-width="1"/></pattern>
+<filter id="neon"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="1600" height="270" fill="url(#sky)"/>
+<ellipse cx="1100" cy="115" rx="570" ry="210" fill="url(#halo)"/>
+<path d="M0 200 0 65 55 65 55 15 105 15 105 89 139 89 139 50 171 50 171 115 200 115 200 2 250 2 250 65 285 65 285 28 340 28 340 130 375 130 375 2 420 2 420 113 478 113 478 56 520 56 520 7 555 7 555 72 612 72 612 17 651 17 651 87 689 87 689 34 730 34 730 132 773 132 773 24 841 24 841 70 899 70 899 16 945 16 945 94 988 94 988 40 1055 40 1055 11 1111 11 1111 75 1164 75 1164 22 1208 22 1208 118 1263 118 1263 0 1315 0 1315 55 1368 55 1368 18 1441 18 1441 82 1499 82 1499 32 1538 32 1538 8 1600 8 1600 270 H0 Z" fill="#060b14"/>
+<path d="M0 200 0 65 55 65 55 15 105 15 105 89 139 89 139 50 171 50 171 115 200 115 200 2 250 2 250 65 285 65 285 28 340 28 340 130 375 130 375 2 420 2 420 113 478 113 478 56 520 56 520 7 555 7 555 72 612 72 612 17 651 17 651 87 689 87 689 34 730 34 730 132 773 132 773 24 841 24 841 70 899 70 899 16 945 16 945 94 988 94 988 40 1055 40 1055 11 1111 11 1111 75 1164 75 1164 22 1208 22 1208 118 1263 118 1263 0 1315 0 1315 55 1368 55 1368 18 1441 18 1441 82 1499 82 1499 32 1538 32 1538 8 1600 8 1600 270 H0 Z" fill="url(#windows)" opacity=".75"/>
+<g stroke="#ff2773" stroke-width="2" opacity=".7"><path d="M200 2 V200 M375 2 V200 M520 7 V180 M1263 0 V240 M1368 18 V205"/><path d="M0 162 H1600" opacity=".3"/></g>
+<g fill="#36f3fa" opacity=".75"><rect x="905" y="36" width="33" height="3"/><rect x="905" y="47" width="33" height="3"/><rect x="905" y="58" width="33" height="3"/><rect x="1275" y="80" width="19" height="5"/><rect x="1275" y="100" width="19" height="5"/></g>
+<g transform="translate(1060 24)" filter="url(#neon)"><rect width="130" height="158" rx="2" fill="#2c0f2e" stroke="#e42e8a" stroke-width="2"/><path d="M28 54 Q30 16 64 12 Q106 18 106 60 L99 96 Q85 130 56 111 Q26 100 28 54Z" fill="#ed5d9a" fill-opacity=".22" stroke="#ff67ae" stroke-width="3"/><path d="M44 62 L58 59 M80 59 L95 62 M62 69 L72 77 L69 86 M56 95 Q68 99 81 94" fill="none" stroke="#fa9abf" stroke-width="2"/><path d="M24 136 H114" stroke="#ff348e" stroke-width="2"/><text x="10" y="151" fill="#ff7eb7" font-size="12" font-family="monospace">NC / NEURAL AD</text></g>
+<g fill="none" stroke="url(#r)" stroke-width="4" filter="url(#neon)"><path d="M2 270 V31 L34 2 H138 M1538 2 H1562 L1598 38 V270"/><path d="M0 263 H92 M1600 263 H1506"/></g>
+<rect width="1600" height="270" fill="url(#scan)"/>
+<path d="M0 211 H1600 V270 H0Z" fill="#090c16" opacity=".8"/>
+<path d="M0 212 H910 L970 192 H1600" fill="none" stroke="#fe3c68" stroke-width="3" filter="url(#neon)"/>
+</svg>
