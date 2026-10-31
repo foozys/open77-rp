@@ -148,6 +148,8 @@
       "rp/rp_police_ui",
       "rp/rp_cyberware",
       "rp/rp_cyberware_ui",
+      "rp/rp_surgery",
+      "rp/rp_surgery_ui",
       "rp/rp_taxi",
       "rp/rp_taxi_ui"
     ],
