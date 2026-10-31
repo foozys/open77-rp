@@ -188,7 +188,8 @@ exports("kiroshi_contract",function(hacker,target,revealed)
     -- карточку постоянно. В кэше только активные назначения, загруженные из БД.
     local contract=activeTargets[h.id] and activeTargets[h.id][t.id]
     if not contract then return nil end
-    return {id=contract,possible=true,confirmed=revealed==true}
+    local down=call("rp_medical","is_downed",target)==true
+    return {id=contract,possible=true,confirmed=revealed==true,downed=down}
 end)
 
 -- Верификация цели только по ID персонажа. Ранение цели проверяет rp_medical.
