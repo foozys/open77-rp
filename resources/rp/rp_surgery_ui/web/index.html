@@ -28,7 +28,7 @@ footer{display:flex;justify-content:space-between;margin-top:18px}
 </div></div>
 <script>
 const $=id=>document.getElementById(id);
-let mode="",token="",size=0,selected=-1,connections=[],start=0,deadline=0,patient=0,timer=null,locked=false;
+let mode="",token="",size=0,labels=[],selected=-1,connections=[],start=0,deadline=0,patient=0,timer=null,locked=false;
 function exit(){clearInterval(timer);timer=null;$("screen").classList.remove("open");mode="";Open77.emit("surgery:close",{});}
 $("close").onclick=exit;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&mode==="choose")exit();});
@@ -43,7 +43,7 @@ function render(){
  let left=$("left"),right=$("right");left.replaceChildren();right.replaceChildren();$("links").replaceChildren();
  for(let i=0;i<size;i++){
   let a=document.createElement("button");a.className="node"+(selected===i?" selected":"")+(connections[i]?" done":"");a.textContent="Нейрон "+(i+1);a.onclick=()=>{if(locked||connections[i])return;selected=i;render();};left.append(a);
-  let b=document.createElement("button");b.className="node"+(connections.includes(i+1)?" done":"");b.textContent="Провод "+(i+1);b.onclick=()=>{if(locked||selected<0)return;connections[selected]=i+1;selected=-1;render();if(connections.filter(Boolean).length===size)submit();};right.append(b);
+  let b=document.createElement("button");b.className="node"+(connections.includes(i+1)?" done":"");b.textContent="Провод "+labels[i];b.onclick=()=>{if(locked||selected<0)return;connections[selected]=i+1;selected=-1;render();if(connections.filter(Boolean).length===size)submit();};right.append(b);
  }
  const rect=$("board").getBoundingClientRect();$("links").setAttribute("viewBox",`0 0 ${rect.width} ${rect.height}`);
  for(let i=0;i<size;i++)if(connections[i]){
@@ -60,8 +60,8 @@ function submit(){
  $("message").textContent="Проверка нейронных соединений сервером...";
 }
 function game(p){
- mode="game";show();token=p.token;size=p.wires;selected=-1;connections=[];locked=false;
- $("headline").textContent="НЕЙРОННАЯ СШИВКА";$("hint").textContent="Выберите нейрон слева, затем соответствующий провод справа. Каждый провод можно использовать один раз.";
+ mode="game";show();token=p.token;size=p.wires;labels=p.labels||[];selected=-1;connections=[];locked=false;
+ $("headline").textContent="НЕЙРОННАЯ СШИВКА";$("hint").textContent="Соедините нейроны и провода с одинаковыми номерами. Ошибка или истечение времени уничтожит имплант.";
  $("choice").classList.remove("show");$("game").classList.add("show");$("skill").textContent="Проведено операций: "+p.experience;$("close").disabled=true;
  render();deadline=Date.now()+p.seconds*1000;clearInterval(timer);
  timer=setInterval(()=>{let s=Math.max(0,Math.ceil((deadline-Date.now())/1000));$("time").textContent="Осталось: "+s+" с";if(s===0){clearInterval(timer);timer=null;submit();}},200);
