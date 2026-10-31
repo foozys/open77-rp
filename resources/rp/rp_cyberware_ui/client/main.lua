@@ -78,7 +78,7 @@ AddEventHandler("open77:pauseKey", close)
 -- рядом. Цель — тот, на кого смотрит камера (Open77.hacking.observe). Колесо — выбор
 -- скрипта, ЛКМ — отправка; на время сканирования оружие не стреляет и не переключается.
 
-local scan = { held = false, open = false, candidates = {}, range = 50, target = nil, lastSent = 0 }
+local scan = { held = false, open = false, candidates = {}, range = 50, target = nil, lastSent = 0, contractVerify = false }
 local SCAN_CONE = 0.18     -- радиан от центра экрана
 local BLOCKED = { "NextWeapon", "Attack", "Melee" }
 
@@ -93,7 +93,7 @@ end
 
 local function scanHide()
     if not scan.open then return end
-    scan.open, scan.target = false, nil
+    scan.open, scan.target, scan.contractVerify = false, nil, false
     block(false)
     send("scan:hide")
 end
@@ -123,6 +123,7 @@ local function scanLoop()
             local target, dist = pickTarget()
             if target ~= scan.target then
                 scan.target = target
+                scan.contractVerify = false
                 if target then TriggerServerEvent("rp_cyberware:scanInfo", target) end
             end
             send("scan:target", { target = target or false, distance = dist and math.floor(dist * 10) / 10 or false })
@@ -156,7 +157,10 @@ RegisterNetEvent("rp_cyberware:scanState", function(p)
 end)
 
 RegisterNetEvent("rp_cyberware:scanInfo", function(p)
-    if type(p) == "table" and scan.open and p.target == scan.target then send("scan:info", p) end
+    if type(p) == "table" and scan.open and p.target == scan.target then
+        scan.contractVerify = p.contractCanVerify == true
+        send("scan:info", p)
+    end
 end)
 
 local function mapping(id, label, key, pressed, released)
@@ -176,6 +180,13 @@ mapping("rp_scan_next", "Сканер: следующий скрипт", "MOUSEW
 end)
 mapping("rp_scan_prev", "Сканер: предыдущий скрипт", "MOUSEWHEELUP", function()
     if scan.open then TriggerServerEvent("rp_cyberware:scanSelect", -1) end
+end)
+-- Отдельное подтверждение при осмотре раненой цели с кибердекой.
+-- Сервер rp_contracts:verify заново проверяет назначение, состояние и дистанцию.
+mapping("rp_scan_contract_verify", "Kiroshi: подтвердить ликвидацию", "G", function()
+    if not scan.open or not scan.target or not scan.contractVerify then return end
+    TriggerServerEvent("rp_contracts:verify", scan.target)
+    send("scan:toast", { text = "Запрос подтверждения контракта отправлен." })
 end)
 mapping("rp_scan_hack", "Сканер: отправить скрипт", "MOUSE1", function()
     if not scan.open then return end
