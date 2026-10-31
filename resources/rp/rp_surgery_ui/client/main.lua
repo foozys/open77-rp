@@ -32,6 +32,10 @@ local function close()
     send("surgery:close")
     if page then page:setFocus(false,false) end
 end
+RegisterNetEvent("rp_surgery:consent",function(data)
+    active=true;send("surgery:consent",data);if page then page:setFocus(true,true) end
+end)
+RegisterNetEvent("rp_surgery:stage",function(data) send("surgery:stage",data) end)
 RegisterNetEvent("rp_surgery:choose",function(data)
     active=true; send("surgery:choose",data); if page then page:setFocus(true,true) end
 end)
@@ -50,12 +54,15 @@ AddEventHandler("onClientResourceStart",function(name)
     page=created
     page:on("ui:ready",function()ready=true end)
     page:on("surgery:offer",function(p)
-        if type(p)=="table" then TriggerServerEvent("rp_surgery:offer",p.patient,p.implant) end
+        if type(p)=="table" then TriggerServerEvent("rp_surgery:offer",p.patient,p.slot,p.implant) end
+        close()
+    end)
+    page:on("surgery:consentReply",function(p)
+        if type(p)=="table" then TriggerServerEvent("rp_surgery:consentReply",p.token,p.yes==true) end
         close()
     end)
     page:on("surgery:submit",function(p)
         if type(p)=="table" then TriggerServerEvent("rp_surgery:result",p) end
-        close()
     end)
     page:on("surgery:close",close)
     TriggerServerEvent("rp_surgery:ready")
