@@ -52,7 +52,7 @@ local function finish(d,success)
     op.finished=true
     local p=op.patient
     -- Нельзя принимать результат операции без пациента или на другом конце мира.
-    if not char(p) or not near(d,p) then
+    if not char(p) or not near(d,p) or not ripper(d) then
         clear(d);note(d,"Операция прервана: пациент ушёл.");return
     end
     if success then
