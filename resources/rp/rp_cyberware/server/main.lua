@@ -377,12 +377,7 @@ local function applyPassives(playerId, healthFraction)
         end
     end
     if injured(s.characterId) then
-        if s.slots.heart == "implant_heart" then
-            surgeryInjuries[s.characterId] = nil
-            db("update", "DELETE FROM rp_surgery_injuries WHERE character_id = ?", { s.characterId })
-        else
-            maxHealth = math.max(1, maxHealth - 10)
-        end
+        maxHealth = math.max(1, maxHealth - 10)
     end
     if s.maxHealth ~= maxHealth or healthFraction then setMaxHealthKeeping(playerId, maxHealth, healthFraction) end
     -- Максимум брони стал меньше текущей (сняли имплант) — срезать; набирается сама (ниже).
@@ -516,6 +511,11 @@ local function install(patient, implantId, price, payTo)
         end
     end
     s.slots[def.slot] = implantId
+    if implantId == "implant_heart" and injured(s.characterId) then
+        surgeryInjuries[s.characterId] = nil
+        local updated, injuryErr = db("update", "DELETE FROM rp_surgery_injuries WHERE character_id = ?", {s.characterId})
+        if updated == nil then log("error", "снятие травмы не сохранено: %s", tostring(injuryErr)) end
+    end
     if def.deck then s.armed, s.ram, s.ramAt = IDLE, def.deck.ram, Open77.time.unix() end
     db("update", "REPLACE INTO rp_implants (character_id, slot, implant_id) VALUES (?, ?, ?)", { s.characterId, def.slot, implantId })
     if ABILITY[def.kind] then ensureAbilities(patient) end
