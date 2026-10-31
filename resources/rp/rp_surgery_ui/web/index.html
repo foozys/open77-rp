@@ -1,73 +1,120 @@
-<!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><title>Нейронная сшивка</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:transparent;color:#def6fa;font:16px Segoe UI,Arial,sans-serif;user-select:none}
-#screen{display:none;position:absolute;inset:0;background:#020810c9;align-items:center;justify-content:center}
-#screen.open{display:flex}.panel{width:min(880px,90vw);padding:30px;background:#091421f5;border:1px solid #4de3ed;border-top:4px solid #4de3ed;box-shadow:0 0 70px #00ddef33}
-h1{font-size:25px;color:#52edfa;letter-spacing:4px;margin:0 0 8px}.hint{color:#91bac6;font-size:14px;margin-bottom:20px}
-#items{display:flex;flex-direction:column;gap:8px}button{background:#101e2b;border:1px solid #55d4e3;color:#d5fbff;padding:10px 16px;cursor:pointer;font:inherit}
-button:hover{background:#214357}button:disabled{opacity:.35;cursor:default}
-#game{display:none}#choice{display:none}#game.show,#choice.show{display:block}
-#board{position:relative;height:340px;border:1px solid #326773;background:repeating-linear-gradient(0deg,#0a1d29 0 24px,#102635 25px 26px);overflow:hidden}
-#links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.col{position:absolute;top:12px;bottom:12px;display:flex;flex-direction:column;justify-content:space-around;z-index:2}
-.col.left{left:18px}.col.right{right:18px}
-.node{width:116px;padding:8px;background:#143147;border:1px solid #50d5e2;color:#d9f9ff}
-.node.selected{background:#257a81}.node.done{border-color:#53ef9a;color:#53ef9a}
-#status{padding-top:14px;display:flex;justify-content:space-between;color:#a7e9ee}
-#message{min-height:22px;color:#ff7788;margin-top:12px}
-footer{display:flex;justify-content:space-between;margin-top:18px}
-</style></head><body>
-<div id="screen"><div class="panel">
-<h1 id="headline">НЕЙРОННАЯ СШИВКА</h1>
-<div class="hint" id="hint">Соедините нейронные контакты с соответствующими проводами до истечения времени.</div>
-<section id="choice"><div id="items"></div></section>
-<section id="game"><div id="board"><svg id="links" preserveAspectRatio="none"></svg><div id="left" class="col left"></div><div id="right" class="col right"></div></div>
-<div id="status"><span id="progress"></span><span id="time"></span></div></section>
-<div id="message"></div><footer><span id="skill"></span><button id="close">Закрыть</button></footer>
-</div></div>
-<script>
-const $=id=>document.getElementById(id);
-let mode="",token="",size=0,labels=[],selected=-1,connections=[],start=0,deadline=0,patient=0,timer=null,locked=false;
-function exit(){clearInterval(timer);timer=null;$("screen").classList.remove("open");mode="";Open77.emit("surgery:close",{});}
-$("close").onclick=exit;
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&mode==="choose")exit();});
-function show(){ $("screen").classList.add("open");$("message").textContent=""; }
-function choose(p){
- mode="choose";show();$("close").disabled=false;patient=p.patient;$("headline").textContent="УСТАНОВКА ИМПЛАНТА";$("hint").textContent="Выберите имплант из инвентаря пациента. После его согласия начнётся операция.";
- $("game").classList.remove("show");$("choice").classList.add("show");$("items").replaceChildren();$("skill").textContent="";
- for(const item of p.items||[]){let b=document.createElement("button");b.textContent=item.label+" ("+item.id+")";b.onclick=()=>{Open77.emit("surgery:offer",{patient,implant:item.id});exit();};$("items").append(b);}
- if(!(p.items||[]).length)$("items").textContent="У пациента нет имплантов.";
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Хирургия Риперов</title><style>
+*{box-sizing:border-box}body{margin:0;background:transparent;color:#efc9c7;font:15px Segoe UI,Arial,sans-serif}
+#screen{display:none;position:absolute;inset:0;background:rgba(13,5,11,.84);align-items:center;justify-content:center}#screen.open{display:flex}
+.panel{width:min(1040px,94vw);max-height:90vh;overflow:auto;background:linear-gradient(145deg,#240e19,#110d16);padding:24px 30px;border:1px solid #de7079;border-top:3px solid #fb6c74;box-shadow:0 0 65px #e94f6540}
+h1{text-align:center;letter-spacing:4px;font-size:23px;color:#ff747f;margin:0 0 7px}
+#help{text-align:center;color:#b99d9c;font-size:13px;margin:0 0 19px}
+button{background:#2b1724;border:1px solid #98525e;color:#ffd9d6;padding:10px;cursor:pointer;font:inherit}
+button:hover{background:#60303d;border-color:#ff7b82}
+button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justify-content:flex-end;margin-top:17px}
+#slots{display:none;grid-template-columns:1fr 180px 1fr;gap:20px}#slots.show{display:grid}
+.slot-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;align-content:start}
+.slot{min-height:84px;text-align:left;border-style:dashed;color:#ff9a9b;background:#381b24a3}
+.slot strong,.slot small{display:block}.slot strong{font-size:12px;letter-spacing:1px}.slot small{font-size:12px;color:#d6b0ac;margin-top:8px}
+.slot.filled{border-style:solid;background:#55313b}
+.figure{display:flex;align-items:center;justify-content:center}
+.figure svg{width:100%;height:370px;filter:drop-shadow(0 0 9px #e66c78)}
+#options{display:none;border:1px solid #81404f;background:#240d1b;padding:16px;margin-top:16px}
+#options.show{display:block}#options h2{color:#ff8085;font-size:15px;letter-spacing:2px}
+#choices{display:flex;flex-wrap:wrap;gap:8px}#choices button{flex:1 1 200px}
+#consent,#game{display:none}#consent.show,#game.show{display:block}
+.summary{padding:20px;border:1px solid #b55f72;text-align:center;font-size:18px;line-height:1.9}
+#board{position:relative;height:380px;border:1px solid #753846;background:repeating-linear-gradient(0deg,#200f1b 0 23px,#351826 24px 25px)}
+#links{position:absolute;width:100%;height:100%;inset:0;pointer-events:none}
+.col{position:absolute;top:9px;bottom:9px;display:flex;flex-direction:column;justify-content:space-around;z-index:2}
+.col.left{left:14px}.col.right{right:14px}
+.node{width:128px;font-size:13px}.node.selected{background:#a54768}.node.done{border-color:#83ffb0;color:#83ffb0}
+#stats{display:flex;justify-content:space-between;margin-top:14px;color:#e3b5bd}
+#message{min-height:22px;color:#ff9292;text-align:center;margin-top:12px}
+#skill{font-size:12px;color:#b18d96;margin-right:auto}
+</style></head><body><div id="screen"><div class="panel">
+<h1 id="title">КИБЕРХИРУРГИЯ</h1><div id="help">Выберите слот на теле пациента.</div>
+<div id="slots"><div class="slot-list" id="leftSlots"></div>
+<div class="figure"><svg viewBox="0 0 150 370" fill="#e06978" fill-opacity=".24" stroke="#ef8a91" stroke-width="3">
+<ellipse cx="75" cy="37" rx="24" ry="31"/><path d="M62 66H88L105 96 109 218 87 231 84 196 65 196 62 231 40 218 45 96Z"/>
+<path d="M44 93L27 110 11 206 24 212 57 136M106 93L123 110 139 206 126 212 93 136" />
+<path d="M62 230L50 334 67 340 76 251M88 230L100 334 83 340 74 251"/></svg></div>
+<div class="slot-list" id="rightSlots"></div></div>
+<div id="options"><h2 id="slotName">Выбор импланта</h2><div id="choices"></div></div>
+<div id="consent"><div class="summary" id="summary"></div><div class="actions">
+<button id="deny">Отказаться</button><button id="accept">Согласиться на операцию</button></div></div>
+<div id="game"><div id="board"><svg id="links" preserveAspectRatio="none"></svg><div id="left" class="col left"></div><div id="right" class="col right"></div></div>
+<div id="stats"><span id="progress"></span><span id="time"></span></div></div>
+<div id="message"></div><div class="actions"><span id="skill"></span><button id="close">Закрыть</button></div>
+</div></div><script>
+const $=x=>document.getElementById(x);
+let mode="",patient=0,slotData=null,consentToken="",token="",stage="",size=0,labels=[],picked=-1,
+pairs=[],locked=false,deadline=0,timer=null;
+function visible(name){$("screen").classList.add("open");for(const id of ["slots","options","consent","game"])$(id).classList.remove("show");if(name==="slots")$("slots").classList.add("show");else $(name).classList.add("show");$("message").textContent="";}
+function close(){clearInterval(timer);timer=null;mode="";$("screen").classList.remove("open");$("close").disabled=false;Open77.emit("surgery:close",{});}
+$("close").onclick=()=>{if(mode==="game")return;close();};
+function action(implant){Open77.emit("surgery:offer",{patient,slot:slotData.id,implant});close();}
+function select(slot){
+ slotData=slot;$("options").classList.add("show");$("slotName").textContent=slot.label+" · "+(slot.implantLabel||"свободно");
+ $("choices").replaceChildren();let has=false;
+ if(slot.implant){const b=document.createElement("button");b.textContent="Снять "+slot.implantLabel;b.onclick=()=>action(false);$("choices").append(b);has=true;}
+ for(const it of slotData.options){const b=document.createElement("button");b.textContent=slot.implant?"Заменить на "+it.label:"Установить "+it.label;b.onclick=()=>action(it.id);$("choices").append(b);has=true;}
+ if(!has)$("choices").textContent="У пациента нет совместимых имплантов в инвентаре.";
 }
-function render(){
- let left=$("left"),right=$("right");left.replaceChildren();right.replaceChildren();$("links").replaceChildren();
+function editor(p){
+ mode="slots";patient=p.patient;$("title").textContent="КИБЕРХИРУРГИЯ · ID "+patient;
+ $("help").textContent="Нажмите на слот: свободный — установка, занятый — снятие или замена. Показаны только импланты пациента.";
+ visible("slots");$("leftSlots").replaceChildren();$("rightSlots").replaceChildren();
+ const slots=p.slots||[],options=p.options||[];
+ slots.forEach((s,i)=>{
+  const b=document.createElement("button");b.className="slot"+(s.implant?" filled":"");
+  const title=document.createElement("strong");title.textContent=s.label;const sub=document.createElement("small");sub.textContent=s.implantLabel||"+ СВОБОДНО";
+  b.append(title,sub);b.onclick=()=>select({...s,options:options.filter(it=>it.slot===s.id&&it.id!==s.implant)});
+  $(i%2===0?"leftSlots":"rightSlots").append(b);
+ });
+}
+function consent(p){
+ mode="consent";consentToken=p.token;$("title").textContent="ПОДТВЕРЖДЕНИЕ ОПЕРАЦИИ";
+ $("help").textContent="Операция может закончиться повреждением здоровья и уничтожением импланта.";
+ visible("consent");$("summary").textContent="Рипер ID "+p.doctor+" предлагает операцию: "+(p.old?"снятие "+p.old+(p.new?" и установка "+p.new:""):"установка "+p.new)+".";
+ $("close").disabled=false;
+}
+function reply(yes){Open77.emit("surgery:consentReply",{token:consentToken,yes});close();}
+$("accept").onclick=()=>reply(true);$("deny").onclick=()=>reply(false);
+function draw(){
+ $("left").replaceChildren();$("right").replaceChildren();$("links").replaceChildren();
  for(let i=0;i<size;i++){
-  let a=document.createElement("button");a.className="node"+(selected===i?" selected":"")+(connections[i]?" done":"");a.textContent="Нейрон "+(i+1);a.onclick=()=>{if(locked||connections[i])return;selected=i;render();};left.append(a);
-  let b=document.createElement("button");b.className="node"+(connections.includes(i+1)?" done":"");b.textContent="Провод "+labels[i];b.onclick=()=>{if(locked||selected<0)return;connections[selected]=i+1;selected=-1;render();if(connections.filter(Boolean).length===size)submit();};right.append(b);
+  const a=document.createElement("button");a.className="node"+(picked===i?" selected":"")+(pairs[i]?" done":"");
+  a.textContent="Нейрон "+(i+1);a.onclick=()=>{if(locked||pairs[i])return;picked=i;draw();};$("left").append(a);
+  const b=document.createElement("button");b.className="node"+(pairs.includes(i+1)?" done":"");
+  b.textContent="Провод "+labels[i];b.onclick=()=>{
+   if(locked||picked<0||pairs.includes(i+1))return;pairs[picked]=i+1;picked=-1;draw();
+   if(pairs.filter(Boolean).length===size)submit();
+  };$("right").append(b);
  }
- const rect=$("board").getBoundingClientRect();$("links").setAttribute("viewBox",`0 0 ${rect.width} ${rect.height}`);
- for(let i=0;i<size;i++)if(connections[i]){
-  const y1=(i+.5)*rect.height/size,y2=(connections[i]-.5)*rect.height/size;
-  const el=document.createElementNS("http://www.w3.org/2000/svg","path");
-  el.setAttribute("d",`M 143 ${y1} C ${rect.width*.4} ${y1}, ${rect.width*.6} ${y2}, ${rect.width-143} ${y2}`);
-  el.setAttribute("stroke","#56edc9");el.setAttribute("stroke-width","3");el.setAttribute("fill","none");$("links").append(el);
+ const r=$("board").getBoundingClientRect();$("links").setAttribute("viewBox",`0 0 ${r.width} ${r.height}`);
+ for(let i=0;i<size;i++)if(pairs[i]){
+  const y1=(i+.5)*r.height/size,y2=(pairs[i]-.5)*r.height/size;
+  const e=document.createElementNS("http://www.w3.org/2000/svg","path");
+  e.setAttribute("d",`M 152 ${y1} C ${r.width*.42} ${y1}, ${r.width*.58} ${y2}, ${r.width-152} ${y2}`);
+  e.setAttribute("fill","none");e.setAttribute("stroke",stage==="remove"?"#ff9e65":"#6dffba");e.setAttribute("stroke-width","3");
+  $("links").append(e);
  }
- $("progress").textContent=`Соединено: ${connections.filter(Boolean).length}/${size}`;
-}
-function submit(){
- if(locked)return;locked=true;clearInterval(timer);timer=null;
- Open77.emit("surgery:submit",{token,pairs:connections});
- $("message").textContent="Проверка нейронных соединений сервером...";
+ $("progress").textContent=(stage==="remove"?"Разрезано: ":"Соединено: ")+pairs.filter(Boolean).length+"/"+size;
 }
 function game(p){
- mode="game";show();token=p.token;size=p.wires;labels=p.labels||[];selected=-1;connections=[];locked=false;
- $("headline").textContent="НЕЙРОННАЯ СШИВКА";$("hint").textContent="Соедините нейроны и провода с одинаковыми номерами. Ошибка или истечение времени уничтожит имплант.";
- $("choice").classList.remove("show");$("game").classList.add("show");$("skill").textContent="Проведено операций: "+p.experience;$("close").disabled=true;
- render();deadline=Date.now()+p.seconds*1000;clearInterval(timer);
- timer=setInterval(()=>{let s=Math.max(0,Math.ceil((deadline-Date.now())/1000));$("time").textContent="Осталось: "+s+" с";if(s===0){clearInterval(timer);timer=null;submit();}},200);
+ mode="game";stage=p.stage;token=p.token;size=p.wires;labels=p.labels||[];
+ picked=-1;pairs=[];locked=false;$("title").textContent=stage==="remove"?"ДЕМОНТАЖ НЕЙРОСВЯЗЕЙ":"НЕЙРОННАЯ СШИВКА";
+ $("help").textContent=stage==="remove"?"Разрежьте пары нейронов и проводов по одинаковым номерам. Ошибка уничтожит извлекаемый имплант.":"Соедините нейроны и провода с одинаковыми номерами.";
+ visible("game");$("close").disabled=true;$("skill").textContent="Операций проведено: "+p.experience;
+ draw();deadline=Date.now()+p.seconds*1000;clearInterval(timer);
+ timer=setInterval(()=>{const remain=Math.max(0,Math.ceil((deadline-Date.now())/1000));$("time").textContent="Осталось: "+remain+" с";if(remain===0)submit();},200);
 }
-Open77.on("surgery:choose",choose);Open77.on("surgery:game",game);
-Open77.on("surgery:finish",p=>{$("message").textContent=p.success?"Операция успешно завершена.":"Операция провалена.";});
-Open77.on("surgery:close",()=>{$("screen").classList.remove("open");clearInterval(timer);});
+function submit(){if(locked)return;locked=true;clearInterval(timer);timer=null;Open77.emit("surgery:submit",{token,pairs});$("message").textContent="Проверка результата...";}
+Open77.on("surgery:choose",editor);
+Open77.on("surgery:consent",consent);
+Open77.on("surgery:game",game);
+Open77.on("surgery:stage",p=>{$("message").textContent=p.text||"Следующий этап";});
+Open77.on("surgery:finish",p=>{
+ clearInterval(timer);timer=null;$("message").textContent=p.cancelled?"Операция отменена.":p.success?"Операция прошла успешно.":"Операция провалена.";
+ $("close").disabled=false;mode="finished";
+});
+Open77.on("surgery:close",()=>{clearInterval(timer);$("screen").classList.remove("open");});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&mode!=="game")close();});
 Open77.emit("ui:ready",{});
 </script></body></html>
