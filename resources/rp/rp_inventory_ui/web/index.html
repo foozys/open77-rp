@@ -5,7 +5,7 @@
 <title>Инвентарь</title>
 <style>
   :root {
-    --cell: 64px;
+    --cell: 76px;
     --bg: rgba(10, 12, 18, 0.92);
     --line: rgba(94, 246, 255, 0.28);
     --accent: #5ef6ff;
@@ -449,6 +449,104 @@
  #cyberView #humMeter,#cyberView #sanMeter{padding:8px 3px}
  #gearBox{width:260px;flex-basis:260px}
 }
+
+/* === NEURAL // 77 : art-directed interface v3 === */
+:root{--cell:76px;--accent:#25eff6;--red:#ff425b;--gold:#ffcc50}
+#panel{
+ width:min(1740px,calc(100vw - 35px));height:min(960px,calc(100vh - 24px));
+ padding:104px 20px 28px 224px!important;
+ border:0;outline:1px solid #ff5770;outline-offset:-7px;
+ clip-path:polygon(28px 0,calc(100% - 35px) 0,100% 34px,100% calc(100% - 28px),calc(100% - 30px) 100%,24px 100%,0 calc(100% - 28px),0 28px);
+ box-shadow:inset 0 0 0 10px #bc243e16,0 0 80px #070207aa;
+ background:
+  radial-gradient(ellipse 51% 78% at 56% 37%,rgba(140,21,38,.23),transparent 95%),
+  repeating-linear-gradient(0deg,transparent 0 41px,#ff445505 41px 42px),
+  repeating-linear-gradient(90deg,transparent 0 47px,#28d4ed04 47px 48px),
+  linear-gradient(125deg,#1d0f1e,#0a0f17 48%,#090f1a 80%,#0a1119);
+}
+#hudHeader{height:100px;padding:10px 25px 14px 32px;border-bottom:0;background:linear-gradient(90deg,#34101f88,#0c111ae6 60%,#0a1a22)}
+#hudHeader::after{background:linear-gradient(90deg,#ff395c 20%,#ff415d 50%,#1ceaf1 100%);height:3px;bottom:4px;left:22px;right:22px}
+.hudMark{height:66px;width:66px;font-size:42px;box-shadow:0 0 25px #ff486930}
+#hudTitle{font:bold italic 38px "Segoe UI",Arial,sans-serif;text-transform:uppercase;letter-spacing:1px}
+#hudSubtitle{font-size:13px;letter-spacing:.3px}
+.hudEyebrow{font-size:11px}
+#tabs{top:115px;left:24px;bottom:40px;width:180px;padding-right:12px;gap:10px;border-right:1px solid #f6475c73}
+.tab{font-size:15px;padding:17px 12px;text-transform:uppercase;background:#191320b9;border-color:#57313d}
+.tab.active{border:1px solid #ff5d6d;border-left:5px solid #ff5d6d;background:linear-gradient(90deg,#a82946b2,#5216286a);box-shadow:0 0 21px #fa355661,inset 0 0 24px #ff355d3f}
+.sidebarExtras>div{border-bottom:1px solid #4d343c;font-size:13px}
+#invView,#cyberView{overflow:hidden}
+#invView .invInternalHeader{padding:4px 8px 17px;border-bottom:1px solid #ff4b5752;align-items:center}
+#weightText{text-align:right;color:#4ffaff;font-size:21px}
+#weightBar{height:12px;margin-top:8px}
+#grids{height:calc(100% - 108px);padding:22px 6px 24px 6px;justify-content:space-between;overflow:auto}
+.inventoryCells{
+ position:relative;background:linear-gradient(150deg,#03141c91,#02080f55);
+ border:1px solid #ff52645c;border-top:3px solid #e5495e;padding:21px 16px 22px;
+ box-shadow:inset 0 0 35px #f34c5116,0 0 15px #0eafb016;
+}
+.inventoryCells::before{content:"// PERSONAL STORAGE  /  GRID SYSTEM";position:absolute;top:8px;right:18px;font:10px Consolas,monospace;letter-spacing:1px;color:#64d9e6;opacity:.85}
+.inventoryCells::after{content:"";pointer-events:none;position:absolute;left:10px;right:10px;bottom:8px;height:7px;background:repeating-linear-gradient(90deg,#29d0da 0 4px,transparent 4px 9px);opacity:.28}
+.mineTitle{color:#ff7a86!important;font-size:17px!important;letter-spacing:2px!important;margin:10px 0 18px!important;font-weight:700}
+.inventoryFrame{border:2px solid #25eaf1;box-shadow:0 0 27px #00f5ed39,inset 0 0 40px #082530,0 0 0 6px #08212f96}
+#grid,#lootGrid{background-image:linear-gradient(#159da868 1px,transparent 1px),linear-gradient(90deg,#159da868 1px,transparent 1px);background-color:#061a21}
+#gearBox{width:340px;flex-basis:340px;padding:10px 12px;background:linear-gradient(#07182372,#050e18b3);border-left:1px solid #2cdce84b}
+.gearTitle{font-size:18px;margin-bottom:12px;color:#50f5f8;border-top:0}
+.gearTitle::before{font-weight:700;color:#ff5063}
+.wslot{height:104px!important;margin-bottom:10px;background:radial-gradient(ellipse at 30% 25%,#0d66704d,#06121ad9 73%);border:2px solid #29ecf2;box-shadow:inset 0 0 27px #27dce829,0 0 10px #1ffde322}
+.wslot .slotKey{font:bold 20px Consolas,monospace;color:#56f9fa}
+.bslot{height:95px;background:linear-gradient(145deg,#0e3842,#05121b)}
+.bslot .slotKey{color:#7efaff}
+.item{background:radial-gradient(ellipse 70% 75% at 50% 35%,color-mix(in srgb,var(--itemColor) 35%,#10232a),#07131a 90%)!important;
+ border:2px solid #ecc052!important;outline:1px solid #fff2b222;outline-offset:-6px;
+ box-shadow:inset 0 0 20px #ffc14b19,0 0 7px #efbe553e;
+}
+.item:before{content:"";position:absolute;inset:4px;pointer-events:none;background:linear-gradient(135deg,#ffda6b8c 0 12%,transparent 12% 88%,#ffda6b8c 88%);clip-path:polygon(0 0,18px 0,18px 4px,4px 4px,4px 18px,0 18px,0 0,100% 100%,calc(100% - 18px) 100%,calc(100% - 18px) calc(100% - 4px),calc(100% - 4px) calc(100% - 4px),calc(100% - 4px) calc(100% - 18px),100% calc(100% - 18px))}
+.item:hover{border-color:#27e9ef!important;box-shadow:0 0 18px #23f9fe88,inset 0 0 20px #20effa22}
+.item .name{font-size:10px;background:linear-gradient(90deg,#06121ac9,#07121a38);padding:3px 2px;color:#fdfaf4;right:5px;left:5px}
+.itemArt{inset:18px 4px 7px;filter:drop-shadow(0 5px 4px #000b) drop-shadow(0 0 9px #74fcff39)}
+.itemArt svg{max-height:170px}
+.wslot .itemArt{inset:3px 12px 3px 12px}
+.wslot .item .name{background:#06121ac1;max-width:170px}
+.bslot .item .name{font-size:8px;max-height:14px}
+.bslot .itemArt{inset:20px 0 0}
+.bottomSystemStrip{left:226px;right:25px;bottom:8px;font-size:10px;background:#0a161b;padding:8px 12px;height:30px;border-top:1px solid #1ac3d267}
+#panel.cyber{padding-left:225px!important}
+#cyberView>.hint{padding:7px 12px;border-bottom:1px solid #f3505955;margin-bottom:10px}
+#cyberView .cyMain{
+ display:grid;grid-template-columns:125px minmax(200px,1fr) minmax(230px,320px) minmax(200px,1fr) 130px;
+ height:calc(100% - 105px);min-height:500px;gap:12px;
+ background:
+ radial-gradient(ellipse 20% 65% at 50% 50%,#ff3f5d36,transparent 95%),
+ repeating-linear-gradient(0deg,transparent 0 31px,#fc445008 31px 32px);
+}
+.cyConnectors{position:absolute!important;inset:0!important;z-index:0!important;pointer-events:none!important}
+.cyConnectors svg{width:100%;height:100%;filter:drop-shadow(0 0 3px #ff506b)}
+#cyberView .cyCol{z-index:2;gap:15px}
+#cyberView .cyHead{color:#ff9da9;font-size:16px;font-weight:700;letter-spacing:1px;text-shadow:0 0 12px #ff4b5877}
+#cyberView .cyTiles{gap:7px}
+#cyberView .cyTile{width:clamp(70px,5.1vw,98px);height:clamp(82px,8.9vh,108px);border:1px solid #ffb644;outline:1px solid #58f2f433;outline-offset:-6px}
+#cyberView .cyTile.filled{background:radial-gradient(ellipse at 50% 50%,#436b683d,#101a26 75%);border:2px solid #ffc342;box-shadow:0 0 11px #fac14b3b,inset 0 0 18px #3ce9ec1c}
+#cyberView .cyTile.empty{border:1px dashed #f44d63}
+#cyberView .cyTile .itemArt{inset:13px 1px 9px;filter:drop-shadow(0 0 6px #d6e4d26c)}
+#cyberView .cyTile .tName{font-size:10px;top:2px;line-height:1.08}
+#cyberView .cyTile .tSlot{font-size:9px}
+#cyberView .cyBodyBox{z-index:1;height:100%;background:radial-gradient(ellipse 65% 80% at 50% 50%,#fb547a33,transparent 85%);border-bottom:2px solid #fa5c79a2}
+#cyberView .cyBodyBox:after{content:"";position:absolute;left:8%;right:8%;bottom:3%;height:24px;border:2px solid #fa687a;border-radius:50%;box-shadow:0 0 18px #fa3b72,inset 0 0 18px #ff4a7188;transform:perspective(160px) rotateX(65deg)}
+#cyBody{filter:drop-shadow(0 0 6px #ffb9c6) drop-shadow(0 0 28px #ff4464a6)}
+#cyBody .anatomy-overlay{mix-blend-mode:screen}
+#cyberView #humMeter{border:1px solid #f1aa4e;background:linear-gradient(145deg,#4c1d3088,#0a141b);box-shadow:0 0 18px #fba74e27;min-height:430px}
+#cyberView #sanMeter{border:1px solid #17cadd;background:linear-gradient(145deg,#12303d,#091017);box-shadow:0 0 17px #1ceefa2c;min-height:430px}
+#cyberView .vBar{height:285px}
+#cyberView .vTitle{font-size:11px}
+#cyberView .vValue{font-size:14px;background:#111920}
+#cyberView .cyFoot{border-top:1px solid #ff5e7188}
+@media(max-width:1470px){
+ #panel{padding-left:200px!important}#panel.cyber{padding-left:200px!important}#tabs{width:160px}
+ #gearBox{width:300px;flex-basis:300px}
+ #cyberView .cyMain{grid-template-columns:102px minmax(160px,1fr) 220px minmax(160px,1fr) 102px;gap:7px}
+ #cyberView .cyTile{width:65px;height:80px}
+ .bottomSystemStrip{left:202px}
+}
 </style>
 </head>
 <body>
@@ -622,7 +720,7 @@
 
 <script>
   const $ = id => document.getElementById(id);
-  const CELL = 64;
+  const CELL = 76;
   let state = null;        // последнее состояние от сервера
   let catalog = {};
   let drag = null;         // { index, stack, rotated, grabX, grabY, el }
@@ -648,7 +746,9 @@
   function itemIllustration(key, d) {
     const k = String(key || "").toLowerCase();
     let drawing;
-    if (d.weapon || /rifle|pistol|shotgun|smg|weapon|revolver|sniper|katana|knife/.test(k)) {
+    if (/katana|sword|knife|blade|меч|нож/.test(k)) {
+      drawing='<g transform="rotate(-25 62 40)"><path d="M15 36 Q66 23 113 32 Q73 34 24 42 Z" fill="#e6f7f8" stroke="#5be8f8" stroke-width="2"/><path d="M16 36 L8 40 L25 48 L31 41 Z" fill="#ffc84c" stroke="#f5b041" stroke-width="2"/><path d="M9 39 L6 47 L30 55 L33 49 Z" fill="#2d2233" stroke="#ffc94b" stroke-width="2"/><path d="M39 35 Q72 27 100 33" fill="none" stroke="#ffe4a3" stroke-width="1.5"/></g>';
+    } else if (d.weapon || /rifle|pistol|shotgun|smg|weapon|revolver|sniper/.test(k)) {
       drawing = '<path d="M11 43 L16 32 L48 31 L53 24 L80 23 L86 28 L107 28 L113 35 L91 37 L80 47 L65 47 L59 38 L40 40 L35 52 L21 52 L24 41 Z" fill="#29353b" stroke="#e8c68b" stroke-width="2"/><path d="M20 32 L80 29 L86 35 L26 39" fill="#b3bdc5" stroke="#293c4a" stroke-width="2"/><path d="M61 39 L78 38 L81 51 L69 54 Z" fill="#76584b" stroke="#ecc58a" stroke-width="2"/><path d="M42 33 L44 23 L51 23 L52 33" stroke="#ffca48" stroke-width="3" fill="none"/>';
     } else if (/med|bandage|heal|stim|inject/.test(k)) {
       drawing = '<rect x="25" y="15" width="72" height="51" rx="7" fill="#5f1725" stroke="#ff8796" stroke-width="3"/><path d="M52 20 V10 H72 V20" fill="none" stroke="#ffd8a5" stroke-width="4"/><path d="M56 26 H68 V38 H80 V50 H68 V62 H56 V50 H44 V38 H56 Z" fill="#fff1e9" stroke="#ffc6bb" stroke-width="2"/><path d="M31 58 H43 M78 58 H91" stroke="#f86b70" stroke-width="3"/>';
@@ -674,7 +774,7 @@
     el.className = "item";
     el.style.width = `${w * CELL}px`;
     el.style.height = `${h * CELL}px`;
-    el.style.background = `linear-gradient(160deg, ${d.color}cc, ${d.color}55)`;
+    el.style.setProperty("--itemColor", d.color || "#3ae0e9");
     const badge = stack.a != null ? `${stack.a} €$` : stack.t ? stack.t : stack.n > 1 ? `×${stack.n}` : "";
     // старый магазин: патроны / ёмкость; оружие: патроны в нём
     const magText = d.mag ? `${stack.m || 0}/${d.mag}` : d.weapon && !d.melee ? `▮ ${stack.wr || 0}` : "";
