@@ -29,7 +29,7 @@ exports("contractVerify",function(ctx)
 end)
 local function registerMenu()
     local entries={
-        {id="fixer_verify",label="Подтвердить ликвидацию",icon="crosshair",
+        {id="fixer_verify",label="Подтвердить ликвидацию",icon="info",
          order=31,group="Контракт",distance=3,networked=true,allowSelf=false,
          canInteract="contractCanVerify",onSelect="contractVerify"}
     }
