@@ -32,6 +32,9 @@ InvConfig = {
 
     items = {
         credchip   = { label = "Денежная щепка",    labelEn = "Cred chip",    w = 1, h = 1, weightG = 10,   stack = 1,  color = "#f3e600", use = "chip", unique = true },
+        target_shard = { label = "Досье цели", labelEn = "Target dossier shard", w = 1, h = 1,
+                         weightG = 10, stack = 1, color = "#f1ae48", use = "event",
+                         unique = true, useLabel = "Прочитать досье" },
         carkey     = { label = "Ключ от машины",    labelEn = "Car key",      w = 1, h = 1, weightG = 20,   stack = 1,  color = "#5ef6ff", use = "event", unique = true, useLabel = "Запереть / открыть" },
         water     ={ label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
         sandwich   = { label = "Сэндвич",           labelEn = "Sandwich",     w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
