@@ -183,7 +183,7 @@ mapping("rp_scan_prev", "Сканер: предыдущий скрипт", "MOUS
 end)
 -- Отдельное подтверждение при осмотре раненой цели с кибердекой.
 -- Сервер rp_contracts:verify заново проверяет назначение, состояние и дистанцию.
-mapping("rp_scan_contract_verify", "Kiroshi: подтвердить ликвидацию", "G", function()
+mapping("rp_scan_contract_verify", "Kiroshi: подтвердить ликвидацию", "K", function()
     if not scan.open or not scan.target or not scan.contractVerify then return end
     TriggerServerEvent("rp_contracts:verify", scan.target)
     send("scan:toast", { text = "Запрос подтверждения контракта отправлен." })
