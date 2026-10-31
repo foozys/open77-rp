@@ -1453,6 +1453,14 @@ local function scanPayload(playerId, target, distanceValue)
         revealed = revealed == true,
         accessLeft = left or 0,
     }
+    -- Контрактные метки остаются частью того же 5-минутного data_breach,
+    -- а обычная оптика показывает только предварительное совпадение примет.
+    local contract = sync("rp_contracts","kiroshi_contract",playerId,target,
+        tier ~= "public" and revealed == true)
+    if type(contract) == "table" then
+        payload.contractHint = "Человек по приметам похож на цель заказа №"..tostring(contract.id)
+        if contract.confirmed then payload.contractConfirmed = contract.id end
+    end
     if tier == "public" or not revealed then return payload end
 
     local character = characterOf(target)
