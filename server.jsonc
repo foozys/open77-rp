@@ -150,6 +150,8 @@
       "rp/rp_cyberware_ui",
       "rp/rp_surgery",
       "rp/rp_surgery_ui",
+      "rp/rp_contracts",
+      "rp/rp_contracts_ui",
       "rp/rp_taxi",
       "rp/rp_taxi_ui"
     ],
