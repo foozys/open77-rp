@@ -6,7 +6,7 @@
 -- строка — для человечности и вкладки. Рывок, удар о землю и Сандевистан — способности
 -- платформы: выдаются при входе и подтверждаются раз в 30 с. Пассивные — наши.
 
-local VERSION = 2 -- версия определений платформы; меняете параметры имплантов — увеличьте
+local VERSION = 3 -- версия определений платформы; меняете параметры имплантов — увеличьте
 local SOURCE_CLINIC = "soc:rp.clinic" -- касса NPC-клиник
 local DECK_ID = "rp.cyberdeck" -- определение кибердеки платформы: grade = прошитый скрипт
 local IDLE = "idle"            -- пустой режим деки: без сканера F8 ничего не шлёт
@@ -15,12 +15,18 @@ local IDLE = "idle"            -- пустой режим деки: без ск�
 --   scripts = { scriptId, ... } (вставлены в деку), ram, ramAt, scanning, selected,
 --   armed (прошитый grade), arming, action (своя загрузка), purgedAt }
 local state = {}
+local dataAccess = {} -- [hacker][target] = срок полного доступа (GetGameTimer), только текущие сессии
 local clinics = {}   -- [id] = { id, x, y, z, bucket }
 local sessions = {}  -- [playerId] = { pointId, at, busy } — открытое окно клиники
 local tickets = {}   -- [ticket] = result (ждём onCyberwareOperationCompleted)
 local dbReady = false
 local Arm -- прошить деку нужным скриптом (ниже, раздел «Kiroshi и взлом»)
 local startPsycho -- начать киберпсихоз (ниже, раздел «Киберпсихоз»)
+
+local function clearDataAccess(playerId)
+    dataAccess[playerId] = nil
+    for _, targets in pairs(dataAccess) do targets[playerId] = nil end
+end
 
 local function log(level, fmt, ...)
     Open77.log[level]("[rp_cyberware] " .. string.format(fmt, ...))
@@ -430,6 +436,7 @@ end
 AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
     local playerId, characterId = tonumber(playerIdArg), math.tointeger(tonumber(characterIdArg))
     if not playerId or not characterId then return end
+    clearDataAccess(playerId)
     CreateThread(function()
         if state[playerId] then saveState(playerId) end
         if dbReady then load(playerId, characterId) end
@@ -439,6 +446,7 @@ end)
 AddEventHandler("onPlayerDisconnected", function(playerIdArg)
     local playerId = tonumber(playerIdArg)
     if not playerId then return end
+    clearDataAccess(playerId)
     saveState(playerId)
     state[playerId], sessions[playerId] = nil, nil
 end)
@@ -1260,6 +1268,108 @@ end
 
 local function nowMs() return math.floor(GetGameTimer()) end
 
+local function scannerTier(s)
+    if not deckOf(s) then return "public" end
+    return s.slots.os == "implant_deck_pro" and "netwatch" or "standard"
+end
+
+local function hasDataAccess(hacker, target)
+    local targets = dataAccess[hacker]
+    local expires = targets and targets[target]
+    if not expires then return false end
+    if expires <= nowMs() then
+        targets[target] = nil
+        if next(targets) == nil then dataAccess[hacker] = nil end
+        return false
+    end
+    return true, math.max(0, math.ceil((expires - nowMs()) / 1000))
+end
+
+local WORK_HINTS = {
+    "В открытых источниках встречаются следы работы в структурах, связанных с «%s».",
+    "Очевидцы отмечали рабочую экипировку и маршруты, характерные для сотрудников «%s».",
+    "Регулярные появления отмечены у объектов, относящихся к сфере «%s».",
+    "Косвенные записи связывают трудовую деятельность объекта с «%s».",
+}
+local FACTION_HINTS = {
+    "Отмечены периодические появления в окружении, связанном с «%s».",
+    "В открытых публикациях прослеживаются контакты с представителями «%s».",
+    "Несколько независимых источников помещают объект рядом с людьми из «%s».",
+    "Социальные связи объекта частично пересекаются с кругами «%s».",
+}
+local LEAD_HINTS = {
+    "Сводка составлена по городским записям и открытым публикациям.",
+    "Автоматическая сводка: открытые реестры, объявления и свидетельства очевидцев.",
+    "Неподтверждённое досье, собранное из общедоступных источников.",
+}
+
+local function dossierOf(target)
+    local character = characterOf(target)
+    if not character then return "Недостаточно данных для составления открытого досье." end
+    local seed = math.tointeger(tonumber(character.id)) or target
+    local year = type(character.birthDate) == "string" and tonumber(character.birthDate:match("(%d%d%d%d)$"))
+    local age = year and math.max(0, (CyberConfig.scanYear or 2077) - year) or nil
+    local ageText = "возраст установить не удалось"
+    if age then
+        local low = math.floor(age / 5) * 5
+        ageText = string.format("примерно %d–%d лет", low, low + 5)
+    end
+    local job = sync("rp_jobs", "job", target)
+    local faction = sync("rp_factions", "faction", target)
+    local lines = {
+        LEAD_HINTS[seed % #LEAD_HINTS + 1],
+        "Оценка возраста: " .. ageText .. ".",
+    }
+    if type(job) == "table" and job.label then
+        lines[#lines + 1] = string.format(WORK_HINTS[seed % #WORK_HINTS + 1], job.label)
+    else
+        lines[#lines + 1] = "Устойчивых сведений о постоянной занятости в открытых источниках нет."
+    end
+    if type(faction) == "table" and faction.label then
+        lines[#lines + 1] = string.format(FACTION_HINTS[(seed + 1) % #FACTION_HINTS + 1], faction.label)
+    else
+        lines[#lines + 1] = "Выраженных связей с известными группировками не обнаружено."
+    end
+    return table.concat(lines, "\n")
+end
+
+local function scanPayload(playerId, target, distanceValue)
+    local s, t = state[playerId], state[target]
+    if not s or not t then return nil end
+    local tier = scannerTier(s)
+    local revealed, left = hasDataAccess(playerId, target)
+    local payload = {
+        target = target,
+        distance = math.floor(distanceValue * 10) / 10,
+        tier = tier,
+        dossier = dossierOf(target),
+        revealed = revealed == true,
+        accessLeft = left or 0,
+    }
+    if tier == "public" or not revealed then return payload end
+
+    local character = characterOf(target)
+    local job = sync("rp_jobs", "job", target)
+    local faction = sync("rp_factions", "faction", target)
+    local wanted = sync("rp_police", "wanted", target)
+    payload.name = character and ((character.firstName or "") .. " " .. (character.lastName or "")) or "Неизвестно"
+    payload.wanted = type(wanted) == "table" and true or false
+    payload.job = type(job) == "table" and job.label or "Официально не трудоустроен"
+    payload.faction = type(faction) == "table" and faction.label or "Не состоит"
+
+    if tier == "netwatch" then
+        local osId = t.slots.os
+        payload.operatingSystem = osId and labelOf(osId):gsub("^Имплант: ", "") or "Не установлена"
+        local implants = {}
+        for slot, implantId in pairs(t.slots) do
+            if slot ~= "os" then implants[#implants + 1] = labelOf(implantId):gsub("^Имплант: ", "") end
+        end
+        table.sort(implants)
+        payload.implants = implants
+    end
+    return payload
+end
+
 -- Кто рядом может быть целью (клиент сам выбирает по прицелу через Open77.hacking.observe).
 local function candidatesNear(playerId)
     local place, list = placeOf(playerId), {}
@@ -1401,19 +1511,18 @@ RegisterNetEvent("rp_cyberware:scanSelect", function(step)
     pushScan(playerId)
 end)
 
--- Что Kiroshi видит о цели.
+-- Публичное досье доступно с Kiroshi. Дека добавляет закрытые поля, но сервер не
+-- отдаёт их содержимое до успешного «Взлома данных»; Netwatch видит ещё ОС и импланты.
 RegisterNetEvent("rp_cyberware:scanInfo", function(targetArg)
     local playerId, target = tonumber(source), math.tointeger(tonumber(targetArg))
     local s, t = playerId and state[playerId], target and state[target]
     if not s or not s.scanning or not t or target == playerId then return end
     local mine, theirs = placeOf(playerId), placeOf(target)
     if not mine or not theirs or mine.bucket ~= theirs.bucket then return end
-    local count = 0
-    for _ in pairs(t.slots) do count = count + 1 end
-    local def = deckOf(t)
-    send(playerId, "rp_cyberware:scanInfo", { target = target, distance = math.floor(distance(mine, theirs) * 10) / 10,
-        implants = count, ice = t.slots.ice ~= nil, deck = def ~= nil, purge = t.slots.purge ~= nil,
-        unstable = t.psychosis >= CyberConfig.episodeFrom, downed = Open77.players.isDead(target) or isDowned(target) })
+    local d = distance(mine, theirs)
+    if d > CyberConfig.scanRange then return end
+    local payload = scanPayload(playerId, target, d)
+    if payload then send(playerId, "rp_cyberware:scanInfo", payload) end
 end)
 
 local function healthOf(playerId)
@@ -1442,6 +1551,18 @@ end
 -- Итог дошедшего скрипта: урон (несмертельный не опускает ниже 1) и статус платформы.
 applyHack = function(attacker, u, t)
     attacker = math.tointeger(attacker) or attacker
+    if u.q.effect == "data_breach" then
+        if not state[attacker] or state[u.target] ~= t then return end
+        dataAccess[attacker] = dataAccess[attacker] or {}
+        dataAccess[attacker][u.target] = nowMs() + (CyberConfig.dataBreachSeconds or 300) * 1000
+        local mine, theirs = placeOf(attacker), placeOf(u.target)
+        if mine and theirs and mine.bucket == theirs.bucket then
+            local payload = scanPayload(attacker, u.target, distance(mine, theirs))
+            if payload then send(attacker, "rp_cyberware:scanInfo", payload) end
+        end
+        if t then t.hackedUntil = nowMs() + (tonumber(u.q.grade.recoveryMs) or 0) end
+        return
+    end
     local damage = tonumber(u.q.grade.damage) or 0
     if damage > 0 and not Open77.players.isDead(u.target) then
         if u.q.grade.nonlethal then

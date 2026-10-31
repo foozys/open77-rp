@@ -122,3 +122,15 @@ Migrations.add(6, "character_health", {
             ADD COLUMN IF NOT EXISTS health DOUBLE NULL
     ]],
 })
+
+-- Расширенная анкета и предыстория. У старых активных персонажей поля остаются
+-- NULL: миграция не заставляет их проходить создание повторно.
+Migrations.add(7, "character_profile_and_background", {
+    [[
+        ALTER TABLE rp_characters
+            ADD COLUMN IF NOT EXISTS race VARCHAR(32) NULL AFTER birth_date,
+            ADD COLUMN IF NOT EXISTS gender VARCHAR(16) NULL AFTER race,
+            ADD COLUMN IF NOT EXISTS origin_country VARCHAR(64) NULL AFTER gender,
+            ADD COLUMN IF NOT EXISTS background VARCHAR(16) NULL AFTER origin_country
+    ]],
+})

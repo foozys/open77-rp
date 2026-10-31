@@ -1,5 +1,5 @@
 resource "rp_charselect"
-version "0.1.0"
+version "0.3.2"
 auto_start true
 -- WebUI-поверхность должна пересоздаваться с сессией.
 reload_policy "reconnect"

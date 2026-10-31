@@ -1,5 +1,5 @@
 resource "rp_cyberware_ui"
-version "0.1.0"
+version "0.2.0"
 auto_start true
 -- WebUI-поверхность должна пересоздаваться с сессией.
 reload_policy "reconnect"

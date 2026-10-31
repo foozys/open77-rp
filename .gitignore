@@ -2,6 +2,8 @@
 # Бинарники, платформенные ресурсы и .open77/ (ключи подписи, кэш) не коммитим.
 /*
 !/.gitignore
+!/README.md
+!/PROJECT_CONTEXT.md
 !/CLAUDE.md
 !/TESTING-2P.md
 !/DOCS.md
@@ -13,3 +15,4 @@
 !/resources/
 /resources/*
 !/resources/rp/
+/resources/rp/rp_clothes/dist/

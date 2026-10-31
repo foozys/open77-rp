@@ -138,8 +138,14 @@ CyberConfig = {
         qh_weapon = { ram = 3, description = "6 с оружие цели не стреляет",
             grade = { kind = "weapon_glitch", range = 20, uploadMs = 2500, staminaCost = 10, cooldownMs = 15000,
                       damage = 0, recoveryMs = 7000, nonlethal = true, glitch = { durationMs = 6000 } } },
+        qh_data_breach = { ram = 5, description = "Открывает полное досье цели на 5 минут",
+            effect = "data_breach",
+            grade = { kind = "short_circuit", range = 20, uploadMs = 4000, staminaCost = 10, cooldownMs = 30000,
+                      damage = 0, statusMs = 0, recoveryMs = 5000, nonlethal = true, cosmetic = true } },
     },
     scanRange = 50,          -- кого Kiroshi видит как цель (м)
+    scanYear = 2077,         -- год, относительно которого публичное досье оценивает возраст
+    dataBreachSeconds = 300, -- полный доступ после «Взлома данных»
 
     -- Киберпсихоз: при рассудке 0 каждый тяжёлый приступ с шансом chance превращается в срыв.
     -- Срыв длится seconds: тяжёлый Сандевистан сам, броня +armorBonus, видно всем, полиции —

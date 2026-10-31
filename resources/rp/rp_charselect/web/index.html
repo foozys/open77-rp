@@ -16,7 +16,7 @@
   html, body { margin: 0; height: 100%; background: transparent; color: var(--text);
     font: 22px/1.4 "Segoe UI", Arial, sans-serif; overflow: hidden; }
   #app { display: none; position: absolute; left: 80px; top: 50%; transform: translateY(-50%);
-    width: 560px; padding: 36px; background: var(--bg); border: 1px solid var(--line);
+    width: 640px; padding: 36px; background: var(--bg); border: 1px solid var(--line);
     border-left: 4px solid var(--accent); }
   #app.visible { display: block; }
   h1 { margin: 0 0 6px; font-size: 34px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
@@ -28,9 +28,10 @@
   .slot small { display: block; color: var(--muted); font-size: 16px; }
   .slot.empty { color: var(--muted); border-style: dashed; }
   label { display: block; margin: 0 0 14px; color: var(--muted); font-size: 18px; }
-  input { display: block; width: 100%; margin-top: 4px; padding: 10px 12px; background: rgba(0, 0, 0, 0.4);
+  input, select { display: block; width: 100%; margin-top: 4px; padding: 10px 12px; background: rgba(0, 0, 0, 0.4);
     border: 1px solid var(--line); color: var(--text); font: inherit; }
-  input:focus { outline: none; border-color: var(--accent); }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  select option { background: #0b1119; color: var(--text); }
   .actions { display: flex; gap: 12px; margin-top: 22px; }
   button.main, button.danger, button.ghost { flex: 1; padding: 12px; font: inherit; cursor: pointer;
     text-transform: uppercase; letter-spacing: 1px; }
@@ -41,6 +42,43 @@
   #error { min-height: 26px; margin-top: 16px; color: var(--warn); font-size: 18px; }
   #confirm { display: none; margin-top: 18px; }
   #confirm.visible { display: block; }
+  .backgrounds { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; overflow: visible; }
+  .background-card { position: relative; min-height: 150px; padding: 20px; text-align: left; cursor: pointer;
+    color: var(--text); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--line); font: inherit; }
+  .background-card:hover, .background-card:focus, .background-card.selected {
+    outline: none; border-color: var(--accent); background: rgba(94, 246, 255, 0.1); }
+  .background-card strong { display: block; margin-bottom: 8px; color: var(--accent); font-size: 24px;
+    text-transform: uppercase; letter-spacing: 1px; }
+  .background-card span { color: var(--muted); font-size: 17px; }
+  .tooltip { display: none; position: absolute; z-index: 5; left: calc(100% + 16px); top: 0; width: 510px;
+    padding: 18px; color: var(--text); background: rgba(8, 10, 16, 0.97); border: 1px solid var(--warn);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); font-size: 17px; line-height: 1.45; }
+  .background-card:hover .tooltip, .background-card:focus .tooltip, .background-card.selected .tooltip { display: block; }
+  #corporateKey { display: none; margin-top: 18px; }
+  #corporateKey.visible { display: block; }
+  #customCountryLabel { display: none; }
+  #customCountryLabel.visible { display: block; }
+  #faction { max-height: 940px; }
+  #factionGroups { max-height: 700px; padding-right: 8px; overflow-y: auto; overflow-x: visible; }
+  .faction-group { margin: 0 0 20px; }
+  .faction-group h2 { margin: 0 0 10px; color: var(--muted); font-size: 18px;
+    text-transform: uppercase; letter-spacing: 1px; }
+  .faction-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; overflow: visible; }
+  .faction-card { position: relative; min-height: 72px; padding: 12px 15px; text-align: left; cursor: pointer;
+    color: var(--text); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--line); font: inherit; }
+  .faction-card:hover, .faction-card:focus, .faction-card.selected {
+    outline: none; border-color: var(--accent); background: rgba(94, 246, 255, 0.1); }
+  .faction-card.unavailable { cursor: not-allowed; color: #66777b; border-color: rgba(143, 163, 168, 0.22);
+    background: rgba(0, 0, 0, 0.18); }
+  .faction-card small { display: block; color: var(--muted); font-size: 15px; }
+  .faction-card:only-child { grid-column: 1 / -1; }
+  .faction-card .tooltip { position: static; width: auto; margin-top: 10px; padding: 10px 12px;
+    box-sizing: border-box; box-shadow: none; font-size: 14px; line-height: 1.4;
+    white-space: normal; overflow-wrap: anywhere; }
+  .faction-card:hover .tooltip, .faction-card:focus .tooltip { display: block; }
+  .faction-description { display: block; width: auto; margin-top: 10px; padding: 10px 12px;
+    color: var(--text); background: rgba(8, 10, 16, 0.72); border: 1px solid var(--warn);
+    font-size: 14px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -70,8 +108,140 @@
     <label>Имя <input id="firstName" maxlength="24" autocomplete="off"></label>
     <label>Фамилия <input id="lastName" maxlength="24" autocomplete="off"></label>
     <label>Дата рождения (ДД.ММ.ГГГГ) <input id="birthDate" maxlength="10" placeholder="15.03.2049" autocomplete="off"></label>
+    <label>Раса
+      <select id="race">
+        <option value="">Выберите</option>
+        <option value="european">Европейская</option>
+        <option value="east_asian">Восточноазиатская</option>
+        <option value="south_asian">Южноазиатская</option>
+        <option value="african">Африканская</option>
+        <option value="latino">Латиноамериканская</option>
+        <option value="middle_eastern">Ближневосточная</option>
+        <option value="indigenous">Коренные народы</option>
+        <option value="mixed">Смешанная</option>
+      </select>
+    </label>
+    <label>Пол
+      <select id="gender">
+        <option value="">Выберите</option>
+        <option value="male">Мужской</option>
+        <option value="female">Женский</option>
+      </select>
+    </label>
+    <label>Родная страна
+      <select id="country">
+        <option value="">Выберите</option>
+        <option value="Россия">Россия</option>
+        <option value="США">США</option>
+        <option value="Канада">Канада</option>
+        <option value="Мексика">Мексика</option>
+        <option value="Бразилия">Бразилия</option>
+        <option value="Аргентина">Аргентина</option>
+        <option value="Чили">Чили</option>
+        <option value="Колумбия">Колумбия</option>
+        <option value="Великобритания">Великобритания</option>
+        <option value="Ирландия">Ирландия</option>
+        <option value="Франция">Франция</option>
+        <option value="Германия">Германия</option>
+        <option value="Италия">Италия</option>
+        <option value="Испания">Испания</option>
+        <option value="Португалия">Португалия</option>
+        <option value="Нидерланды">Нидерланды</option>
+        <option value="Бельгия">Бельгия</option>
+        <option value="Швейцария">Швейцария</option>
+        <option value="Австрия">Австрия</option>
+        <option value="Польша">Польша</option>
+        <option value="Чехия">Чехия</option>
+        <option value="Словакия">Словакия</option>
+        <option value="Венгрия">Венгрия</option>
+        <option value="Румыния">Румыния</option>
+        <option value="Болгария">Болгария</option>
+        <option value="Сербия">Сербия</option>
+        <option value="Хорватия">Хорватия</option>
+        <option value="Греция">Греция</option>
+        <option value="Швеция">Швеция</option>
+        <option value="Норвегия">Норвегия</option>
+        <option value="Финляндия">Финляндия</option>
+        <option value="Дания">Дания</option>
+        <option value="Исландия">Исландия</option>
+        <option value="Украина">Украина</option>
+        <option value="Беларусь">Беларусь</option>
+        <option value="Молдова">Молдова</option>
+        <option value="Казахстан">Казахстан</option>
+        <option value="Узбекистан">Узбекистан</option>
+        <option value="Грузия">Грузия</option>
+        <option value="Армения">Армения</option>
+        <option value="Азербайджан">Азербайджан</option>
+        <option value="Турция">Турция</option>
+        <option value="Израиль">Израиль</option>
+        <option value="Саудовская Аравия">Саудовская Аравия</option>
+        <option value="ОАЭ">ОАЭ</option>
+        <option value="Иран">Иран</option>
+        <option value="Ирак">Ирак</option>
+        <option value="Индия">Индия</option>
+        <option value="Пакистан">Пакистан</option>
+        <option value="Бангладеш">Бангладеш</option>
+        <option value="Китай">Китай</option>
+        <option value="Япония">Япония</option>
+        <option value="Южная Корея">Южная Корея</option>
+        <option value="Северная Корея">Северная Корея</option>
+        <option value="Вьетнам">Вьетнам</option>
+        <option value="Таиланд">Таиланд</option>
+        <option value="Филиппины">Филиппины</option>
+        <option value="Индонезия">Индонезия</option>
+        <option value="Малайзия">Малайзия</option>
+        <option value="Сингапур">Сингапур</option>
+        <option value="Австралия">Австралия</option>
+        <option value="Новая Зеландия">Новая Зеландия</option>
+        <option value="Египет">Египет</option>
+        <option value="Марокко">Марокко</option>
+        <option value="Алжир">Алжир</option>
+        <option value="Нигерия">Нигерия</option>
+        <option value="Эфиопия">Эфиопия</option>
+        <option value="Кения">Кения</option>
+        <option value="ЮАР">ЮАР</option>
+        <option value="other">Другая страна</option>
+      </select>
+    </label>
+    <label id="customCountryLabel">Укажите страну
+      <input id="customCountry" maxlength="48" autocomplete="off">
+    </label>
     <div class="actions">
-      <button class="main" id="submit">Готово</button>
+      <button class="ghost" id="profileBack">Назад</button>
+      <button class="main" id="submit">Продолжить</button>
+    </div>
+  </section>
+
+  <section id="background" hidden>
+    <h1>Предыстория</h1>
+    <p class="hint">Выберите прошлое персонажа. Изменить его после создания нельзя.</p>
+    <div class="backgrounds">
+      <button class="background-card" id="civilianCard">
+        <strong>Обычный человек</strong>
+        <span>Стандартные правила ранения и восстановления.</span>
+      </button>
+      <button class="background-card" id="corporateCard">
+        <strong>Корпорат</strong>
+        <span>Особые правила смерти. Требуется ключ доступа.</span>
+        <span class="tooltip">Работает иное правило смерти. У других игроков появляется возможность добить вас, что приводит к моментальной смерти персонажа. Также у вас отключена возможность возрождения в больнице — только вызов доктора или отдельные предназначенные для этого импланты могут спасти вас из нока.</span>
+      </button>
+    </div>
+    <label id="corporateKey">ВСТАВЬТЕ КЛЮЧ
+      <input id="keyInput" maxlength="64" type="password" autocomplete="off">
+    </label>
+    <div class="actions">
+      <button class="ghost" id="backgroundBack">Назад</button>
+      <button class="main" id="backgroundSubmit">Продолжить</button>
+    </div>
+  </section>
+
+  <section id="faction" hidden>
+    <h1>Фракция</h1>
+    <p class="hint">Выберите принадлежность персонажа перед появлением в городе.</p>
+    <div id="factionGroups"></div>
+    <div class="actions">
+      <button class="ghost" id="factionBack">Назад</button>
+      <button class="main" id="factionSubmit">Подтвердить</button>
     </div>
   </section>
 
@@ -82,6 +252,8 @@
   const $ = id => document.getElementById(id);
   let state = null;
   let selected = null; // { kind: "character", character } | { kind: "empty" }
+  let backgroundChoice = null;
+  let selectedFaction = null;
 
   function setBusy(busy) {
     document.querySelectorAll("button").forEach(b => { b.disabled = busy; });
@@ -96,6 +268,26 @@
     return c.status === "creating" || !c.firstName ? "Не создан" : `${c.firstName} ${c.lastName}`;
   }
 
+  function currentCharacter() {
+    return state && (state.characters || []).find(character => character.id === state.currentId);
+  }
+
+  function renderProfile() {
+    const character = currentCharacter() || {};
+    $("firstName").value = character.firstName || "";
+    $("lastName").value = character.lastName || "";
+    $("birthDate").value = character.birthDate || "";
+    $("race").value = character.race || "";
+    $("gender").value = character.gender || "";
+
+    const country = character.country || "";
+    const knownCountry = Array.from($("country").options).some(option => option.value === country);
+    $("country").value = knownCountry ? country : (country ? "other" : "");
+    $("customCountry").value = knownCountry ? "" : country;
+    $("customCountryLabel").classList.toggle("visible", !knownCountry && !!country);
+    $("firstName").focus();
+  }
+
   function choose(entry) {
     selected = entry;
     $("confirm").classList.remove("visible");
@@ -107,6 +299,16 @@
   }
 
   function updateButtons() {
+    if (!state) return;
+    if (state.mode === "background") {
+      $("backgroundSubmit").disabled = !backgroundChoice;
+      return;
+    }
+    if (state.mode === "faction") {
+      $("factionSubmit").disabled = !selectedFaction;
+      return;
+    }
+    if (state.mode !== "select") return;
     const isCharacter = selected && selected.kind === "character";
     $("play").textContent = isCharacter ? "Играть" : "Создать";
     $("play").disabled = !selected;
@@ -144,10 +346,86 @@
     $("app").classList.add("visible");
     $("select").hidden = state.mode !== "select";
     $("profile").hidden = state.mode !== "profile";
+    $("background").hidden = state.mode !== "background";
+    $("faction").hidden = state.mode !== "faction";
     showError("");
     setBusy(false);
     if (state.mode === "select") renderSelect();
-    else $("firstName").focus();
+    else if (state.mode === "profile") renderProfile();
+    else if (state.mode === "background") {
+      const character = currentCharacter();
+      const savedBackground = character && character.background;
+      backgroundChoice = savedBackground === "civilian" || savedBackground === "corporate"
+        ? savedBackground : null;
+      $("civilianCard").classList.toggle("selected", backgroundChoice === "civilian");
+      $("corporateCard").classList.toggle("selected", backgroundChoice === "corporate");
+      $("corporateKey").classList.toggle("visible", backgroundChoice === "corporate");
+      $("keyInput").value = "";
+      updateButtons();
+      $(backgroundChoice === "corporate" ? "corporateCard" : "civilianCard").focus();
+    } else {
+      renderFactions();
+    }
+  }
+
+  function renderFactions() {
+    selectedFaction = null;
+    const root = $("factionGroups");
+    root.innerHTML = "";
+    const groups = [];
+    for (const faction of state.factions || []) {
+      let group = groups.find(item => item.id === faction.group);
+      if (!group) {
+        group = { id: faction.group, label: faction.groupLabel, items: [] };
+        groups.push(group);
+      }
+      group.items.push(faction);
+    }
+    for (const group of groups) {
+      const section = document.createElement("section");
+      section.className = "faction-group";
+      const heading = document.createElement("h2");
+      heading.textContent = group.label;
+      section.appendChild(heading);
+      const grid = document.createElement("div");
+      grid.className = "faction-grid";
+      for (const faction of group.items) {
+        const card = document.createElement("button");
+        card.className = "faction-card" + (faction.available ? "" : " unavailable");
+        card.textContent = faction.label;
+        if (faction.limit) {
+          const slots = document.createElement("small");
+          slots.textContent = `Слоты: ${faction.occupied}/${faction.limit}`;
+          card.appendChild(slots);
+        }
+        if (faction.description) {
+          const description = document.createElement("span");
+          description.className = "faction-description";
+          description.textContent = faction.description;
+          card.appendChild(description);
+        }
+        const tipText = faction.available ? faction.tooltip : "Все слоты сейчас заняты.";
+        if (tipText) {
+          card.title = tipText;
+          const tip = document.createElement("span");
+          tip.className = "tooltip";
+          tip.textContent = tipText;
+          card.appendChild(tip);
+        }
+        card.addEventListener("click", () => {
+          if (!faction.available) return;
+          selectedFaction = faction.id;
+          document.querySelectorAll(".faction-card").forEach(el => el.classList.toggle("selected", el === card));
+          updateButtons();
+        });
+        grid.appendChild(card);
+      }
+      section.appendChild(grid);
+      root.appendChild(section);
+    }
+    updateButtons();
+    const first = root.querySelector(".faction-card:not(.unavailable)");
+    if (first) first.focus();
   }
 
   $("play").addEventListener("click", () => {
@@ -188,6 +466,13 @@
     e.target.value = out;
   });
 
+  $("country").addEventListener("change", () => {
+    const custom = $("country").value === "other";
+    $("customCountryLabel").classList.toggle("visible", custom);
+    if (custom) $("customCountry").focus();
+    else $("customCountry").value = "";
+  });
+
   $("submit").addEventListener("click", () => {
     setBusy(true);
     showError("");
@@ -195,12 +480,53 @@
       firstName: $("firstName").value.trim(),
       lastName: $("lastName").value.trim(),
       birthDate: $("birthDate").value.trim(),
+      race: $("race").value,
+      gender: $("gender").value,
+      country: $("country").value === "other" ? $("customCountry").value.trim() : $("country").value,
     });
   });
+
+  function chooseBackground(kind) {
+    backgroundChoice = kind;
+    $("civilianCard").classList.toggle("selected", kind === "civilian");
+    $("corporateCard").classList.toggle("selected", kind === "corporate");
+    $("corporateKey").classList.toggle("visible", kind === "corporate");
+    updateButtons();
+    if (kind === "corporate") $("keyInput").focus();
+  }
+
+  $("civilianCard").addEventListener("click", () => chooseBackground("civilian"));
+  $("corporateCard").addEventListener("click", () => chooseBackground("corporate"));
+  $("backgroundSubmit").addEventListener("click", () => {
+    if (!backgroundChoice) return;
+    setBusy(true);
+    showError("");
+    Open77.emit("background", {
+      background: backgroundChoice,
+      key: backgroundChoice === "corporate" ? $("keyInput").value : "",
+    });
+  });
+
+  $("factionSubmit").addEventListener("click", () => {
+    if (!selectedFaction) return;
+    setBusy(true);
+    showError("");
+    Open77.emit("faction", { faction: selectedFaction });
+  });
+
+  for (const id of ["profileBack", "backgroundBack", "factionBack"]) {
+    $(id).addEventListener("click", () => {
+      setBusy(true);
+      showError("");
+      Open77.emit("back", {});
+    });
+  }
 
   document.addEventListener("keydown", e => {
     if (e.key !== "Enter" || !state) return;
     if (state.mode === "profile" && !$("submit").disabled) $("submit").click();
+    if (state.mode === "background" && !$("backgroundSubmit").disabled) $("backgroundSubmit").click();
+    if (state.mode === "faction" && !$("factionSubmit").disabled) $("factionSubmit").click();
   });
 
   Open77.on("state", data => {

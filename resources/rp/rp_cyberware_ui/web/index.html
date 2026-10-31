@@ -54,7 +54,7 @@
   #reticle.lock { width: 90px; height: 90px; }
   #reticle.lock i { border-color: var(--warn); }
   #reticle .dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: var(--k); }
-  #scanSide { position: absolute; left: calc(50% + 110px); top: calc(50% - 170px); width: 360px; }
+  #scanSide { position: absolute; left: calc(50% + 110px); top: calc(50% - 230px); width: 470px; }
   .card { background: rgba(12, 10, 2, 0.82); border: 1px solid rgba(243, 230, 0, 0.45); border-left: 4px solid var(--k);
     padding: 10px 14px; margin-bottom: 10px; }
   .card .cap { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--k); }
@@ -63,21 +63,28 @@
   .card .kv span:first-child { color: var(--muted); }
   .card .bad { color: var(--warn); } .card .good { color: var(--ok); }
   .card.none { color: var(--muted); font-size: 13px; border-left-color: rgba(243, 230, 0, 0.4); }
-  .qh { border-left-color: var(--q); border-color: rgba(94, 246, 255, 0.45); }
+  .dossier { margin: 8px 0 10px; padding: 8px 10px; color: #c7d1d2; background: rgba(255,255,255,0.035);
+    border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; line-height: 1.45; white-space: pre-line; }
+  .pixel { color: #b9f7fa; letter-spacing: 2px; font-family: Consolas, monospace;
+    text-shadow: 2px 0 rgba(255, 0, 80, 0.5), -2px 0 rgba(0, 255, 255, 0.45); animation: pixelFlicker .45s steps(2) infinite; }
+  @keyframes pixelFlicker { 50% { opacity: .62; transform: translateX(1px); } }
+  .access { color: var(--ok); font-size: 11px; letter-spacing: 1px; margin-bottom: 4px; }
+  .qh { position: absolute; left: 50%; bottom: 34px; width: min(1080px, calc(100% - 120px)); transform: translateX(-50%);
+    margin: 0; border-left-color: var(--q); border-color: rgba(94, 246, 255, 0.45); }
   .qh .cap { color: var(--q); display: flex; justify-content: space-between; }
-  #ram { display: flex; gap: 3px; margin: 8px 0 8px; }
+  #ram { display: flex; gap: 3px; margin: 7px 0; }
   #ram i { flex: 1; height: 10px; border: 1px solid rgba(94, 246, 255, 0.6); }
   #ram i.full { background: var(--q); }
   #ram i.part { background: linear-gradient(90deg, rgba(94, 246, 255, 0.55) var(--p), transparent var(--p)); }
   #ram i.cost { box-shadow: inset 0 0 0 2px #fff; }
-  .script { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: 14px;
-    border: 1px solid transparent; }
+  #scripts { display: flex; gap: 8px; }
+  .script { display: flex; flex: 1 1 0; min-width: 0; justify-content: space-between; align-items: center;
+    padding: 8px 10px; font-size: 13px; border: 1px solid rgba(94, 246, 255, 0.16); }
   .script .r { font-weight: 700; color: var(--q); }
   .script.sel { background: rgba(94, 246, 255, 0.16); border-color: var(--q); }
   .script.sel::before { content: "▶"; color: var(--q); margin-right: 6px; font-size: 10px; }
   .script.poor { opacity: 0.4; }
-  .script .n { flex: 1; }
-  #scriptDesc { font-size: 12px; color: var(--muted); min-height: 16px; margin-top: 6px; }
+  .script .n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   #scanStatus { font-size: 12px; margin-top: 6px; color: var(--q); }
   #scanStatus.wait { color: var(--k); }
   #scanToast { position: absolute; left: 50%; top: calc(50% + 90px); transform: translateX(-50%); padding: 6px 14px;
@@ -148,7 +155,7 @@
     font-size: 14px; letter-spacing: 8px; text-transform: uppercase; text-shadow: 0 0 10px rgba(60, 255, 140, 0.8); }
   #od .label small { display: block; text-align: center; letter-spacing: 1px; font-size: 12px; color: rgba(160, 255, 200, 0.8);
     margin-top: 4px; text-transform: none; }
-  #scanHelp { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--k);
+  #scanHelp { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--k);
     letter-spacing: 1px; opacity: 0.8; }
 </style>
 </head>
@@ -184,13 +191,12 @@
   <div id="reticle"><i></i><i></i><i></i><i></i><div class="dot"></div></div>
   <div id="scanSide">
     <div class="card none" id="targetCard">Наведите взгляд на человека.</div>
-    <div class="card qh" id="qhCard">
-      <div class="cap"><span>Скрипты</span><span id="ramText"></span></div>
-      <div id="ram"></div>
-      <div id="scripts"></div>
-      <div id="scriptDesc"></div>
-      <div id="scanStatus"></div>
-    </div>
+  </div>
+  <div class="card qh" id="qhCard">
+    <div class="cap"><span>Скрипты</span><span id="ramText"></span></div>
+    <div id="ram"></div>
+    <div id="scripts"></div>
+    <div id="scanStatus"></div>
   </div>
   <div id="scanToast"></div>
   <div id="scanHelp">Колесо — выбор скрипта · ЛКМ — отправить · отпустите TAB — выход</div>
@@ -280,16 +286,36 @@
     card.className = "card";
     card.replaceChildren();
     card.innerHTML = `<div class="cap">Цель</div><div class="big"></div>`;
-    card.querySelector(".big").textContent = `Объект #${scanTarget}`;
+    card.querySelector(".big").textContent = "Объект";
     kv(card, "Дистанция", distance ? `${distance} м` : "—");
     const i = scanInfo && scanInfo.target === scanTarget ? scanInfo : null;
     if (!i) { kv(card, "Анализ", "…"); return; }
-    kv(card, "Киберимпланты", String(i.implants));
-    kv(card, "Self-ICE", i.ice ? "обнаружен" : "нет", i.ice ? "bad" : "good");
-    kv(card, "Кибердека", i.deck ? "есть" : "нет", i.deck ? "bad" : "");
-    kv(card, "Purge", i.purge ? "есть" : "нет");
-    kv(card, "Нейросостояние", i.unstable ? "нестабильно" : "стабильно", i.unstable ? "bad" : "good");
-    if (i.downed) kv(card, "Состояние", "без сознания", "bad");
+
+    const dossier = document.createElement("div");
+    dossier.className = "dossier";
+    dossier.textContent = i.dossier || "Открытые сведения отсутствуют.";
+    card.append(dossier);
+    if (i.tier === "public") return;
+
+    const hidden = "▓▒▓▓▒▓▒▓";
+    const secret = value => i.revealed ? value : hidden;
+    const secretClass = i.revealed ? "" : "pixel";
+    card.querySelector(".big").textContent = secret(i.name || "Неизвестно");
+    card.querySelector(".big").classList.toggle("pixel", !i.revealed);
+    if (i.revealed) {
+      const access = document.createElement("div");
+      access.className = "access";
+      access.textContent = `ДОСТУП ПОЛУЧЕН · ${Math.floor((i.accessLeft || 0) / 60)}:${String((i.accessLeft || 0) % 60).padStart(2, "0")}`;
+      card.append(access);
+    }
+    kv(card, "Розыск", secret(i.wanted ? "В РОЗЫСКЕ" : "не разыскивается"), i.revealed ? (i.wanted ? "bad" : "good") : secretClass);
+    kv(card, "Работа", secret(i.job || "нет данных"), secretClass);
+    kv(card, "Фракция", secret(i.faction || "нет данных"), secretClass);
+    if (i.tier === "netwatch") {
+      kv(card, "Операционная система", secret(i.operatingSystem || "нет данных"), secretClass);
+      const implants = Array.isArray(i.implants) && i.implants.length ? i.implants.join(", ") : "Не обнаружены";
+      kv(card, "Импланты", secret(implants), secretClass);
+    }
   }
 
   function renderScripts() {
@@ -327,7 +353,6 @@
       row.querySelector(".r").textContent = s.cooldown > 0 ? `⟳ ${s.cooldown} с` : s.ram;
       list.append(row);
     });
-    $("scriptDesc").textContent = sel ? `${sel.description} · до ${sel.range} м` : "";
     const status = $("scanStatus");
     if (p.busy) { status.textContent = "Идёт загрузка…"; status.className = "wait"; }
     else if (sel && sel.cooldown > 0) { status.textContent = `Перезарядка: ${sel.cooldown} с`; status.className = "wait"; }

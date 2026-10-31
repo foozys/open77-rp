@@ -1,5 +1,5 @@
 resource "rp_cyberware"
-version "0.1.0"
+version "0.2.0"
 auto_start true
 
 dependency "open77_transactions >=0.1.0"
@@ -8,6 +8,8 @@ dependency "rp_core"
 dependency "rp_inventory"
 -- рипердоки — работа ripperdoc (cyber.install)
 dependency "rp_jobs"
+dependency "rp_factions"
+dependency "rp_police"
 -- постоянные импланты и хакерские
 dependency "open77_cyberware"
 dependency "open77_hacking"

@@ -11,6 +11,7 @@ local KIT_PERMISSIONS = { "rp.cuff", "rp.escort", "rp.search" }
 local granted = {}   -- [playerId] = userId, кому выданы права набора
 local searches = {}  -- [officer playerId] = { target, at, ticket? }
 local jailed = {}    -- [playerId] = { characterId, left, cellId, reason }
+local wanted = {}    -- [playerId] = false | { characterId, reason, issuedAt }
 local lastCall = {}  -- [playerId] = unix
 local points = {}    -- [id] = { id, type = "cell"|"exit", x, y, z, heading, bucket }
 local dbReady = false
@@ -375,6 +376,51 @@ RegisterCommand("fines", function(source, args)
     end
 end, false)
 
+-- -- розыск ---------------------------------------------------------------------------
+
+local function loadWanted(playerId, characterId)
+    local row = db("single", [[SELECT reason, DATE_FORMAT(updated_at, '%d.%m.%Y %H:%i') AS issued_at
+        FROM rp_police_wanted WHERE character_id = ?]], { characterId })
+    wanted[playerId] = row and { characterId = characterId, reason = row.reason, issuedAt = row.issued_at } or false
+end
+
+RegisterCommand("wanted", function(source, args)
+    if not officerOnly(source, PoliceConfig.arrestPermission) then return end
+    local id = target(source, args[1])
+    local reason = table.concat(args, " ", 2):sub(1, 255)
+    if not id or reason == "" then return notify(source, "Использование: /wanted <ID> <причина>") end
+    local character, officer = characterOf(id), characterOf(source)
+    local _, err = db("update", [[INSERT INTO rp_police_wanted (character_id, reason, officer_character_id)
+        VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason),
+        officer_character_id = VALUES(officer_character_id), updated_at = CURRENT_TIMESTAMP]],
+        { character.id, reason, officer.id })
+    if err then return notify(source, "Розыск не записан: %s", tostring(err)) end
+    loadWanted(id, character.id)
+    notify(source, "%s объявлен в розыск: %s.", nameOf(id), reason)
+    notify(id, "NCPD объявил вас в розыск: %s.", reason)
+    core("audit", "police_wanted", core("account_license", source), core("account_license", id), { reason = reason })
+end, false)
+
+RegisterCommand("unwanted", function(source, args)
+    if not officerOnly(source, PoliceConfig.arrestPermission) then return end
+    local id = target(source, args[1])
+    if not id then return notify(source, "Использование: /unwanted <ID>") end
+    local character = characterOf(id)
+    local _, err = db("update", "DELETE FROM rp_police_wanted WHERE character_id = ?", { character.id })
+    if err then return notify(source, "Розыск не снят: %s", tostring(err)) end
+    wanted[id] = false
+    notify(source, "Розыск с %s снят.", nameOf(id))
+    notify(id, "NCPD снял вас с розыска.")
+    core("audit", "police_unwanted", core("account_license", source), core("account_license", id), {})
+end, false)
+
+-- Синхронный статус для сканера: причина наружу не отдаётся, пока она ему не нужна.
+exports("wanted", function(playerIdArg)
+    local record = wanted[math.tointeger(tonumber(playerIdArg)) or 0]
+    if type(record) ~= "table" then return false end
+    return { reason = record.reason, issuedAt = record.issuedAt }
+end)
+
 -- -- КПЗ ------------------------------------------------------------------------------
 
 local function nearestPoint(place, kind, maxDistance)
@@ -569,6 +615,7 @@ AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
         revokeKit(playerId)
         pushOfficer(playerId)
         if not dbReady then return end
+        loadWanted(playerId, characterId)
         local row = db("single", "SELECT seconds_left, reason FROM rp_police_jail WHERE character_id = ?", { characterId })
         if not row then return end
         local cell = anyPoint("cell")
@@ -589,7 +636,7 @@ AddEventHandler("onPlayerDisconnected", function(playerIdArg)
     if not playerId then return end
     if granted[playerId] then revokeKit(playerId, granted[playerId]) end
     saveJail(playerId)
-    jailed[playerId], searches[playerId], lastCall[playerId] = nil, nil, nil
+    jailed[playerId], wanted[playerId], searches[playerId], lastCall[playerId] = nil, nil, nil, nil
 end)
 
 AddEventHandler("onResourceStop", function(name)
@@ -700,6 +747,14 @@ local queued, queueReason = Open77.database.ready(function()
             PRIMARY KEY (id),
             KEY idx_fines_character (character_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci]],
+        [[CREATE TABLE IF NOT EXISTS rp_police_wanted (
+            character_id         BIGINT UNSIGNED NOT NULL,
+            reason               VARCHAR(255) NOT NULL,
+            officer_character_id BIGINT UNSIGNED NOT NULL,
+            created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (character_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci]],
     }
     for _, sql in ipairs(statements) do
         local ok, err = pcall(Open77.database.query.await, sql, {})
@@ -711,6 +766,7 @@ local queued, queueReason = Open77.database.ready(function()
     for _, id in ipairs(onlinePlayers()) do
         syncKit(id)
         local character = characterOf(id)
+        if character then loadWanted(id, character.id) end
         local row = character and db("single", "SELECT seconds_left, reason FROM rp_police_jail WHERE character_id = ?",
             { character.id })
         if row then
@@ -731,6 +787,9 @@ local SUGGESTIONS = {
     { command = "/fine", help = "NCPD: штраф", parameters = { { name = "ID", help = "" }, { name = "сумма", help = "" },
         { name = "причина", help = "" } } },
     { command = "/fines", help = "NCPD: штрафы и долг игрока", parameters = { { name = "ID", help = "" } } },
+    { command = "/wanted", help = "NCPD: объявить в розыск", parameters = { { name = "ID", help = "" },
+        { name = "причина", help = "" } } },
+    { command = "/unwanted", help = "NCPD: снять с розыска", parameters = { { name = "ID", help = "" } } },
     { command = "/jail", help = "NCPD: в КПЗ (у камеры)", parameters = { { name = "ID", help = "" },
         { name = "минуты", help = "" }, { name = "причина", help = "" } } },
     { command = "/unjail", help = "NCPD: выпустить из КПЗ", parameters = { { name = "ID", help = "" } } },

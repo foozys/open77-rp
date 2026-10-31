@@ -33,16 +33,35 @@ function Store.newOpId(prefix)
     return type(id) == "string" and (prefix .. ":" .. id) or nil
 end
 
+local function diagnostic(value)
+    if type(value) ~= "table" then return tostring(value) end
+    local ok, encoded = pcall(json.encode, value)
+    return ok and encoded or ("<json error: " .. tostring(encoded) .. ">")
+end
+
 -- Перевод с повтором при временных отказах (тот же opId). via = "containers"
 -- для операций с кучей на земле: она проверяет, что игрок рядом.
 function Store.transfer(spec, via)
     local call = via == "containers" and Store.boxes or Store.tx
     for attempt = 1, 5 do
         local receipt, why, info = call("transfer", spec)
-        if receipt then return receipt end
-        if not (type(info) == "table" and info.retryable) then return nil, why end
+        if receipt then
+            if attempt > 1 then
+                Open77.log.info("[rp_inventory] транзакция " .. tostring(spec.opId)
+                    .. " выполнена с попытки " .. tostring(attempt))
+            end
+            return receipt
+        end
+        local retryable = type(info) == "table" and info.retryable == true
+        Open77.log.warn("[rp_inventory] транзакция " .. tostring(spec.opId)
+            .. ": попытка " .. tostring(attempt) .. "/5, причина=" .. tostring(why)
+            .. ", retryable=" .. tostring(retryable) .. ", info=" .. diagnostic(info)
+            .. ", lines=" .. diagnostic(spec.lines))
+        if not retryable then return nil, why end
         Wait(500 * attempt)
     end
+    Open77.log.error("[rp_inventory] транзакция " .. tostring(spec.opId)
+        .. " не выполнена после 5 попыток")
     return nil, "busy"
 end
 

@@ -93,6 +93,7 @@
       "open77_blips",
       "open77_notifications",
       "open77_death",
+      "archivexl",
       "open77_appearance",
       "open77_cyberware",
       "open77_prediction",
@@ -123,7 +124,9 @@
       "open77_containers",
       "open77_rp_basics",
       "open77_hacking",
+      "rp/rp_clothes",
       "rp/rp_core",
+      "rp/rp_factions",
       "rp/rp_charselect",
       "rp/rp_chat",
       "rp/rp_money",
@@ -161,7 +164,9 @@
   },
   "requiredMods": {
     "enabled": true,
-    "unsecured": false,
+    // ArchiveXL и TweakXL содержат DLL. Игроки увидят предупреждение UNSECURED
+    // и должны подтвердить запуск модифицированного клиента.
+    "unsecured": true,
     "packages": []
   },
   "accessControl": {

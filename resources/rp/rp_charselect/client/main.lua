@@ -3,7 +3,7 @@
 -- прислал сервер, и передаёт выбор игрока.
 
 local page, pageReady = nil, false
-local state = nil      -- { mode = "profile"|"select", characters, currentId, maxCharacters }
+local state = nil      -- { mode = "profile"|"background"|"faction"|"select", ... }
 local closed = false   -- сервер завершил выбор: не держим readiness gate
 local scene = nil      -- { position, forward, yaw }
 local camera = nil
@@ -108,7 +108,7 @@ local function startScene(mode)
         return
     end
     camera = created
-    if mode == "profile" then
+    if mode == "profile" or mode == "background" or mode == "faction" then
         showSelf()
     elseif wanted and looks[wanted] and previewId ~= wanted then
         showLook(wanted) -- снимок могли получить раньше, чем появилась сцена
@@ -160,6 +160,13 @@ end
 -- Тело присылает сервер ("self"), когда open77_appearance опубликует его
 -- уже с надетой внешностью; до этого манекена нет.
 showSelf = function()
+    if previewId == "self" then return end
+    -- На экране выбора тот же загруженный персонаж мог называться числовым ID.
+    -- Для анкеты это всё ещё тот же манекен: меняем только логическую метку.
+    if state and previewId == state.currentId then
+        previewId = "self"
+        return
+    end
     if looks.self then showLook("self") end
 end
 
@@ -167,6 +174,9 @@ local function showCharacter(id)
     wanted = id
     if id == nil then return removePreview() end
     if previewId == id then return end
+    -- После страниц создания self и currentId обозначают одну внешность. Не
+    -- пересоздаём puppet при возврате на экран выбора персонажа.
+    if state and previewId == "self" and id == state.currentId then return end
     local look = looks[id]
     if look == nil then
         removePreview()
@@ -187,8 +197,8 @@ RegisterNetEvent("rp_charselect:look", function(id, text)
     end
     looks[id] = look
     if not state then return end
-    if id == "self" and state.mode == "profile" and look then
-        showLook("self")
+    if id == "self" and (state.mode == "profile" or state.mode == "background" or state.mode == "faction") and look then
+        showSelf()
     elseif wanted == id and state.mode == "select" then
         showLook(id)
     end
@@ -237,7 +247,25 @@ local function ensurePage()
             firstName = tostring(payload.firstName or ""),
             lastName = tostring(payload.lastName or ""),
             birthDate = tostring(payload.birthDate or ""),
+            race = tostring(payload.race or ""),
+            gender = tostring(payload.gender or ""),
+            country = tostring(payload.country or ""),
         })
+    end)
+    page:on("background", function(payload)
+        if type(payload) ~= "table" then return end
+        emit("rp_core:charselect:background", {
+            background = tostring(payload.background or ""),
+            key = tostring(payload.key or ""),
+        })
+    end)
+    page:on("faction", function(payload)
+        if type(payload) == "table" then
+            emit("rp_core:charselect:faction", { faction = tostring(payload.faction or "") })
+        end
+    end)
+    page:on("back", function()
+        emit("rp_core:charselect:back")
     end)
     page:setFocus(true, true)
 end
@@ -252,15 +280,18 @@ local function closeAll()
 end
 
 RegisterNetEvent("rp_charselect:open", function(data)
-    if type(data) ~= "table" or (data.mode ~= "profile" and data.mode ~= "select") then return end
-    local modeChanged = not state or state.mode ~= data.mode
+    if type(data) ~= "table" or (data.mode ~= "profile" and data.mode ~= "background"
+        and data.mode ~= "faction" and data.mode ~= "select") then return end
     state = data
     closed = false
     Open77.character.setFrozen(true)
     ensurePage()
-    if modeChanged or not camera then
-        removePreview()
+    if not camera then
         startScene(data.mode)
+    elseif data.mode ~= "select" then
+        -- profile/background/faction — одна непрерывная сцена. Между страницами
+        -- меняется только WebUI, камера и манекен остаются прежними.
+        showSelf()
     end
     pushState()
 end)

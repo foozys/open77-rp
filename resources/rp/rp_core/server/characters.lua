@@ -13,7 +13,7 @@ Characters = {
 
 local log = Log.scope("characters")
 
--- phase: loading → waiting_client → profile | select → spawning → playing
+-- phase: loading → waiting_client → profile | background | faction | select → spawning → playing
 local PRIVATE_BUCKET_BASE = 60000 -- + playerId: игрок на экране выбора никого не видит, и его не видят
 local LOOK_MAX_BYTES = 7680       -- снимок + позиция манекена должны уложиться в 8 КиБ
 local POSITION_INTERVAL_MS = 30000
@@ -71,6 +71,10 @@ local function normalize(row)
     row.id = math.tointeger(tonumber(row.id))
     row.slot = math.tointeger(tonumber(row.slot))
     row.has_look = isTrue(row.has_look)
+    row.race = type(row.race) == "string" and row.race or nil
+    row.gender = type(row.gender) == "string" and row.gender or nil
+    row.origin_country = type(row.origin_country) == "string" and row.origin_country or nil
+    row.background = type(row.background) == "string" and row.background or nil
     return row
 end
 
@@ -86,6 +90,7 @@ end
 
 local SELECT_COLUMNS = [[
     id, slot, status, first_name, last_name, DATE_FORMAT(birth_date, '%d.%m.%Y') AS birth_text,
+    race, gender, origin_country, background,
     pos_x, pos_y, pos_z, heading, health, look IS NOT NULL AS has_look
 ]]
 
@@ -147,6 +152,7 @@ local function publicList(s)
         list[#list + 1] = {
             id = row.id, slot = row.slot, status = row.status,
             firstName = row.first_name, lastName = row.last_name, birthDate = row.birth_text or "",
+            race = row.race, gender = row.gender, country = row.origin_country, background = row.background,
             hasLook = row.has_look,
         }
     end
@@ -157,14 +163,23 @@ local function openUi(playerId, s, mode)
     s.phase = mode
     holdGate(playerId)
     setBucket(playerId, PRIVATE_BUCKET_BASE + playerId)
-    send(playerId, "rp_charselect:open", {
+    local payload = {
         mode = mode,
         characters = publicList(s),
         currentId = s.current and s.current.id or false,
         maxCharacters = Tune.maxCharacters,
-    })
+    }
+    if mode == "faction" then
+        local ok, factions = pcall(Open77.exports.callSync, "rp_factions", "catalog",
+            s.current and s.current.background)
+        payload.factions = ok and type(factions) == "table" and factions or {}
+        if not ok then log.error("каталог фракций игроку %d недоступен: %s", playerId, tostring(factions)) end
+    end
+    send(playerId, "rp_charselect:open", payload)
     -- тело могло опубликоваться раньше, чем открылась анкета
-    if mode == "profile" and s.bodyText then send(playerId, "rp_charselect:look", "self", s.bodyText) end
+    if (mode == "profile" or mode == "background" or mode == "faction") and s.bodyText then
+        send(playerId, "rp_charselect:look", "self", s.bodyText)
+    end
 end
 
 -- -- появление в мире -----------------------------------------------------------
@@ -248,9 +263,20 @@ AddEventHandler("onPlayerReady", function(playerIdStr)
 end)
 
 -- Что показать игроку, чей мир загружен с персонажем s.current.
+local function creationMode(row)
+    if row and row.status == "creating" then
+        if row.first_name ~= "" and row.last_name ~= "" and row.birth_text
+            and row.race and row.gender and row.origin_country then
+            return row.background and "faction" or "background"
+        end
+        return "profile"
+    end
+end
+
 local function decide(playerId, s)
     local row = s.current
-    if row and row.status == "creating" then return openUi(playerId, s, "profile") end
+    local mode = creationMode(row)
+    if mode then return openUi(playerId, s, mode) end
     if row and #s.list <= 1 and Tune.maxCharacters <= 1 then return play(playerId, s, row) end
     openUi(playerId, s, "select")
 end
@@ -263,7 +289,7 @@ local function handleReport(playerId, s, key)
         s.reportedKey = key
         return
     end
-    if s.phase == "profile" or s.phase == "select" then
+    if s.phase == "profile" or s.phase == "background" or s.phase == "faction" or s.phase == "select" then
         openUi(playerId, s, s.phase) -- клиентский ресурс перезапущен: показать заново
         return
     end
@@ -441,9 +467,22 @@ RegisterNetEvent("rp_core:charselect:heartbeat", function()
     local playerId = Util.toPlayerId(source)
     local s = playerId and Characters.sessions[playerId]
     if not s then return end
-    if s.phase == "loading" or s.phase == "waiting_client" or s.phase == "profile" or s.phase == "select" then
+    if s.phase == "loading" or s.phase == "waiting_client" or s.phase == "profile"
+        or s.phase == "background" or s.phase == "faction" or s.phase == "select" then
         holdGate(playerId)
     end
+end)
+
+RegisterNetEvent("rp_core:charselect:back", function()
+    local playerId, s = sessionOf(source)
+    if not s then return end
+    local previous = {
+        profile = "select",
+        background = "profile",
+        faction = "background",
+    }
+    local mode = previous[s.phase]
+    if mode then openUi(playerId, s, mode) end
 end)
 
 local function validName(text)
@@ -476,31 +515,162 @@ local function validBirthDate(text)
     return text
 end
 
+local VALID_RACES = {
+    european = true,
+    east_asian = true,
+    south_asian = true,
+    african = true,
+    latino = true,
+    middle_eastern = true,
+    indigenous = true,
+    mixed = true,
+}
+
+local VALID_GENDERS = { male = true, female = true }
+
+local function validCountry(text)
+    if type(text) ~= "string" then return nil end
+    text = text:gsub("^%s+", ""):gsub("%s+$", "")
+    local length = utf8.len(text)
+    if not length or length < 2 or length > 48 then return nil end
+    local previous
+    for _, code in utf8.codes(text) do
+        local letter = (code >= 65 and code <= 90) or (code >= 97 and code <= 122)
+            or (code >= 0x410 and code <= 0x44F) or code == 0x401 or code == 0x451
+        local separator = code == 45 or code == 39 or code == 32 -- - ' пробел
+        if not letter and not separator then return nil end
+        if separator and previous ~= "letter" then return nil end
+        previous = letter and "letter" or "separator"
+    end
+    if previous ~= "letter" then return nil end
+    return text
+end
+
 RegisterNetEvent("rp_core:charselect:profile", function(data)
     local playerId, s = sessionOf(source, "profile")
     if not s or type(data) ~= "table" then return end
     exclusive(s, function()
         local first, last = validName(data.firstName), validName(data.lastName)
         local birth = validBirthDate(data.birthDate)
+        local race = type(data.race) == "string" and data.race or nil
+        local gender = type(data.gender) == "string" and data.gender or nil
+        local country = validCountry(data.country)
         if not first or not last then
             return fail(playerId, "Имя и фамилия: 2–24 буквы, можно дефис, апостроф и пробел.")
         end
         if not birth then
             return fail(playerId, "Дата рождения в формате ДД.ММ.ГГГГ, год с 1990 по 2059.")
         end
+        if not VALID_RACES[race] then return fail(playerId, "Выберите расу персонажа.") end
+        if not VALID_GENDERS[gender] then return fail(playerId, "Выберите пол персонажа.") end
+        if not country then return fail(playerId, "Родная страна: 2–48 букв, можно дефис, апостроф и пробел.") end
         local row = s.current
         local affected, err = Db.update([[
-            UPDATE rp_characters SET status = 'active', first_name = ?, last_name = ?,
-                birth_date = STR_TO_DATE(?, '%d.%m.%Y')
+            UPDATE rp_characters SET first_name = ?, last_name = ?,
+                birth_date = STR_TO_DATE(?, '%d.%m.%Y'), race = ?, gender = ?, origin_country = ?
             WHERE id = ? AND license = ? AND status = 'creating'
-        ]], { first, last, birth, row.id, s.license })
+        ]], { first, last, birth, race, gender, country, row.id, s.license })
         if Characters.sessions[playerId] ~= s then return end
         if err or (tonumber(affected) or 0) == 0 then
             log.error("анкета #%d: %s", row.id, tostring(err or "строка не обновлена"))
             return fail(playerId, "Не удалось сохранить анкету, попробуйте ещё раз.")
         end
-        row.status, row.first_name, row.last_name, row.birth_text = "active", first, last, birth
-        Log.audit("character_create", s.license, s.license, { id = row.id, name = fullName(row), birth = birth })
+        row.first_name, row.last_name, row.birth_text = first, last, birth
+        row.race, row.gender, row.origin_country = race, gender, country
+        openUi(playerId, s, "background")
+    end)
+end)
+
+local function notifyCorporate(playerId, row)
+    local text = string.format("Создан корпорат: %s [игрок %d, персонаж #%d].", fullName(row), playerId, row.id)
+    local notified = 0
+    for _, value in ipairs(Open77.players.all()) do
+        local adminId = math.tointeger(tonumber(value))
+        if adminId and Roles.can(adminId, "rp.staff") then
+            Open77.chat.send(adminId, {
+                type = "system", author = "АДМИНИСТРАЦИЯ", text = text, color = { 255, 200, 0 },
+            })
+            notified = notified + 1
+        end
+    end
+    log.info("%s Уведомлено администраторов: %d", text, notified)
+end
+
+RegisterNetEvent("rp_core:charselect:background", function(data)
+    local playerId, s = sessionOf(source, "background")
+    if not s or type(data) ~= "table" then return end
+    exclusive(s, function()
+        local background = type(data.background) == "string" and data.background or nil
+        if background ~= "civilian" and background ~= "corporate" then
+            return fail(playerId, "Выберите предысторию персонажа.")
+        end
+        if background == "corporate" and tostring(data.key or "") ~= RpConfig.corporateKey then
+            return fail(playerId, "Неверный ключ корпората.")
+        end
+
+        local row = s.current
+        local affected, err = Db.update([[
+            UPDATE rp_characters SET background = ?
+            WHERE id = ? AND license = ? AND status = 'creating'
+        ]], { background, row.id, s.license })
+        if Characters.sessions[playerId] ~= s then return end
+        if err or (tonumber(affected) or 0) == 0 then
+            log.error("предыстория #%d: %s", row.id, tostring(err or "строка не обновлена"))
+            return fail(playerId, "Не удалось сохранить предысторию, попробуйте ещё раз.")
+        end
+        row.background = background
+        openUi(playerId, s, "faction")
+    end)
+end)
+
+local function factionCall(name, ...)
+    local pending, why = Open77.exports.call("rp_factions", name, ...)
+    if not pending then return false, tostring(why or "resource_unavailable") end
+    local ok, result, reason = pcall(function() return pending:await() end)
+    if not ok then return false, tostring(result) end
+    return result, reason
+end
+
+RegisterNetEvent("rp_core:charselect:faction", function(data)
+    local playerId, s = sessionOf(source, "faction")
+    if not s or type(data) ~= "table" then return end
+    exclusive(s, function()
+        local faction = type(data.faction) == "string" and data.faction or nil
+        if not faction or #faction > 32 then return fail(playerId, "Выберите фракцию.") end
+        local row, spawn = s.current, RpConfig.characterSpawn
+        local claimed, reason = factionCall("claim", row.id, faction, s.license)
+        if Characters.sessions[playerId] ~= s then return end
+        if claimed ~= true then
+            if reason == "slots_full" then
+                openUi(playerId, s, "faction")
+                return fail(playerId, "Все слоты этой фракции сейчас заняты.")
+            end
+            log.error("фракция #%d (%s): %s", row.id, faction, tostring(reason))
+            return fail(playerId, reason == "faction_not_allowed" and
+                "Эта фракция недоступна для выбранной предыстории." or
+                "Не удалось занять место во фракции, попробуйте ещё раз.")
+        end
+
+        local affected, err = Db.update([[
+            UPDATE rp_characters SET status = 'active',
+                pos_x = ?, pos_y = ?, pos_z = ?, heading = ?
+            WHERE id = ? AND license = ? AND status = 'creating'
+        ]], { spawn.x, spawn.y, spawn.z, spawn.heading, row.id, s.license })
+        if Characters.sessions[playerId] ~= s then return end
+        if err or (tonumber(affected) or 0) == 0 then
+            factionCall("release", row.id)
+            log.error("завершение #%d: %s", row.id, tostring(err or "строка не обновлена"))
+            return fail(playerId, "Не удалось завершить создание, попробуйте ещё раз.")
+        end
+
+        row.status = "active"
+        row.pos_x, row.pos_y, row.pos_z, row.heading = spawn.x, spawn.y, spawn.z, spawn.heading
+        Log.audit("character_create", s.license, s.license, {
+            id = row.id, name = fullName(row), birth = row.birth_text,
+            race = row.race, gender = row.gender, country = row.origin_country,
+            background = row.background, faction = faction,
+        })
+        if row.background == "corporate" then notifyCorporate(playerId, row) end
         play(playerId, s, row)
     end)
 end)
@@ -531,7 +701,8 @@ RegisterNetEvent("rp_core:charselect:play", function(id)
             s.current = row
             selectAppearance(playerId, row)
         end
-        if row.status == "creating" then return openUi(playerId, s, "profile") end
+        local mode = creationMode(row)
+        if mode then return openUi(playerId, s, mode) end
         play(playerId, s, row)
     end)
 end)
@@ -586,6 +757,7 @@ RegisterNetEvent("rp_core:charselect:delete", function(id, confirm)
         end
         if s.current == row then s.current = nil end
         Log.audit("character_delete", s.license, s.license, { id = row.id, name = fullName(row) })
+        TriggerEvent("rp_core:characterDeleted", row.id)
         openUi(playerId, s, "select")
     end)
 end)
@@ -642,7 +814,9 @@ RegisterNetEvent("open77:appearance:body", function(body, characterKey)
     local ok, text = pcall(json.encode, { body = body })
     if not ok or not validLook(text) or text == s.bodyText then return end
     s.bodyText = text
-    if s.phase == "profile" then send(playerId, "rp_charselect:look", "self", text) end
+    if s.phase == "profile" or s.phase == "background" or s.phase == "faction" then
+        send(playerId, "rp_charselect:look", "self", text)
+    end
     local row = s.current
     local queued, reason = Open77.database.update("UPDATE rp_characters SET look = ? WHERE id = ? AND license = ?",
         { text, row.id, s.license },

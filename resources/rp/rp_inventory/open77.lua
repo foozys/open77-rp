@@ -1,5 +1,5 @@
 resource "rp_inventory"
-version "0.1.0"
+version "0.1.1"
 auto_start true
 
 dependency "open77_transactions >=0.1.0"

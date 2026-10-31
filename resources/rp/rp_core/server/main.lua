@@ -50,6 +50,7 @@ exports("character", function(playerId)
     return {
         id = row.id, slot = row.slot,
         firstName = row.first_name, lastName = row.last_name, birthDate = row.birth_text,
+        race = row.race, gender = row.gender, country = row.origin_country, background = row.background,
         -- Доля здоровья с прошлого выхода (0–1), nil — полное. Импланты (rp_cyberware)
         -- поднимают максимум уже после входа и по ней восстанавливают текущее.
         health = tonumber(row.health),

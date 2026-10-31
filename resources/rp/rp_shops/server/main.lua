@@ -58,13 +58,28 @@ local function balance(account)
     return nil
 end
 
+local function diagnostic(value)
+    if type(value) ~= "table" then return tostring(value) end
+    local ok, encoded = pcall(json.encode, value)
+    return ok and encoded or ("<json error: " .. tostring(encoded) .. ">")
+end
+
 local function transfer(spec)
     for attempt = 1, 5 do
         local receipt, why, info = await("open77_transactions", "transfer", spec)
-        if receipt then return receipt end
-        if not (type(info) == "table" and info.retryable) then return nil, why end
+        if receipt then
+            if attempt > 1 then
+                log("info", "транзакция %s выполнена с попытки %d", tostring(spec.opId), attempt)
+            end
+            return receipt
+        end
+        local retryable = type(info) == "table" and info.retryable == true
+        log("warn", "транзакция %s: попытка %d/5, причина=%s, retryable=%s, info=%s, lines=%s",
+            tostring(spec.opId), attempt, tostring(why), tostring(retryable), diagnostic(info), diagnostic(spec.lines))
+        if not retryable then return nil, why end
         Wait(500 * attempt)
     end
+    log("error", "транзакция %s не выполнена после 5 попыток", tostring(spec.opId))
     return nil, "busy"
 end
 

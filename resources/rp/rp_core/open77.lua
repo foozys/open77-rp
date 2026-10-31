@@ -1,5 +1,5 @@
 resource "rp_core"
-version "0.1.0"
+version "0.3.1"
 auto_start true
 
 -- database.access: миграции, аудит, аккаунты; players.life.read: Util.isAlive;

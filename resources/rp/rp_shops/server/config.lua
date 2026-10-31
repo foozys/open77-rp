@@ -49,7 +49,7 @@ ShopsConfig = {
                 implant_deck = 9000, implant_gorilla = 8000, implant_slam = 7000, implant_sandevistan = 15000,
                 implant_deck_pro = 18000, implant_kiroshi = 3000,
                 qh_short_circuit = 1500, qh_overheat = 2500, qh_malfunction = 3000, qh_cripple = 2000,
-                qh_optics = 2000, qh_weapon = 2500,
+                qh_optics = 2000, qh_weapon = 2500, qh_data_breach = 5000,
                 neuroblocker = 150,
             },
         },

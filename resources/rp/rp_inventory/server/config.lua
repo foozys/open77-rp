@@ -60,6 +60,7 @@ InvConfig = {
         qh_cripple         = { label = "Скрипт: сбой движения",         labelEn = "Cripple Movement",    w = 1, h = 1, weightG = 10,   stack = 5, color = "#1abc9c" },
         qh_optics          = { label = "Скрипт: перезагрузка оптики",   labelEn = "Reboot Optics",       w = 1, h = 1, weightG = 10,   stack = 5, color = "#1abc9c" },
         qh_weapon          = { label = "Скрипт: сбой оружия",           labelEn = "Weapon Glitch",       w = 1, h = 1, weightG = 10,   stack = 5, color = "#1abc9c" },
+        qh_data_breach     = { label = "Скрипт: взлом данных",          labelEn = "Data Breach",         w = 1, h = 1, weightG = 10,   stack = 5, color = "#5ef6ff" },
         implant_ice        = { label = "Имплант: Self-ICE",             labelEn = "Self-ICE",            w = 1, h = 1, weightG = 200,  stack = 1, color = "#16a085" },
         implant_purge      = { label = "Имплант: очистка (Purge)",      labelEn = "Purge",               w = 1, h = 1, weightG = 200,  stack = 1, color = "#16a085" },
         implant_subdermal  = { label = "Имплант: подкожная броня",      labelEn = "Subdermal Armor",     w = 2, h = 2, weightG = 2000, stack = 1, color = "#7f8c8d" },
