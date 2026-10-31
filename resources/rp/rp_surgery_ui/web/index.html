@@ -88,7 +88,17 @@ function draw(){
   };$("right").append(b);
  }
  const r=$("board").getBoundingClientRect();$("links").setAttribute("viewBox",`0 0 ${r.width} ${r.height}`);
- for(let i=0;i<size;i++)if(pairs[i]){
+ // При снятии показываем уже подключённые нейросвязи. Верно выбранная пара разрезает линию.
+ if(stage==="remove")for(let i=0;i<size;i++)if(!pairs[i]){
+  const wire=labels.indexOf(i+1);
+  if(wire<0)continue;
+  const y1=(i+.5)*r.height/size,y2=(wire+.5)*r.height/size;
+  const e=document.createElementNS("http://www.w3.org/2000/svg","path");
+  e.setAttribute("d",`M 152 ${y1} C ${r.width*.42} ${y1}, ${r.width*.58} ${y2}, ${r.width-152} ${y2}`);
+  e.setAttribute("fill","none");e.setAttribute("stroke","#d88d8a");
+  e.setAttribute("stroke-width","3");e.setAttribute("stroke-dasharray","9 3");$("links").append(e);
+ }
+ for(let i=0;i<size;i++)if(pairs[i]&&stage!=="remove"){
   const y1=(i+.5)*r.height/size,y2=(pairs[i]-.5)*r.height/size;
   const e=document.createElementNS("http://www.w3.org/2000/svg","path");
   e.setAttribute("d",`M 152 ${y1} C ${r.width*.42} ${y1}, ${r.width*.58} ${y2}, ${r.width-152} ${y2}`);
