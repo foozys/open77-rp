@@ -20,23 +20,16 @@ local function target(ctx)
     local t=type(ctx)=="table" and ctx.target
     return t and not t.isLocalPlayer and math.tointeger(tonumber(t.playerId)) or nil
 end
-exports("contractCanScan",function(ctx)return role.mercenary and target(ctx)~=nil end)
-exports("contractScan",function(ctx)
-    local id=target(ctx);if not id then return false end
-    TriggerServerEvent("rp_contracts:scan",id);return true
-end)
+exports("contractCanVerify",function(ctx)return role.mercenary and target(ctx)~=nil end)
 exports("contractVerify",function(ctx)
     local id=target(ctx);if not id then return false end
     TriggerServerEvent("rp_contracts:verify",id);return true
 end)
 local function registerMenu()
     local entries={
-        {id="fixer_scan",label="Kiroshi: сверить биометрию",icon="scan-face",
-         order=30,group="Контракт",distance=8,networked=true,allowSelf=false,
-         canInteract="contractCanScan",onSelect="contractScan"},
         {id="fixer_verify",label="Подтвердить ликвидацию",icon="crosshair",
          order=31,group="Контракт",distance=3,networked=true,allowSelf=false,
-         canInteract="contractCanScan",onSelect="contractVerify"}
+         canInteract="contractCanVerify",onSelect="contractVerify"}
     }
     local p,why=Open77.exports.call("open77_contextmenu","registerPlayers",entries)
     if not p then print("[rp_contracts_ui] contextmenu: "..tostring(why));return end
