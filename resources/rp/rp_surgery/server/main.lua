@@ -137,7 +137,7 @@ local function startStage(d)
     for i=amount,2,-1 do local j=math.random(i);order[i],order[j]=order[j],order[i] end
     for i=1,amount do labels[order[i]]=i end
     local token=tostring(Open77.time.unix())..":"..tostring(math.random(100000,999999))
-    op.solution=order;op.token=token;op.expires=Open77.time.unix()+seconds
+    op.solution=order;op.token=token;op.expires=Open77.time.unix()+seconds;op.resolving=false
     TriggerClientEvent("rp_surgery:game",d,{token=token,wires=amount,seconds=seconds,
         experience=count,labels=labels,stage=op.stage})
     SetTimeout((seconds+2)*1000,function()
@@ -213,9 +213,9 @@ RegisterNetEvent("rp_surgery:result",function(payload)
     local d=tonumber(source)
     if not d or type(payload)~="table" then return end
     local op=operations[d]
-    if not op or op.finished or payload.token~=op.token then return end
-    -- Ставим блокировку синхронно до запуска async потока.
-    op.finished=true
+    if not op or op.finished or op.resolving or payload.token~=op.token then return end
+    -- Блокируем повторные ответы до завершения серверной операции.
+    op.resolving=true
     local chosen=payload.pairs
     local correct=type(chosen)=="table" and #chosen==#op.solution
     if correct then
@@ -227,7 +227,6 @@ RegisterNetEvent("rp_surgery:result",function(payload)
         end
     end
     if Open77.time.unix()>op.expires then correct=false end
-    op.finished=false
     CreateThread(function()finish(d,correct) end)
 end)
 RegisterCommand("ripperskill",function(source)
