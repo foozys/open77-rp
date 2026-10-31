@@ -197,6 +197,16 @@ local function startDowned(playerId)
     layDown(playerId)
 end
 
+-- Экстренное осложнение при операции: та же стадия ранения, что и после смерти.
+exports("surgery_downed", function(playerIdArg)
+    if GetInvokingResource() ~= "rp_surgery" then return false, "caller_denied" end
+    local id = math.tointeger(tonumber(playerIdArg))
+    if not id or not characterOf(id) then return false, "invalid_patient" end
+    if downed[id] then return true end
+    startDowned(id)
+    return downed[id] ~= nil
+end)
+
 -- Поднять раненого (медик, бригада, больница, администрация): снять позу и
 -- неуязвимость, выставить здоровье долей fraction. false, если не ранен.
 local function raise(playerId, fraction)
