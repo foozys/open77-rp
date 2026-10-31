@@ -221,14 +221,14 @@ function draw(){
    const b=((end>=0?end:i)+.5)*height/size;
    for(let j=1;j<=6;j++){
     let best=null,bestSeparation=-1;
-    for(let shift=0;shift<=12;shift++){
+    for(let shift=0;shift<=24;shift++){
      for(const direction of (shift===0?[0]:[-1,1])){
-      const t=Math.max(.055,Math.min(.945,j/7+direction*shift*.017));
+      const t=Math.max(.06,Math.min(.94,j/7+direction*shift*.013));
       const pt=cablePoint(a,b,t,i);
       const min=anchors.reduce((m,v)=>Math.min(m,Math.hypot(v.x-pt.x,v.y-pt.y)),Infinity);
       if(min>bestSeparation){bestSeparation=min;best={...pt,t};}
      }
-     if(bestSeparation>=28)break;
+     if(bestSeparation>=33)break;
     }
     anchors.push(best);
     positions.push({wire:i+1,point:j,...best});
@@ -253,7 +253,9 @@ function draw(){
    $("links").append(tag);
    if(removed)continue;
    for(const pt of positions.filter(v=>v.wire===i+1)){
-    const correct=pt.point===Number(cutPoints[i+1]);
+    // Lua array cutPoints[1..N] arrives in JavaScript as a 0-based array.
+    // Previously [i+1] hid the red marker on the very last cable.
+    const correct=pt.point===Number(cutPoints[i]);
     const circle=document.createElementNS("http://www.w3.org/2000/svg","circle");
     circle.setAttribute("cx",pt.x);circle.setAttribute("cy",pt.y);
     circle.setAttribute("r",correct?"11":"7");
