@@ -68,6 +68,8 @@
   .pixel { color: #b9f7fa; letter-spacing: 2px; font-family: Consolas, monospace;
     text-shadow: 2px 0 rgba(255, 0, 80, 0.5), -2px 0 rgba(0, 255, 255, 0.45); animation: pixelFlicker .45s steps(2) infinite; }
   @keyframes pixelFlicker { 50% { opacity: .62; transform: translateX(1px); } }
+  .contractHint {margin:7px 0;padding:7px 9px;border-left:3px solid var(--k);color:#f0d78c;background:rgba(244,205,78,.08);font-size:12px;line-height:1.4}
+  .contractTarget {display:inline-block;margin-left:10px;padding:3px 8px;border:2px solid #ff4050;color:#ff5566;background:rgba(90,0,10,.62);font-size:12px;vertical-align:middle;letter-spacing:1px;white-space:nowrap}
   .access { color: var(--ok); font-size: 11px; letter-spacing: 1px; margin-bottom: 4px; }
   .qh { position: absolute; left: 50%; bottom: 34px; width: min(1080px, calc(100% - 120px)); transform: translateX(-50%);
     margin: 0; border-left-color: var(--q); border-color: rgba(94, 246, 255, 0.45); }
@@ -295,6 +297,12 @@
     dossier.className = "dossier";
     dossier.textContent = i.dossier || "Открытые сведения отсутствуют.";
     card.append(dossier);
+    if (i.contractHint) {
+      const hint = document.createElement("div");
+      hint.className = "contractHint";
+      hint.textContent = i.contractHint;
+      card.append(hint);
+    }
     if (i.tier === "public") return;
 
     const hidden = "▓▒▓▓▒▓▒▓";
@@ -302,6 +310,12 @@
     const secretClass = i.revealed ? "" : "pixel";
     card.querySelector(".big").textContent = secret(i.name || "Неизвестно");
     card.querySelector(".big").classList.toggle("pixel", !i.revealed);
+    if (i.revealed && i.contractConfirmed) {
+      const badge = document.createElement("span");
+      badge.className = "contractTarget";
+      badge.textContent = "ЦЕЛЬ ЗАКАЗА №" + i.contractConfirmed;
+      card.querySelector(".big").append(badge);
+    }
     if (i.revealed) {
       const access = document.createElement("div");
       access.className = "access";
