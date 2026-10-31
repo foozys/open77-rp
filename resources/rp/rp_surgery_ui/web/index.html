@@ -20,7 +20,7 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
 #consent,#game{display:none}#consent.show,#game.show{display:block}
 .summary{padding:20px;border:1px solid #b55f72;text-align:center;font-size:18px;line-height:1.9}
 #board{position:relative;height:380px;border:1px solid #753846;background:repeating-linear-gradient(0deg,#200f1b 0 23px,#351826 24px 25px)}
-#links{position:absolute;width:100%;height:100%;inset:0;pointer-events:none}
+#links{position:absolute;width:100%;height:100%;inset:0;pointer-events:none} #game:has(#links) #left:empty,#game:has(#links) #right:empty{display:none}
 .col{position:absolute;top:9px;bottom:9px;display:flex;flex-direction:column;justify-content:space-around;z-index:2}
 .col.left{left:14px}.col.right{right:14px}
 .node{width:128px;font-size:13px}.node.selected{background:#a54768}.node.done{border-color:#83ffb0;color:#83ffb0}
@@ -133,18 +133,19 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
 </div></div><script>
 const $=x=>document.getElementById(x);
 let mode="",patient=0,slotData=null,consentToken="",token="",stage="",size=0,labels=[],picked=-1,
-pairs=[],locked=false,deadline=0,timer=null;
+pairs=[],cuts=[],cutOrder=[],cutPoints=[],locked=false,deadline=0,timer=null;
 function visible(name){$("screen").classList.add("open");for(const id of ["slots","options","consent","game"])$(id).classList.remove("show");if(name==="slots")$("slots").classList.add("show");else $(name).classList.add("show");$("message").textContent="";}
 function close(){clearInterval(timer);timer=null;$("options").classList.remove("show");mode="";$("screen").classList.remove("open");$("close").disabled=false;Open77.emit("surgery:close",{});}
 $("close").onclick=()=>{if(mode==="game")return;close();};
 function action(implant){Open77.emit("surgery:offer",{patient,slot:slotData.id,implant});close();}
 $("backSlots").onclick=()=>{$("options").classList.remove("show");};
 function select(slot){
+ // Снятие доступно по установленному импланту, даже если инвентарь пациента пуст.
  slotData=slot;$("options").classList.add("show");$("slotName").textContent=slot.label+" · "+(slot.implantLabel||"свободно");
  $("choices").replaceChildren();let has=false;
- if(slot.implant){const b=document.createElement("button");b.textContent="Снять "+slot.implantLabel;b.onclick=()=>action(false);$("choices").append(b);has=true;}
- for(const it of slotData.options){const b=document.createElement("button");b.textContent=slot.implant?"Заменить на "+it.label:"Установить "+it.label;b.onclick=()=>action(it.id);$("choices").append(b);has=true;}
- if(!has)$("choices").textContent="У пациента нет совместимых имплантов в инвентаре.";
+ if(slot.implant){const b=document.createElement("button");b.textContent="Снять "+(slot.implantLabel||slot.implant);b.onclick=()=>action(false);$("choices").append(b);has=true;}
+ for(const it of (slotData.options||[])){const b=document.createElement("button");b.textContent=slot.implant?"Заменить на "+it.label:"Установить "+it.label;b.onclick=()=>action(it.id);$("choices").append(b);has=true;}
+ if(!has)$("choices").textContent="Слот свободен. В инвентаре пациента нет совместимых имплантов.";
 }
 const CY_GROUPS={
  left:[{label:"Голова",slots:["eyes","os"]},{label:"Руки",slots:["arms"]},{label:"Скелет",slots:["skeleton","tendons"]},{label:"Покровы",slots:["skin"]}],
@@ -191,8 +192,52 @@ function consent(p){
 }
 function reply(yes){Open77.emit("surgery:consentReply",{token:consentToken,yes});close();}
 $("accept").onclick=()=>reply(true);$("deny").onclick=()=>reply(false);
+function cablePoint(a,b,t,k){
+ // Переплетённые кривые: у каждого кабеля собственная волна и разный радиус петли.
+ const x=147+(boardWidth()-294)*t;
+ const y=a+(b-a)*(3*t*t-2*t*t*t)+Math.sin(t*Math.PI*4+k*1.7)*Math.sin(Math.PI*t)*(18+k*3);
+ return {x,y};
+}
+function boardWidth(){return $("board").getBoundingClientRect().width;}
+function cutWire(wire,point){
+ if(locked||stage!=="remove")return;
+ cuts.push({wire,point});
+ draw();
+ if(cuts.length===size)submit();
+}
 function draw(){
  $("left").replaceChildren();$("right").replaceChildren();$("links").replaceChildren();
+ if(stage==="remove"){
+  const width=boardWidth(),height=$("board").getBoundingClientRect().height;
+  $("links").setAttribute("viewBox",`0 0 ${width} ${height}`);
+  for(let i=0;i<size;i++){
+   const a=(i+.5)*height/size;
+   const b=(labels.indexOf(i+1)+.5)*height/size;
+   const removed=cuts.some(c=>c.wire===i+1);
+   const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+   const steps=56,parts=[];
+   for(let j=0;j<=steps;j++){const pt=cablePoint(a,b,j/steps,i);parts.push((j?"L":"M")+pt.x.toFixed(1)+" "+pt.y.toFixed(1));}
+   path.setAttribute("d",parts.join(" "));path.setAttribute("fill","none");
+   path.setAttribute("stroke",removed?"#4d474d":["#ed757a","#77cedc","#dfaf6e","#ad8be0"][i%4]);
+   path.setAttribute("stroke-width",removed?"1.8":"5");path.setAttribute("stroke-linecap","round");
+   $("links").append(path);
+   if(removed)continue;
+   // На каждом проводе шесть возможных участков. Нужная точка указывает
+   // красный узел; последовательность определяет сервер.
+   for(let j=1;j<=6;j++){
+    const pt=cablePoint(a,b,j/7,i);
+    const circle=document.createElementNS("http://www.w3.org/2000/svg","circle");
+    circle.setAttribute("cx",pt.x);circle.setAttribute("cy",pt.y);
+    circle.setAttribute("r",j===cutPoints[i+1]?"8":"5");
+    circle.setAttribute("fill",j===cutPoints[i+1]?"#ff4f61":"#34212f");
+    circle.setAttribute("stroke","#fff4ee");circle.setAttribute("stroke-width","1.4");
+    circle.style.pointerEvents="all";circle.style.cursor="crosshair";
+    circle.addEventListener("click",()=>cutWire(i+1,j));$("links").append(circle);
+   }
+  }
+  $("progress").textContent="Разрезано: "+cuts.length+"/"+size+" · порядок: "+cutOrder.join(" → ");
+  return;
+ }
  for(let i=0;i<size;i++){
   const a=document.createElement("button");a.className="node"+(picked===i?" selected":"")+(pairs[i]?" done":"");
   a.textContent="Нейрон "+(i+1);a.onclick=()=>{if(locked||pairs[i])return;picked=i;draw();};$("left").append(a);
@@ -203,34 +248,24 @@ function draw(){
   };$("right").append(b);
  }
  const r=$("board").getBoundingClientRect();$("links").setAttribute("viewBox",`0 0 ${r.width} ${r.height}`);
- // При снятии показываем уже подключённые нейросвязи. Верно выбранная пара разрезает линию.
- if(stage==="remove")for(let i=0;i<size;i++)if(!pairs[i]){
-  const wire=labels.indexOf(i+1);
-  if(wire<0)continue;
-  const y1=(i+.5)*r.height/size,y2=(wire+.5)*r.height/size;
-  const e=document.createElementNS("http://www.w3.org/2000/svg","path");
-  e.setAttribute("d",`M 152 ${y1} C ${r.width*.42} ${y1}, ${r.width*.58} ${y2}, ${r.width-152} ${y2}`);
-  e.setAttribute("fill","none");e.setAttribute("stroke","#d88d8a");
-  e.setAttribute("stroke-width","3");e.setAttribute("stroke-dasharray","9 3");$("links").append(e);
- }
- for(let i=0;i<size;i++)if(pairs[i]&&stage!=="remove"){
+ for(let i=0;i<size;i++)if(pairs[i]){
   const y1=(i+.5)*r.height/size,y2=(pairs[i]-.5)*r.height/size;
   const e=document.createElementNS("http://www.w3.org/2000/svg","path");
   e.setAttribute("d",`M 152 ${y1} C ${r.width*.42} ${y1}, ${r.width*.58} ${y2}, ${r.width-152} ${y2}`);
-  e.setAttribute("fill","none");e.setAttribute("stroke",stage==="remove"?"#ff9e65":"#6dffba");e.setAttribute("stroke-width","3");
-  $("links").append(e);
+  e.setAttribute("fill","none");e.setAttribute("stroke","#6dffba");e.setAttribute("stroke-width","3");$("links").append(e);
  }
- $("progress").textContent=(stage==="remove"?"Разрезано: ":"Соединено: ")+pairs.filter(Boolean).length+"/"+size;
+ $("progress").textContent="Соединено: "+pairs.filter(Boolean).length+"/"+size;
 }
 function game(p){
  mode="game";stage=p.stage;token=p.token;size=p.wires;labels=p.labels||[];
+ cutOrder=p.cutOrder||[];cutPoints=p.cutPoints||[];cuts=[];
  picked=-1;pairs=[];locked=false;$("title").textContent=stage==="remove"?"ДЕМОНТАЖ НЕЙРОСВЯЗЕЙ":"НЕЙРОННАЯ СШИВКА";
- $("help").textContent=stage==="remove"?"Разрежьте пары нейронов и проводов по одинаковым номерам. Ошибка уничтожит извлекаемый имплант.":"Соедините нейроны и провода с одинаковыми номерами.";
+ $("help").textContent=stage==="remove"?"Найдите красные узлы на запутанных проводах и разрежьте их в указанном порядке. Неправильная точка или порядок — провал.":"Соедините нейроны и провода с одинаковыми номерами.";
  visible("game");$("close").disabled=true;$("skill").textContent="Операций проведено: "+p.experience;
  draw();deadline=Date.now()+p.seconds*1000;clearInterval(timer);
  timer=setInterval(()=>{const remain=Math.max(0,Math.ceil((deadline-Date.now())/1000));$("time").textContent="Осталось: "+remain+" с";if(remain===0)submit();},200);
 }
-function submit(){if(locked)return;locked=true;clearInterval(timer);timer=null;Open77.emit("surgery:submit",{token,pairs});$("message").textContent="Проверка результата...";}
+function submit(){if(locked)return;locked=true;clearInterval(timer);timer=null;Open77.emit("surgery:submit",{token,pairs,cuts});$("message").textContent="Проверка результата...";}
 Open77.on("surgery:choose",editor);
 Open77.on("surgery:consent",consent);
 Open77.on("surgery:game",game);
