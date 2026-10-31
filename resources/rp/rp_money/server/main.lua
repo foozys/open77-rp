@@ -459,3 +459,35 @@ end)
 AddEventHandler("onResourceStart", function(name)
     if name == GetCurrentResourceName() then Open77.chat.addSuggestions(-1, SUGGESTIONS) end
 end)
+
+
+-- Денежное обеспечение заказов. Списание и выплата всегда через журнал
+-- open77_transactions; опId детерминированный для каждого контракта/этапа.
+local CONTRACT_VAULT = "soc:rp.contracts"
+exports("contract_escrow", function(action, contractId, playerId, amount, recipientCharacterId)
+    if GetInvokingResource() ~= "rp_contracts" then return nil, "caller_denied" end
+    local id = math.tointeger(tonumber(contractId))
+    local n = math.tointeger(tonumber(amount))
+    if not id or id < 1 or not n or n < 1 then return nil, "invalid_argument" end
+    local from, to, op
+    if action == "reserve" then
+        from = Ledger.bank(playerId)
+        to = CONTRACT_VAULT
+        op = "rpcontract:reserve:" .. id
+    elseif action == "release" then
+        from = CONTRACT_VAULT
+        local subject = core("character_subject", recipientCharacterId)
+        if type(subject) ~= "string" then return nil, "invalid_recipient" end
+        to = "bank:" .. subject
+        op = "rpcontract:release:" .. id
+    elseif action == "refund" then
+        from = CONTRACT_VAULT
+        local subject = core("character_subject", recipientCharacterId)
+        if type(subject) ~= "string" then return nil, "invalid_recipient" end
+        to = "bank:" .. subject
+        op = "rpcontract:refund:" .. id
+    else return nil, "invalid_action" end
+    if not from then return nil, "bank_unavailable" end
+    return Ledger.transfer({opId=op,kind="rp.contract."..action,reason="contract",
+        lines={{money=n,from=from,to=to}}})
+end)
