@@ -1,0 +1,325 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Хирургия Риперов</title><style>
+*{box-sizing:border-box}body{margin:0;background:transparent;color:#efc9c7;font:15px Segoe UI,Arial,sans-serif}
+#screen{display:none;position:absolute;inset:0;background:rgba(13,5,11,.84);align-items:center;justify-content:center}#screen.open{display:flex}
+.panel{width:min(1040px,94vw);max-height:90vh;overflow:auto;background:linear-gradient(145deg,#240e19,#110d16);padding:24px 30px;border:1px solid #de7079;border-top:3px solid #fb6c74;box-shadow:0 0 65px #e94f6540}
+h1{text-align:center;letter-spacing:4px;font-size:23px;color:#ff747f;margin:0 0 7px}
+#help{text-align:center;color:#b99d9c;font-size:13px;margin:0 0 19px}
+button{background:#2b1724;border:1px solid #98525e;color:#ffd9d6;padding:10px;cursor:pointer;font:inherit}
+button:hover{background:#60303d;border-color:#ff7b82}
+button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justify-content:flex-end;margin-top:17px}
+#slots{display:none}#slots.show{display:block} .cyMain{display:grid;grid-template-columns:minmax(210px,1fr) 260px minmax(210px,1fr);gap:18px;align-items:center;min-height:550px} .cyTile{cursor:pointer!important} .cyTile:focus{outline:2px solid #5ef6ff} .cyTile .tCost{display:none}
+.slot-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;align-content:start}
+.slot{min-height:84px;text-align:left;border-style:dashed;color:#ff9a9b;background:#381b24a3}
+.slot strong,.slot small{display:block}.slot strong{font-size:12px;letter-spacing:1px}.slot small{font-size:12px;color:#d6b0ac;margin-top:8px}
+.slot.filled{border-style:solid;background:#55313b}
+.figure{display:flex;align-items:center;justify-content:center}
+.figure svg{width:100%;height:370px;filter:drop-shadow(0 0 9px #e66c78)}
+#options{display:none;position:fixed;z-index:20;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,85vw);max-height:75vh;overflow:auto;box-shadow:0 0 0 120vmax rgba(0,0,0,.65),0 15px 70px #000;border:1px solid #81404f;background:#240d1b;padding:16px;margin-top:16px}
+#options.show{display:block}#options h2{color:#ff8085;font-size:15px;letter-spacing:2px}
+#choices{display:flex;flex-wrap:wrap;gap:8px}#choices button{flex:1 1 200px}
+#consent,#game{display:none}#consent.show,#game.show{display:block}
+.summary{padding:20px;border:1px solid #b55f72;text-align:center;font-size:18px;line-height:1.9}
+#board{position:relative;height:380px;border:1px solid #753846;background:repeating-linear-gradient(0deg,#200f1b 0 23px,#351826 24px 25px)}
+#links{position:absolute;width:100%;height:100%;inset:0;pointer-events:none} #game:has(#links) #left:empty,#game:has(#links) #right:empty{display:none}
+.col{position:absolute;top:9px;bottom:9px;display:flex;flex-direction:column;justify-content:space-around;z-index:2}
+.col.left{left:14px}.col.right{right:14px}
+.node{width:128px;font-size:13px}.node.selected{background:#a54768}.node.done{border-color:#83ffb0;color:#83ffb0}
+#stats{display:flex;justify-content:space-between;margin-top:14px;color:#e3b5bd}
+#message{min-height:22px;color:#ff9292;text-align:center;margin-top:12px}
+#skill{font-size:12px;color:#b18d96;margin-right:auto}
+
+:root{--red:#ff6158;--gold:#f3c018;--accent:#5ef6ff;--warn:#ff6158;--muted:#9aabb0;--text:#e9f1f2}
+  .cyCol { display: flex; flex-direction: column; gap: 22px; }
+  .cyCol.left { align-items: flex-end; text-align: right; }
+  .cyHead { color: var(--red); font-size: 13px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .cyHead::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 8px; border-radius: 50%;
+    background: var(--accent); vertical-align: middle; opacity: 0; }
+  .cyCol.right .cyHead::after { display: none; }
+  .cyCol.right .cyHead::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px;
+    border-radius: 50%; background: var(--accent); vertical-align: middle; opacity: 0; }
+  .cyGroup.has .cyHead::after, .cyGroup.has .cyHead::before { opacity: 1; }
+  .cyTiles { display: flex; gap: 6px; }
+  .cyTile { position: relative; width: 84px; height: 84px; padding: 6px; cursor: default; overflow: hidden;
+    border: 1px solid rgba(94, 246, 255, 0.35); background: rgba(0, 0, 0, 0.4); text-align: left; }
+  .cyTile::after { content: ""; position: absolute; right: 0; bottom: 0; border: 7px solid transparent;
+    border-right-color: var(--accent); border-bottom-color: var(--accent); }
+  .cyTile.filled { border-left: 4px solid var(--gold); background: linear-gradient(160deg, rgba(94, 246, 255, 0.10), rgba(0, 0, 0, 0.5)); }
+  .cyTile.empty { border: 1px dashed rgba(255, 97, 88, 0.55); background: rgba(80, 10, 16, 0.25); }
+  .cyTile.empty::after { display: none; }
+  .cyTile:hover, .cyTile.sel { border-color: var(--accent); box-shadow: 0 0 12px rgba(94, 246, 255, 0.35); }
+  .cyTile .tName { font-size: 11px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 2px #000; }
+  .cyTile .tSlot { position: absolute; left: 6px; bottom: 4px; font-size: 9px; color: var(--muted); text-transform: uppercase; }
+  .cyTile .tCost { position: absolute; right: 16px; bottom: 3px; font-size: 11px; font-weight: 700; color: var(--gold); }
+  .cyTile .tPlus { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 26px; color: rgba(255, 97, 88, 0.6); }
+  .cyBodyBox { position: relative; height: 540px; display: flex; justify-content: center; overflow: hidden; }
+  #cyBody { height: 100%; }
+  .cyScan { position: absolute; left: 10%; right: 10%; height: 60px; top: -60px; pointer-events: none;
+    background: linear-gradient(transparent, rgba(94, 246, 255, 0.12), transparent); animation: cyScan 5s linear infinite; }
+  @keyframes cyScan { to { top: 100%; } }
+  #cyBody .solid { fill: url(#cyGlass); stroke: rgba(255, 200, 196, 0.7); stroke-width: 1; transition: fill 0.2s, stroke 0.2s; }
+  #cyBody .limb { fill: none; stroke: url(#cyGlass); stroke-linecap: round; transition: stroke 0.2s; }
+  #cyBody .bones path, #cyBody .bones ellipse { fill: none; stroke: rgba(255, 236, 232, 0.45); stroke-width: 1.4; transition: stroke 0.2s; }
+  #cyBody .heart { fill: rgba(255, 97, 88, 0.75); transform-origin: 108px 120px; animation: cyBeat 1.1s ease-in-out infinite; }
+  @keyframes cyBeat { 50% { transform: scale(1.12); } }
+  #cyBody .has .solid { stroke: rgba(94, 246, 255, 0.8); }
+  #cyBody .has.bones path, #cyBody .has.bones ellipse { stroke: rgba(94, 246, 255, 0.6); }
+  #cyBody .lit .solid { fill: rgba(94, 246, 255, 0.35); stroke: var(--accent); }
+  #cyBody .lit .limb { stroke: rgba(94, 246, 255, 0.5); }
+  #cyBody .lit.bones path, #cyBody .lit.bones ellipse { stroke: var(--accent); stroke-width: 2; }
+  #cyBody .lit .heart, #cyBody .lit.heart { fill: var(--accent); }
+  .cyFoot { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .cyFoot b { color: var(--text); }
+
+</style></head><body><div id="screen"><div class="panel">
+<h1 id="title">КИБЕРХИРУРГИЯ</h1><div id="help">Выберите слот на теле пациента.</div>
+<div id="slots"><div class="cyMain"><div class="cyCol left" id="leftSlots"></div><div class="cyBodyBox"><svg id="cyBody" viewBox="0 0 200 440">
+            <defs>
+              <linearGradient id="cyGlass" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="440">
+                <stop offset="0" stop-color="#ffc4bf" stop-opacity="0.55"/>
+                <stop offset="0.5" stop-color="#ff8a80" stop-opacity="0.35"/>
+                <stop offset="1" stop-color="#ff6158" stop-opacity="0.22"/>
+              </linearGradient>
+              <filter id="cyGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="2.5" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <g id="r-skin" filter="url(#cyGlow)">
+              <g id="r-legs">
+                <path class="limb" d="M85 236 L81 330" stroke-width="27"/>
+                <path class="limb" d="M81 330 L79 410" stroke-width="18"/>
+                <path class="limb" d="M115 236 L119 330" stroke-width="27"/>
+                <path class="limb" d="M119 330 L121 410" stroke-width="18"/>
+                <ellipse class="solid" cx="76" cy="422" rx="11" ry="7"/>
+                <ellipse class="solid" cx="124" cy="422" rx="11" ry="7"/>
+              </g>
+              <g id="r-arms">
+                <path class="limb" d="M61 94 L47 176" stroke-width="17"/>
+                <path class="limb" d="M47 176 L35 250" stroke-width="12"/>
+                <path class="limb" d="M139 94 L153 176" stroke-width="17"/>
+                <path class="limb" d="M153 176 L165 250" stroke-width="12"/>
+                <ellipse class="solid" cx="32" cy="267" rx="7" ry="13"/>
+                <ellipse class="solid" cx="168" cy="267" rx="7" ry="13"/>
+              </g>
+              <g id="r-torso">
+                <path class="solid" d="M62 84 Q100 72 138 84 Q148 92 145 114 Q140 160 134 196 Q137 222 131 242 Q100 254 69 242 Q63 222 66 196 Q60 160 55 114 Q52 92 62 84 Z"/>
+              </g>
+              <g id="r-head">
+                <path class="solid" d="M91 56 L109 56 L112 80 L88 80 Z"/>
+                <ellipse class="solid" cx="100" cy="35" rx="21" ry="26"/>
+              </g>
+            </g>
+            <g id="r-bones" class="bones">
+              <ellipse cx="100" cy="33" rx="14" ry="18"/>
+              <path d="M100 62 L100 232"/>
+              <path d="M70 90 Q100 84 130 90"/>
+              <path d="M100 100 Q80 101 70 112 M100 100 Q120 101 130 112"/>
+              <path d="M100 112 Q80 113 70 124 M100 112 Q120 113 130 124"/>
+              <path d="M100 124 Q82 125 72 136 M100 124 Q118 125 128 136"/>
+              <path d="M100 136 Q84 137 75 148 M100 136 Q116 137 125 148"/>
+              <path d="M76 224 Q100 248 124 224 Q112 214 100 220 Q88 214 76 224 Z"/>
+              <path d="M61 94 L47 176 L35 250 M139 94 L153 176 L165 250"/>
+              <path d="M85 236 L81 330 L79 410 M115 236 L119 330 L121 410"/>
+            </g>
+            <g id="r-heart"><path class="heart" d="M108 128 L98 117 Q95 110 101 108 Q105 107 108 111 Q111 107 115 108 Q121 110 118 117 Z"/></g>
+          </svg><div class="cyScan"></div></div><div class="cyCol right" id="rightSlots"></div></div></div>
+<div id="options"><h2 id="slotName">Выбор импланта</h2><div id="choices"></div><div class="actions"><button id="backSlots">Назад к слотам</button></div></div>
+<div id="consent"><div class="summary" id="summary"></div><div class="actions">
+<button id="deny">Отказаться</button><button id="accept">Согласиться на операцию</button></div></div>
+<div id="game"><div id="board"><svg id="links" preserveAspectRatio="none"></svg><div id="left" class="col left"></div><div id="right" class="col right"></div></div>
+<div id="stats"><span id="progress"></span><span id="time"></span></div></div>
+<div id="message"></div><div class="actions"><span id="skill"></span><button id="close">Закрыть</button></div>
+</div></div><script>
+const $=x=>document.getElementById(x);
+let mode="",patient=0,slotData=null,consentToken="",token="",stage="",size=0,labels=[],picked=-1,
+pairs=[],cuts=[],cutOrder=[],cutPoints=[],locked=false,deadline=0,timer=null;
+function visible(name){$("screen").classList.add("open");for(const id of ["slots","options","consent","game"])$(id).classList.remove("show");if(name==="slots")$("slots").classList.add("show");else $(name).classList.add("show");$("message").textContent="";}
+function close(){clearInterval(timer);timer=null;$("options").classList.remove("show");mode="";$("screen").classList.remove("open");$("close").disabled=false;Open77.emit("surgery:close",{});}
+$("close").onclick=()=>{if(mode==="game")return;close();};
+function action(implant){Open77.emit("surgery:offer",{patient,slot:slotData.id,implant});close();}
+$("backSlots").onclick=()=>{$("options").classList.remove("show");};
+function select(slot){
+ // Снятие доступно по установленному импланту, даже если инвентарь пациента пуст.
+ slotData=slot;$("options").classList.add("show");$("slotName").textContent=slot.label+" · "+(slot.implantLabel||"свободно");
+ $("choices").replaceChildren();let has=false;
+ if(slot.implant){const b=document.createElement("button");b.textContent="Снять "+(slot.implantLabel||slot.implant);b.onclick=()=>action(false);$("choices").append(b);has=true;}
+ for(const it of (slotData.options||[])){const b=document.createElement("button");b.textContent=slot.implant?"Заменить на "+it.label:"Установить "+it.label;b.onclick=()=>action(it.id);$("choices").append(b);has=true;}
+ if(!has)$("choices").textContent="Слот свободен. В инвентаре пациента нет совместимых имплантов.";
+}
+const CY_GROUPS={
+ left:[{label:"Голова",slots:["eyes","os"]},{label:"Руки",slots:["arms"]},{label:"Скелет",slots:["skeleton","tendons"]},{label:"Покровы",slots:["skin"]}],
+ right:[{label:"Кровообращение",slots:["heart","blood"]},{label:"Метаболизм",slots:["metabolism"]},{label:"Защита разума",slots:["ice","purge"]},{label:"Ноги",slots:["legs"]}]
+};
+const CY_REGION={eyes:"head",os:"head",ice:"head",purge:"head",arms:"arms",legs:"legs",tendons:"legs",skeleton:"bones",skin:"skin",heart:"heart",blood:"torso",metabolism:"torso"};
+function highlightSlot(id,on){
+ const el=document.getElementById("r-"+(CY_REGION[id]||"skin"));
+ if(el)el.classList.toggle("lit",on);
+}
+function editor(p){
+ mode="slots";patient=p.patient;$("title").textContent="ИМПЛАНТЫ · ID "+patient;
+ $("help").textContent="Выберите слот. В списке доступны только импланты из карманов пациента.";
+ visible("slots");$("leftSlots").replaceChildren();$("rightSlots").replaceChildren();
+ const bySlot=new Map((p.slots||[]).map(s=>[s.id,s])),options=p.options||[];
+ for(const side of ["left","right"]){
+  for(const group of CY_GROUPS[side]){
+   const container=document.createElement("div");container.className="cyGroup";
+   const head=document.createElement("div");head.className="cyHead";head.textContent=group.label;
+   const tiles=document.createElement("div");tiles.className="cyTiles";
+   for(const id of group.slots){
+    const sl=bySlot.get(id);if(!sl)continue;
+    const tile=document.createElement("button");tile.type="button";tile.className="cyTile "+(sl.implant?"filled":"empty");
+    if(sl.implant){const label=document.createElement("div");label.className="tName";label.textContent=sl.implantLabel||sl.implant;tile.append(label);}
+    else {const plus=document.createElement("div");plus.className="tPlus";plus.textContent="+";tile.append(plus);}
+    const caption=document.createElement("div");caption.className="tSlot";caption.textContent=sl.label;tile.append(caption);
+    tile.addEventListener("mouseenter",()=>highlightSlot(sl.id,true));
+    tile.addEventListener("mouseleave",()=>highlightSlot(sl.id,false));
+    tile.addEventListener("click",()=>{
+      select({...sl,options:options.filter(it=>it.slot===sl.id&&it.id!==sl.implant)});
+      tile.focus();
+    });
+    tiles.append(tile);
+   }
+   container.append(head,tiles);$(side==="left"?"leftSlots":"rightSlots").append(container);
+  }
+ }
+}
+function consent(p){
+ mode="consent";consentToken=p.token;$("title").textContent="ПОДТВЕРЖДЕНИЕ ОПЕРАЦИИ";
+ $("help").textContent="Операция может закончиться повреждением здоровья и уничтожением импланта.";
+ visible("consent");$("summary").textContent="Рипер ID "+p.doctor+" предлагает операцию: "+(p.old?"снятие "+p.old+(p.new?" и установка "+p.new:""):"установка "+p.new)+".";
+ $("close").disabled=false;
+}
+function reply(yes){Open77.emit("surgery:consentReply",{token:consentToken,yes});close();}
+$("accept").onclick=()=>reply(true);$("deny").onclick=()=>reply(false);
+function cablePoint(a,b,t,k){
+ // Переплетённые кривые: у каждого кабеля собственная волна и разный радиус петли.
+ const x=147+(boardWidth()-294)*t;
+ const y=a+(b-a)*(3*t*t-2*t*t*t)+Math.sin(t*Math.PI*4+k*1.7)*Math.sin(Math.PI*t)*(18+k*3);
+ return {x,y};
+}
+function boardWidth(){return $("board").getBoundingClientRect().width;}
+function cutWire(wire,point){
+ if(locked||stage!=="remove")return;
+ cuts.push({wire,point});
+ draw();
+ if(cuts.length===size)submit();
+}
+function draw(){
+ $("left").replaceChildren();$("right").replaceChildren();$("links").replaceChildren();
+ if(stage==="remove"){
+  const width=boardWidth(),height=$("board").getBoundingClientRect().height;
+  $("links").setAttribute("viewBox",`0 0 ${width} ${height}`);
+  const normalMarkers=[], redMarkers=[], positions=[];
+  // Положения всех точек вычисляются заранее (включая уже разрезанные провода).
+  // Сначала ищем точки без пересечений: один SVG-маркер не сможет перехватить
+  // щелчок по маркеру другого провода.
+  const anchors=[];
+  for(let i=0;i<size;i++){
+   const a=(i+.5)*height/size;
+   const end=labels.indexOf(i+1);
+   const b=((end>=0?end:i)+.5)*height/size;
+   for(let j=1;j<=6;j++){
+    let best=null,bestSeparation=-1;
+    for(let shift=0;shift<=24;shift++){
+     for(const direction of (shift===0?[0]:[-1,1])){
+      const t=Math.max(.06,Math.min(.94,j/7+direction*shift*.013));
+      const pt=cablePoint(a,b,t,i);
+      const min=anchors.reduce((m,v)=>Math.min(m,Math.hypot(v.x-pt.x,v.y-pt.y)),Infinity);
+      if(min>bestSeparation){bestSeparation=min;best={...pt,t};}
+     }
+     if(bestSeparation>=33)break;
+    }
+    anchors.push(best);
+    positions.push({wire:i+1,point:j,...best});
+   }
+  }
+  for(let i=0;i<size;i++){
+   const a=(i+.5)*height/size;
+   const end=labels.indexOf(i+1);
+   const b=((end>=0?end:i)+.5)*height/size;
+   const removed=cuts.some(c=>c.wire===i+1);
+   const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+   const parts=[];
+   for(let j=0;j<=72;j++){const pt=cablePoint(a,b,j/72,i);parts.push((j?"L":"M")+pt.x.toFixed(1)+" "+pt.y.toFixed(1));}
+   path.setAttribute("d",parts.join(" "));path.setAttribute("fill","none");
+   path.setAttribute("stroke",removed?"#4d474d":["#ed757a","#77cedc","#dfaf6e","#ad8be0"][i%4]);
+   path.setAttribute("stroke-width",removed?"1.8":"5");path.setAttribute("stroke-linecap","round");
+   $("links").append(path);
+   const tag=document.createElementNS("http://www.w3.org/2000/svg","text");
+   tag.setAttribute("x","122");tag.setAttribute("y",a+5);
+   tag.setAttribute("fill","#fff5ec");tag.setAttribute("text-anchor","end");
+   tag.setAttribute("font-size","15");tag.textContent="№ "+(i+1);
+   $("links").append(tag);
+   if(removed)continue;
+   for(const pt of positions.filter(v=>v.wire===i+1)){
+    // Lua array cutPoints[1..N] arrives in JavaScript as a 0-based array.
+    // Previously [i+1] hid the red marker on the very last cable.
+    const correct=pt.point===Number(cutPoints[i]);
+    const circle=document.createElementNS("http://www.w3.org/2000/svg","circle");
+    circle.setAttribute("cx",pt.x);circle.setAttribute("cy",pt.y);
+    circle.setAttribute("r",correct?"11":"7");
+    circle.setAttribute("fill",correct?"#ff4355":"#34212f");
+    circle.setAttribute("stroke",correct?"#fff7de":"#e5c5c4");
+    circle.setAttribute("stroke-width",correct?"3":"1.5");
+    circle.style.pointerEvents="all";circle.style.cursor="crosshair";
+    circle.addEventListener("click",event=>{
+     event.stopPropagation();
+     cutWire(pt.wire,pt.point);
+    });
+    // Чёрная подложка отделяет точку от пересекающихся проводов.
+    const backing=document.createElementNS("http://www.w3.org/2000/svg","circle");
+    backing.setAttribute("cx",pt.x);backing.setAttribute("cy",pt.y);
+    backing.setAttribute("r",correct?"15":"10");
+    backing.setAttribute("fill","#120d18");
+    backing.style.pointerEvents="none";
+    (correct?redMarkers:normalMarkers).push(backing,circle);
+   }
+  }
+  // Цветные точки поверх обыкновенных. Порядок слоёв гарантирует красный
+  // маркер даже у ПОСЛЕДНЕГО провода после уменьшения сложности.
+  for(const marker of normalMarkers)$("links").append(marker);
+  for(const marker of redMarkers)$("links").append(marker);
+  $("progress").textContent="Разрезано: "+cuts.length+"/"+size+" · порядок: "+cutOrder.join(" → ");
+  return;
+ }
+ for(let i=0;i<size;i++){
+  const a=document.createElement("button");a.className="node"+(picked===i?" selected":"")+(pairs[i]?" done":"");
+  a.textContent="Нейрон "+(i+1);a.onclick=()=>{if(locked||pairs[i])return;picked=i;draw();};$("left").append(a);
+  const b=document.createElement("button");b.className="node"+(pairs.includes(i+1)?" done":"");
+  b.textContent="Провод "+labels[i];b.onclick=()=>{
+   if(locked||picked<0||pairs.includes(i+1))return;pairs[picked]=i+1;picked=-1;draw();
+   if(pairs.filter(Boolean).length===size)submit();
+  };$("right").append(b);
+ }
+ const r=$("board").getBoundingClientRect();$("links").setAttribute("viewBox",`0 0 ${r.width} ${r.height}`);
+ for(let i=0;i<size;i++)if(pairs[i]){
+  const y1=(i+.5)*r.height/size,y2=(pairs[i]-.5)*r.height/size;
+  const e=document.createElementNS("http://www.w3.org/2000/svg","path");
+  e.setAttribute("d",`M 152 ${y1} C ${r.width*.42} ${y1}, ${r.width*.58} ${y2}, ${r.width-152} ${y2}`);
+  e.setAttribute("fill","none");e.setAttribute("stroke","#6dffba");e.setAttribute("stroke-width","3");$("links").append(e);
+ }
+ $("progress").textContent="Соединено: "+pairs.filter(Boolean).length+"/"+size;
+}
+function game(p){
+ mode="game";stage=p.stage;token=p.token;size=p.wires;labels=p.labels||[];
+ cutOrder=p.cutOrder||[];cutPoints=p.cutPoints||[];cuts=[];
+ picked=-1;pairs=[];locked=false;$("title").textContent=stage==="remove"?"ДЕМОНТАЖ НЕЙРОСВЯЗЕЙ":"НЕЙРОННАЯ СШИВКА";
+ $("help").textContent=stage==="remove"?"Найдите красные узлы на запутанных проводах и разрежьте их в указанном порядке. Неправильная точка или порядок — провал.":"Соедините нейроны и провода с одинаковыми номерами.";
+ visible("game");$("close").disabled=true;$("skill").textContent="Операций проведено: "+p.experience;
+ draw();deadline=Date.now()+p.seconds*1000;clearInterval(timer);
+ timer=setInterval(()=>{const remain=Math.max(0,Math.ceil((deadline-Date.now())/1000));$("time").textContent="Осталось: "+remain+" с";if(remain===0)submit();},200);
+}
+function submit(){if(locked)return;locked=true;clearInterval(timer);timer=null;Open77.emit("surgery:submit",{token,pairs,cuts});$("message").textContent="Проверка результата...";}
+Open77.on("surgery:choose",editor);
+Open77.on("surgery:consent",consent);
+Open77.on("surgery:game",game);
+Open77.on("surgery:stage",p=>{$("message").textContent=p.text||"Следующий этап";});
+Open77.on("surgery:finish",p=>{
+ clearInterval(timer);timer=null;$("message").textContent=p.cancelled?"Операция отменена.":p.success?"Операция прошла успешно.":"Операция провалена.";
+ $("close").disabled=false;mode="finished";
+});
+Open77.on("surgery:close",()=>{clearInterval(timer);$("screen").classList.remove("open");});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&mode!=="game")close();});
+Open77.emit("ui:ready",{});
+</script></body></html>
