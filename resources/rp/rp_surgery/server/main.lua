@@ -87,20 +87,28 @@ local function finish(d,success)
             TriggerClientEvent("rp_surgery:finish",d,{success=false,cancelled=true})
             return
         end
-        local removed,info=await("rp_cyberware","surgery_remove",p,op.slot,not success)
+        if not success then
+            -- Неудача не вызывает remove: имплант остаётся установленным.
+            local injured,isOs=await("rp_cyberware","surgery_remove_fail",p,op.slot)
+            if not injured then
+                clear(d);notify(d,"Травма после снятия не применена: "..tostring(isOs))
+                TriggerClientEvent("rp_surgery:finish",d,{success=false,cancelled=true})
+                return
+            end
+            record(d,false)
+            if isOs then await("rp_medical","surgery_downed",p) end
+            notify(d,"Снятие провалено: имплант остался на месте, пациент получил травму.")
+            notify(p,"Неудачное снятие: имплант сохранён, −10 к максимуму здоровья.")
+            TriggerClientEvent("rp_surgery:finish",d,{success=false})
+            clear(d);return
+        end
+        local removed,info=await("rp_cyberware","surgery_remove",p,op.slot,false)
         if not removed then
             clear(d);notify(d,"Снятие не выполнено: "..tostring(info))
             TriggerClientEvent("rp_surgery:finish",d,{success=false,cancelled=true})
             return
         end
-        record(d,success)
-        if not success then
-            if op.slot=="os" then await("rp_medical","surgery_downed",p) end
-            notify(d,"Снятие провалено: старый имплант уничтожен.")
-            notify(p,"Ошибка операции: имплант уничтожен, −10 к максимуму здоровья.")
-            TriggerClientEvent("rp_surgery:finish",d,{success=false})
-            clear(d);return
-        end
+        record(d,true)
         notify(p,"Старый имплант снят и возвращён в инвентарь.")
         if op.implant then
             op.stage="install";op.finished=false
