@@ -210,14 +210,38 @@ function draw(){
  if(stage==="remove"){
   const width=boardWidth(),height=$("board").getBoundingClientRect().height;
   $("links").setAttribute("viewBox",`0 0 ${width} ${height}`);
-  const cutMarkers=[];
+  const normalMarkers=[], redMarkers=[], positions=[];
+  // Положения всех точек вычисляются заранее (включая уже разрезанные провода).
+  // Сначала ищем точки без пересечений: один SVG-маркер не сможет перехватить
+  // щелчок по маркеру другого провода.
+  const anchors=[];
   for(let i=0;i<size;i++){
    const a=(i+.5)*height/size;
-   const b=(labels.indexOf(i+1)+.5)*height/size;
+   const end=labels.indexOf(i+1);
+   const b=((end>=0?end:i)+.5)*height/size;
+   for(let j=1;j<=6;j++){
+    let best=null,bestSeparation=-1;
+    for(let shift=0;shift<=12;shift++){
+     for(const direction of (shift===0?[0]:[-1,1])){
+      const t=Math.max(.055,Math.min(.945,j/7+direction*shift*.017));
+      const pt=cablePoint(a,b,t,i);
+      const min=anchors.reduce((m,v)=>Math.min(m,Math.hypot(v.x-pt.x,v.y-pt.y)),Infinity);
+      if(min>bestSeparation){bestSeparation=min;best={...pt,t};}
+     }
+     if(bestSeparation>=28)break;
+    }
+    anchors.push(best);
+    positions.push({wire:i+1,point:j,...best});
+   }
+  }
+  for(let i=0;i<size;i++){
+   const a=(i+.5)*height/size;
+   const end=labels.indexOf(i+1);
+   const b=((end>=0?end:i)+.5)*height/size;
    const removed=cuts.some(c=>c.wire===i+1);
    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
-   const steps=56,parts=[];
-   for(let j=0;j<=steps;j++){const pt=cablePoint(a,b,j/steps,i);parts.push((j?"L":"M")+pt.x.toFixed(1)+" "+pt.y.toFixed(1));}
+   const parts=[];
+   for(let j=0;j<=72;j++){const pt=cablePoint(a,b,j/72,i);parts.push((j?"L":"M")+pt.x.toFixed(1)+" "+pt.y.toFixed(1));}
    path.setAttribute("d",parts.join(" "));path.setAttribute("fill","none");
    path.setAttribute("stroke",removed?"#4d474d":["#ed757a","#77cedc","#dfaf6e","#ad8be0"][i%4]);
    path.setAttribute("stroke-width",removed?"1.8":"5");path.setAttribute("stroke-linecap","round");
@@ -228,21 +252,32 @@ function draw(){
    tag.setAttribute("font-size","15");tag.textContent="№ "+(i+1);
    $("links").append(tag);
    if(removed)continue;
-   // На каждом проводе шесть возможных участков. Нужная точка указывает
-   // красный узел; последовательность определяет сервер.
-   for(let j=1;j<=6;j++){
-    const pt=cablePoint(a,b,j/7,i);
+   for(const pt of positions.filter(v=>v.wire===i+1)){
+    const correct=pt.point===Number(cutPoints[i+1]);
     const circle=document.createElementNS("http://www.w3.org/2000/svg","circle");
     circle.setAttribute("cx",pt.x);circle.setAttribute("cy",pt.y);
-    circle.setAttribute("r",j===cutPoints[i+1]?"10":"6");
-    circle.setAttribute("fill",j===cutPoints[i+1]?"#ff4f61":"#34212f");
-    circle.setAttribute("stroke","#fff4ee");circle.setAttribute("stroke-width","1.4");
+    circle.setAttribute("r",correct?"11":"7");
+    circle.setAttribute("fill",correct?"#ff4355":"#34212f");
+    circle.setAttribute("stroke",correct?"#fff7de":"#e5c5c4");
+    circle.setAttribute("stroke-width",correct?"3":"1.5");
     circle.style.pointerEvents="all";circle.style.cursor="crosshair";
-    circle.addEventListener("click",()=>cutWire(i+1,j));cutMarkers.push(circle);
+    circle.addEventListener("click",event=>{
+     event.stopPropagation();
+     cutWire(pt.wire,pt.point);
+    });
+    // Чёрная подложка отделяет точку от пересекающихся проводов.
+    const backing=document.createElementNS("http://www.w3.org/2000/svg","circle");
+    backing.setAttribute("cx",pt.x);backing.setAttribute("cy",pt.y);
+    backing.setAttribute("r",correct?"15":"10");
+    backing.setAttribute("fill","#120d18");
+    backing.style.pointerEvents="none";
+    (correct?redMarkers:normalMarkers).push(backing,circle);
    }
   }
-  // Все точки поверх ВСЕХ проводов; иначе следующий провод перекрывал маркеры предыдущего.
-  for(const marker of cutMarkers)$("links").append(marker);
+  // Цветные точки поверх обыкновенных. Порядок слоёв гарантирует красный
+  // маркер даже у ПОСЛЕДНЕГО провода после уменьшения сложности.
+  for(const marker of normalMarkers)$("links").append(marker);
+  for(const marker of redMarkers)$("links").append(marker);
   $("progress").textContent="Разрезано: "+cuts.length+"/"+size+" · порядок: "+cutOrder.join(" → ");
   return;
  }
