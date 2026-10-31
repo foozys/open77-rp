@@ -531,7 +531,19 @@ exports("give_instance", function(playerId, itemId, meta, price)
         lines[2] = { money = price, from = bank, to = "sys:rp.money" }
     end
     state.busy = true
-    local receipt, why = Store.transfer({ opId = opId, kind = "rp.instance", reason = caller, lines = lines })
+    local spec = { opId = opId, kind = "rp.instance", reason = caller, lines = lines }
+    local receipt, why = Store.transfer(spec)
+    if not receipt and why == "unknown_account" then
+        -- После рестарта координатора сохранённый inv[playerId] может пережить
+        -- его таблицу открытых карманов. Открываем счёт заново и повторяем с
+        -- тем же opId: транзакция идемпотентна, дублирования экземпляра нет.
+        local opened, openWhy = Store.openPockets(state.account)
+        if opened then
+            receipt, why = Store.transfer(spec)
+        else
+            why = openWhy or why
+        end
+    end
     state.busy = false
     if not receipt then return nil, why or "busy" end
     refresh(playerId)
