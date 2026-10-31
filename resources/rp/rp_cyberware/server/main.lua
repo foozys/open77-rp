@@ -526,12 +526,12 @@ local function install(patient, implantId, price, payTo)
 end
 
 -- Снять имплант из слота: снова предмет в карманах. true, или nil, текст отказа.
-local function remove(patient, slot, price, payTo)
+local function remove(patient, slot, price, payTo, destroy)
     local s = state[patient]
     local implantId = s and s.slots[slot]
     local def = implantId and CyberConfig.implants[implantId]
     if not def then return nil, "В этом слоте ничего нет." end
-    if sync("rp_inventory", "fits", patient, implantId, 1) == false then return nil, "Некуда положить снятый имплант: освободите карманы." end
+    if not destroy and sync("rp_inventory", "fits", patient, implantId, 1) == false then return nil, "Некуда положить снятый имплант: освободите карманы." end
     local bank = bankOf(patient)
     if not bank then return nil, "Счёт недоступен." end
     if price > 0 then
@@ -559,8 +559,10 @@ local function remove(patient, slot, price, payTo)
         saveState(patient)
     end
     applyPassives(patient)
-    local given, why = await("rp_inventory", "give", patient, implantId, 1)
-    if not given then log("error", "снятый %s игроку %d не выдан: %s", implantId, patient, tostring(why)) end
+    if not destroy then
+        local given, why = await("rp_inventory", "give", patient, implantId, 1)
+        if not given then log("error", "снятый %s игроку %d не выдан: %s", implantId, patient, tostring(why)) end
+    end
     pushPanel(patient)
     log("info", "игрок %d (#%d): снят %s за %d", patient, s.characterId, implantId, price)
     return true
@@ -589,6 +591,45 @@ exports("surgery_fail", function(patient, implantId)
     end
     applyPassives(patient)
     return true, def.slot == "os"
+end)
+
+exports("surgery_state", function(patient)
+    if GetInvokingResource() ~= "rp_surgery" then return nil, "caller_denied" end
+    local s = state[math.tointeger(tonumber(patient)) or 0]
+    if not s then return nil, "not_ready" end
+    local slots = {}
+    for _, slot in ipairs(CyberConfig.slots) do
+        local id = s.slots[slot.id]
+        slots[#slots + 1] = { id = slot.id, label = slot.label, implant = id,
+            implantLabel = id and labelOf(id) or nil }
+    end
+    local catalog = sync("rp_inventory", "counts", patient) or {}
+    local options = {}
+    for id, def in pairs(CyberConfig.implants) do
+        if (catalog[id] or 0) > 0 then
+            options[#options+1] = { id=id, slot=def.slot, label=labelOf(id) }
+        end
+    end
+    return {slots=slots, options=options}
+end)
+
+exports("surgery_remove", function(patient, slot, destroy)
+    if GetInvokingResource() ~= "rp_surgery" then return nil, "caller_denied" end
+    patient = math.tointeger(tonumber(patient))
+    if not patient or type(slot) ~= "string" then return nil, "invalid_argument" end
+    local s = state[patient]
+    local id = s and s.slots[slot]
+    if not id then return nil, "empty_slot" end
+    local ok, why = remove(patient, slot, 0, SOURCE_CLINIC, destroy == true)
+    if not ok then return nil, why end
+    if destroy then
+        surgeryInjuries[s.characterId] = true
+        local persisted, err = db("update",
+            "INSERT IGNORE INTO rp_surgery_injuries (character_id) VALUES (?)", {s.characterId})
+        if persisted == nil then log("error", "травма снятия не сохранена: %s", tostring(err)) end
+        applyPassives(patient)
+    end
+    return true, { implant=id, isOs=slot=="os" }
 end)
 
 -- -- NPC-клиника -------------------------------------------------------------------------
