@@ -13,7 +13,7 @@ RegisterNetEvent("rp_contracts:journal",function(value)if type(value)=="table"th
 RegisterNetEvent("rp_contracts:dossier",function(value)if type(value)=="table"then show("contract:dossier",value)end end)
 RegisterNetEvent("rp_contracts:scanResult",function(value)
     if value and value.text then
-        Open77.chat.send({type="system",author="KIROSHI",text=value.text,color={100,240,240}})
+        send("contract:scanResult",value)
     end
 end)
 local function target(ctx)
