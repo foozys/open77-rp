@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Рипердок</title>
+<style>
+  :root { --bg: rgba(10, 12, 18, 0.95); --accent: #c878ff; --cyan: #5ef6ff; --money: #f3e600; --ok: #78dc8c;
+    --warn: #ff5e6c; --text: #e8f1f2; --muted: #8fa3a8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 15px/1.35 "Segoe UI", Arial, sans-serif; user-select: none; }
+  #root { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); }
+  #root.open { display: block; }
+  #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 820px; max-height: 84vh;
+    overflow-y: auto; padding: 22px 26px; background: var(--bg); border: 1px solid rgba(200, 120, 255, 0.35);
+    border-top: 3px solid var(--accent); }
+  h1 { margin: 0 0 12px; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+  h2 { margin: 18px 0 8px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .bar { height: 8px; background: rgba(255, 255, 255, 0.08); position: relative; margin-top: 6px; }
+  .bar .fill { height: 100%; background: var(--cyan); }
+  .bar .mark { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--warn); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; margin-bottom: 6px; border: 1px solid rgba(255, 255, 255, 0.08); }
+  .row .name { flex: 1; }
+  .row .name small { display: block; color: var(--muted); font-size: 12px; }
+  .row .cost { color: var(--warn); font-size: 13px; min-width: 90px; text-align: right; }
+  .row .price { color: var(--money); font-weight: 600; min-width: 90px; text-align: right; }
+  button { padding: 7px 14px; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    font: inherit; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+  button:hover { background: rgba(200, 120, 255, 0.12); }
+  button:disabled { opacity: 0.35; cursor: default; }
+  .empty { color: var(--muted); }
+  #message { min-height: 22px; margin-top: 12px; font-size: 14px; }
+  #message.ok { color: var(--ok); } #message.bad { color: var(--warn); }
+  .hint { margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+  /* -- сканер Kiroshi -- */
+  #scan { display: none; position: absolute; inset: 0; pointer-events: none; --k: #f3e600; --q: #5ef6ff; }
+  #scan.open { display: block; }
+  #scan .tint { position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(243, 230, 0, 0.02) 30%, rgba(30, 24, 0, 0.55) 100%),
+      repeating-linear-gradient(0deg, rgba(243, 230, 0, 0.035) 0 1px, transparent 1px 4px); }
+  #scan .sweep { position: absolute; left: 0; right: 0; height: 120px; top: -120px;
+    background: linear-gradient(transparent, rgba(243, 230, 0, 0.07), transparent); animation: sweep 3.2s linear infinite; }
+  @keyframes sweep { to { top: 100%; } }
+  #scan .brand { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); color: var(--k);
+    font-size: 13px; letter-spacing: 6px; text-transform: uppercase; opacity: 0.85; }
+  #scan .brand b { color: #fff; font-weight: 400; }
+  #reticle { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; transform: translate(-50%, -50%); transition: all 0.15s; }
+  #reticle i { position: absolute; width: 22px; height: 22px; border: 2px solid var(--k); }
+  #reticle i:nth-child(1) { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+  #reticle i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+  #reticle i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; }
+  #reticle i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+  #reticle.lock { width: 90px; height: 90px; }
+  #reticle.lock i { border-color: var(--warn); }
+  #reticle .dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: var(--k); }
+  #scanSide { position: absolute; left: calc(50% + 110px); top: calc(50% - 230px); width: 470px; }
+  .card { background: rgba(12, 10, 2, 0.82); border: 1px solid rgba(243, 230, 0, 0.45); border-left: 4px solid var(--k);
+    padding: 10px 14px; margin-bottom: 10px; }
+  .card .cap { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--k); }
+  .card .big { font-size: 22px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin: 2px 0 6px; }
+  .card .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+  .card .kv span:first-child { color: var(--muted); }
+  .card .bad { color: var(--warn); } .card .good { color: var(--ok); }
+  .card.none { color: var(--muted); font-size: 13px; border-left-color: rgba(243, 230, 0, 0.4); }
+  .dossier { margin: 8px 0 10px; padding: 8px 10px; color: #c7d1d2; background: rgba(255,255,255,0.035);
+    border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; line-height: 1.45; white-space: pre-line; }
+  .pixel { color: #b9f7fa; letter-spacing: 2px; font-family: Consolas, monospace;
+    text-shadow: 2px 0 rgba(255, 0, 80, 0.5), -2px 0 rgba(0, 255, 255, 0.45); animation: pixelFlicker .45s steps(2) infinite; }
+  @keyframes pixelFlicker { 50% { opacity: .62; transform: translateX(1px); } }
+  .contractHint {margin:7px 0;padding:7px 9px;border-left:3px solid var(--k);color:#f0d78c;background:rgba(244,205,78,.08);font-size:12px;line-height:1.4}
+  .contractVerify {border:1px solid #ff5969;color:#ffadb6;background:rgba(135,10,22,.22);padding:8px 10px;margin:9px 0;font-size:12px;letter-spacing:.4px}
+  .contractTarget {display:inline-block;margin-left:10px;padding:3px 8px;border:2px solid #ff4050;color:#ff5566;background:rgba(90,0,10,.62);font-size:12px;vertical-align:middle;letter-spacing:1px;white-space:nowrap}
+  .access { color: var(--ok); font-size: 11px; letter-spacing: 1px; margin-bottom: 4px; }
+  .qh { position: absolute; left: 50%; bottom: 34px; width: min(1080px, calc(100% - 120px)); transform: translateX(-50%);
+    margin: 0; border-left-color: var(--q); border-color: rgba(94, 246, 255, 0.45); }
+  .qh .cap { color: var(--q); display: flex; justify-content: space-between; }
+  #ram { display: flex; gap: 3px; margin: 7px 0; }
+  #ram i { flex: 1; height: 10px; border: 1px solid rgba(94, 246, 255, 0.6); }
+  #ram i.full { background: var(--q); }
+  #ram i.part { background: linear-gradient(90deg, rgba(94, 246, 255, 0.55) var(--p), transparent var(--p)); }
+  #ram i.cost { box-shadow: inset 0 0 0 2px #fff; }
+  #scripts { display: flex; gap: 8px; }
+  .script { display: flex; flex: 1 1 0; min-width: 0; justify-content: space-between; align-items: center;
+    padding: 8px 10px; font-size: 13px; border: 1px solid rgba(94, 246, 255, 0.16); }
+  .script .r { font-weight: 700; color: var(--q); }
+  .script.sel { background: rgba(94, 246, 255, 0.16); border-color: var(--q); }
+  .script.sel::before { content: "▶"; color: var(--q); margin-right: 6px; font-size: 10px; }
+  .script.poor { opacity: 0.4; }
+  .script .n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  #scanStatus { font-size: 12px; margin-top: 6px; color: var(--q); }
+  #scanStatus.wait { color: var(--k); }
+  #scanToast { position: absolute; left: 50%; top: calc(50% + 90px); transform: translateX(-50%); padding: 6px 14px;
+    background: rgba(12, 10, 2, 0.85); border: 1px solid var(--warn); color: var(--warn); font-size: 14px; display: none; }
+  #scanToast.show { display: block; }
+  /* -- загрузка скрипта: у хакера снизу, у цели сверху -- */
+  .hbar { position: absolute; left: 50%; transform: translateX(-50%); width: 460px; display: none; pointer-events: none;
+    padding: 8px 12px 10px; background: rgba(8, 10, 16, 0.88); font-size: 13px; letter-spacing: 1px; }
+  .hbar.on { display: block; }
+  .hbar .cap { display: flex; justify-content: space-between; text-transform: uppercase; font-weight: 700; }
+  .hbar .track { height: 6px; margin-top: 6px; background: rgba(255, 255, 255, 0.1); }
+  .hbar .fill { height: 100%; width: 0; }
+  .hbar .tip { margin-top: 6px; font-size: 12px; color: var(--muted); letter-spacing: 0; }
+  #upl { bottom: 150px; border: 1px solid rgba(94, 246, 255, 0.6); color: #5ef6ff; }
+  #upl .fill { background: #5ef6ff; }
+  #inc { top: 90px; border: 1px solid var(--warn); color: var(--warn); animation: incPulse 0.8s ease-in-out infinite; }
+  #inc .fill { background: var(--warn); }
+  @keyframes incPulse { 50% { box-shadow: 0 0 24px rgba(255, 94, 108, 0.55); } }
+  #hackMsg { position: absolute; left: 50%; top: 150px; transform: translateX(-50%); padding: 6px 14px; display: none;
+    background: rgba(8, 10, 16, 0.9); font-size: 14px; pointer-events: none; }
+  #hackMsg.show { display: block; }
+  #hackMsg.ok { border: 1px solid var(--ok); color: var(--ok); }
+  #hackMsg.bad { border: 1px solid var(--warn); color: var(--warn); }
+
+  /* -- киберпсихоз: красный экран и таймер -- */
+  #psy { display: none; position: absolute; inset: 0; pointer-events: none; }
+  #psy.on { display: block; }
+  #psy .red { position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 65% at center, rgba(255, 0, 20, 0.10) 35%, rgba(150, 0, 10, 0.62) 100%);
+    animation: psyPulse 0.9s ease-in-out infinite; }
+  @keyframes psyPulse { 50% { opacity: 0.7; } }
+  #psy .title { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); color: #ff3344;
+    font-size: 34px; font-weight: 800; letter-spacing: 12px; text-shadow: 3px 0 rgba(0, 255, 255, 0.6), -3px 0 rgba(255, 0, 80, 0.8);
+    animation: psyShake 0.25s steps(2) infinite; }
+  @keyframes psyShake { 50% { transform: translateX(calc(-50% + 3px)) skewX(-4deg); } }
+  #psy .timer { position: absolute; top: 122px; left: 50%; transform: translateX(-50%); color: #ffd0d4; font-size: 15px;
+    letter-spacing: 2px; text-align: center; text-shadow: 0 0 8px rgba(255, 0, 30, 0.9); }
+  #psy .timer b { color: #fff; font-size: 20px; }
+
+  /* -- приступ психоза: резкий глитч, пока звучит голос -- */
+  #ep { display: none; position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  #ep.on { display: block; }
+  #ep .edge { position: absolute; inset: 0;
+    box-shadow: inset 8px 0 24px -14px rgba(0, 255, 255, 0.4), inset -8px 0 24px -14px rgba(255, 0, 90, 0.4); }
+  #ep.severe .scan { opacity: 1; }
+  #ep.severe .edge { box-shadow: inset 26px 0 60px -20px rgba(0, 255, 255, 0.7), inset -26px 0 60px -20px rgba(255, 20, 40, 0.8),
+    inset 0 0 160px rgba(120, 0, 10, 0.55); }
+  #ep .scan { position: absolute; inset: 0; opacity: 0.5; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px); }
+  #ep .bar { position: absolute; left: 0; mix-blend-mode: normal; }
+  #ep .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+</style>
+<style>
+  /* -- Сандевистан: зелёный экран, пока включён -- */
+  #od { display: none; position: absolute; inset: 0; pointer-events: none; }
+  #od.on { display: block; animation: odIn 0.35s ease-out; }
+  @keyframes odIn { from { opacity: 0; filter: brightness(2.5); } to { opacity: 1; filter: none; } }
+  #od .glow { position: absolute; inset: 0;
+    background: radial-gradient(ellipse 75% 70% at center, rgba(60, 255, 140, 0.06) 40%, rgba(20, 220, 110, 0.42) 100%);
+    animation: odPulse 1.6s ease-in-out infinite; }
+  @keyframes odPulse { 50% { opacity: 0.75; } }
+  #od .lines { position: absolute; inset: 0; opacity: 0.35;
+    background: repeating-linear-gradient(0deg, rgba(120, 255, 170, 0.10) 0 2px, transparent 2px 6px);
+    animation: odLines 0.5s linear infinite; }
+  @keyframes odLines { to { background-position: 0 12px; } }
+  #od .ghost { position: absolute; inset: 0; border: 2px solid rgba(90, 255, 150, 0.45);
+    box-shadow: inset 0 0 80px rgba(40, 255, 130, 0.35); }
+  #od .label { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); color: #6dff9e;
+    font-size: 14px; letter-spacing: 8px; text-transform: uppercase; text-shadow: 0 0 10px rgba(60, 255, 140, 0.8); }
+  #od .label small { display: block; text-align: center; letter-spacing: 1px; font-size: 12px; color: rgba(160, 255, 200, 0.8);
+    margin-top: 4px; text-transform: none; }
+  #scanHelp { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--k);
+    letter-spacing: 1px; opacity: 0.8; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="panel">
+    <h1 id="title"></h1>
+    <div><span id="humText"></span><div class="bar"><div class="fill" id="humFill"></div><div class="mark" id="humMark"></div></div></div>
+    <div class="hint">Красная отметка — порог: ниже него начинается психоз.</div>
+    <h2>Установлено</h2>
+    <div id="installed"></div>
+    <h2>Импланты в карманах</h2>
+    <div id="available"></div>
+    <div id="message"></div>
+    <div class="hint">Импланты покупают в магазине имплантов. Esc — закрыть.</div>
+  </div>
+</div>
+<div class="hbar" id="upl"><div class="cap"><span id="uplLabel"></span><span id="uplTime"></span></div>
+  <div class="track"><div class="fill" id="uplFill"></div></div>
+  <div class="tip">Держите цель в поле зрения</div></div>
+<div class="hbar" id="inc"><div class="cap"><span id="incLabel"></span><span id="incTime"></span></div>
+  <div class="track"><div class="fill" id="incFill"></div></div>
+  <div class="tip" id="incTip"></div></div>
+<div id="hackMsg"></div>
+<div id="psy"><div class="red"></div><div class="title">КИБЕРПСИХОЗ</div>
+  <div class="timer">Сердце остановится через <b id="psyTime"></b><br>Вы не контролируете себя</div></div>
+<div id="ep"><div class="edge"></div><div id="epBars"></div><div class="scan"></div><div class="flash" id="epFlash"></div></div>
+<div id="od"><div class="glow"></div><div class="lines"></div><div class="ghost"></div>
+  <div class="label">Sandevistan<small id="odTime"></small></div></div>
+<div id="scan">
+  <div class="tint"></div><div class="sweep"></div>
+  <div class="brand">Kiroshi <b>// сканирование</b></div>
+  <div id="reticle"><i></i><i></i><i></i><i></i><div class="dot"></div></div>
+  <div id="scanSide">
+    <div class="card none" id="targetCard">Наведите взгляд на человека.</div>
+  </div>
+  <div class="card qh" id="qhCard">
+    <div class="cap"><span>Скрипты</span><span id="ramText"></span></div>
+    <div id="ram"></div>
+    <div id="scripts"></div>
+    <div id="scanStatus"></div>
+  </div>
+  <div id="scanToast"></div>
+  <div id="scanHelp">Колесо — выбор скрипта · ЛКМ — отправить · отпустите TAB — выход</div>
+</div>
+<script>
+  const $ = id => document.getElementById(id);
+  const money = n => `${String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} €$`;
+  let busy = false;
+
+  function message(text, ok) { $("message").textContent = text || ""; $("message").className = text ? (ok ? "ok" : "bad") : ""; }
+
+  function row(parent, name, sub, right, rightClass, label, action, disabled) {
+    const el = document.createElement("div");
+    el.className = "row";
+    el.innerHTML = `<div class="name"><span></span><small></small></div><div></div><button></button>`;
+    el.querySelector(".name span").textContent = name;
+    el.querySelector("small").textContent = sub || "";
+    const r = el.children[1];
+    r.className = rightClass;
+    r.textContent = right || "";
+    const b = el.querySelector("button");
+    b.textContent = label;
+    b.disabled = !!disabled;
+    b.addEventListener("click", () => { if (busy) return; busy = true; document.querySelectorAll("button").forEach(x => x.disabled = true); action(); });
+    parent.append(el);
+  }
+
+  function render(p) {
+    $("title").textContent = p.title || "Рипердок";
+    const max = p.humanityMax || 100;
+    $("humText").textContent = `Человечность: ${p.humanity} / ${max}`;
+    $("humFill").style.width = `${Math.max(0, p.humanity) / max * 100}%`;
+    $("humMark").style.left = `${p.threshold / max * 100}%`;
+    $("installed").replaceChildren();
+    $("available").replaceChildren();
+    const installed = Array.isArray(p.installed) ? p.installed : [];
+    const available = Array.isArray(p.available) ? p.available : [];
+    if (!installed.length) $("installed").innerHTML = `<div class="empty">Имплантов нет.</div>`;
+    for (const it of installed) {
+      row($("installed"), it.label, it.slotLabel, money(it.price), "price", "Снять", () => Open77.emit("cyb:remove", { slot: it.slot }));
+    }
+    if (!available.length) $("available").innerHTML = `<div class="empty">В карманах нет имплантов.</div>`;
+    for (const it of available) {
+      row($("available"), it.label, `${it.slotLabel} · ${it.description}${it.busy ? " · слот занят" : ""}`,
+        `−${it.humanity} чел.`, "cost", `Поставить · ${money(it.price)}`,
+        () => Open77.emit("cyb:install", { id: it.id }), it.busy || p.humanity - it.humanity < 0);
+    }
+    busy = false;
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && $("root").classList.contains("open")) { e.preventDefault(); Open77.emit("cyb:close", {}); }
+  });
+
+  Open77.on("cyb:clinic", p => { render(p); $("root").classList.add("open"); });
+  Open77.on("cyb:result", p => message(p.text, p.ok));
+  Open77.on("cyb:close", () => { $("root").classList.remove("open"); message(""); });
+
+  // -- сканер Kiroshi --------------------------------------------------------------------
+  let scanState = null, scanInfo = null, scanTarget = null, toastTimer = null;
+
+  function toast(text) {
+    $("scanToast").textContent = text;
+    $("scanToast").classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $("scanToast").classList.remove("show"), 2500);
+  }
+
+  function kv(parent, key, value, cls) {
+    const row = document.createElement("div");
+    row.className = "kv";
+    row.innerHTML = "<span></span><span></span>";
+    row.children[0].textContent = key;
+    row.children[1].textContent = value;
+    if (cls) row.children[1].className = cls;
+    parent.append(row);
+  }
+
+  function renderTarget(distance) {
+    const card = $("targetCard");
+    $("reticle").classList.toggle("lock", !!scanTarget);
+    if (!scanTarget) {
+      card.className = "card none";
+      card.textContent = "Наведите взгляд на человека.";
+      return;
+    }
+    card.className = "card";
+    card.replaceChildren();
+    card.innerHTML = `<div class="cap">Цель</div><div class="big"></div>`;
+    card.querySelector(".big").textContent = "Объект";
+    kv(card, "Дистанция", distance ? `${distance} м` : "—");
+    const i = scanInfo && scanInfo.target === scanTarget ? scanInfo : null;
+    if (!i) { kv(card, "Анализ", "…"); return; }
+
+    const dossier = document.createElement("div");
+    dossier.className = "dossier";
+    dossier.textContent = i.dossier || "Открытые сведения отсутствуют.";
+    card.append(dossier);
+    if (i.contractHint) {
+      const hint = document.createElement("div");
+      hint.className = "contractHint";
+      hint.textContent = i.contractHint;
+      card.append(hint);
+    }
+    if (i.contractCanVerify || i.contractApproach) {
+      const action = document.createElement("div");
+      action.className = "contractVerify";
+      action.textContent = i.contractCanVerify ? "ЦЕЛЬ ОБЕЗВРЕЖЕНА · K — ПОДТВЕРДИТЬ ЛИКВИДАЦИЮ" : "ЦЕЛЬ ОБЕЗВРЕЖЕНА · ПОДОЙДИТЕ НА 3 М ДЛЯ ПОДТВЕРЖДЕНИЯ";
+      card.append(action);
+    }
+    if (i.tier === "public") return;
+
+    const hidden = "▓▒▓▓▒▓▒▓";
+    const secret = value => i.revealed ? value : hidden;
+    const secretClass = i.revealed ? "" : "pixel";
+    card.querySelector(".big").textContent = secret(i.name || "Неизвестно");
+    card.querySelector(".big").classList.toggle("pixel", !i.revealed);
+    if (i.revealed && i.contractConfirmed) {
+      const badge = document.createElement("span");
+      badge.className = "contractTarget";
+      badge.textContent = "ЦЕЛЬ ЗАКАЗА №" + i.contractConfirmed;
+      card.querySelector(".big").append(badge);
+    }
+    if (i.revealed) {
+      const access = document.createElement("div");
+      access.className = "access";
+      access.textContent = `ДОСТУП ПОЛУЧЕН · ${Math.floor((i.accessLeft || 0) / 60)}:${String((i.accessLeft || 0) % 60).padStart(2, "0")}`;
+      card.append(access);
+    }
+    kv(card, "Розыск", secret(i.wanted ? "В РОЗЫСКЕ" : "не разыскивается"), i.revealed ? (i.wanted ? "bad" : "good") : secretClass);
+    kv(card, "Работа", secret(i.job || "нет данных"), secretClass);
+    kv(card, "Фракция", secret(i.faction || "нет данных"), secretClass);
+    if (i.tier === "netwatch") {
+      kv(card, "Операционная система", secret(i.operatingSystem || "нет данных"), secretClass);
+      const implants = Array.isArray(i.implants) && i.implants.length ? i.implants.join(", ") : "Не обнаружены";
+      kv(card, "Импланты", secret(implants), secretClass);
+    }
+  }
+
+  function renderScripts() {
+    const p = scanState;
+    if (!p) return;
+    const card = $("qhCard");
+    if (!p.deck) {
+      card.style.display = "none";
+      $("scanHelp").textContent = "Кибердеки нет — только сканирование · отпустите TAB — выход";
+      return;
+    }
+    card.style.display = "";
+    $("scanHelp").textContent = "Колесо — выбор скрипта · ЛКМ — отправить · отпустите TAB — выход";
+    const scripts = Array.isArray(p.scripts) ? p.scripts : [];
+    const sel = scripts[(p.selected || 1) - 1];
+    $("ramText").textContent = `RAM ${Math.floor(p.ram)} / ${p.ramMax}`;
+    const ram = $("ram");
+    ram.replaceChildren();
+    for (let n = 0; n < p.ramMax; n++) {
+      const cell = document.createElement("i");
+      if (p.ram >= n + 1) cell.className = "full";
+      else if (p.ram > n) { cell.className = "part"; cell.style.setProperty("--p", `${(p.ram - n) * 100}%`); }
+      // Клетки, которые съест выбранный скрипт.
+      if (sel && n >= Math.floor(p.ram) - sel.ram && n < Math.floor(p.ram)) cell.classList.add("cost");
+      ram.append(cell);
+    }
+    const list = $("scripts");
+    list.replaceChildren();
+    if (!scripts.length) list.innerHTML = `<div class="script poor"><span class="n">Дека пуста — вставьте скрипты в инвентаре (I → Импланты)</span></div>`;
+    scripts.forEach((s, i) => {
+      const row = document.createElement("div");
+      row.className = "script" + (i === (p.selected || 1) - 1 ? " sel" : "") + (s.ram > p.ram || s.cooldown > 0 ? " poor" : "");
+      row.innerHTML = `<span class="n"></span><span class="r"></span>`;
+      row.querySelector(".n").textContent = s.label;
+      row.querySelector(".r").textContent = s.cooldown > 0 ? `⟳ ${s.cooldown} с` : s.ram;
+      list.append(row);
+    });
+    const status = $("scanStatus");
+    if (p.busy) { status.textContent = "Идёт загрузка…"; status.className = "wait"; }
+    else if (sel && sel.cooldown > 0) { status.textContent = `Перезарядка: ${sel.cooldown} с`; status.className = "wait"; }
+    else if (sel) { status.textContent = "Готов: ЛКМ — отправить"; status.className = ""; }
+    else status.textContent = "";
+  }
+
+  Open77.on("scan:show", () => { scanTarget = null; scanInfo = null; renderTarget(); $("scan").classList.add("open"); });
+  Open77.on("scan:hide", () => $("scan").classList.remove("open"));
+  Open77.on("scan:state", p => { scanState = p; renderScripts(); if (p.text) toast(p.text); });
+  Open77.on("scan:info", p => { scanInfo = p; renderTarget(p.distance); });
+  Open77.on("scan:target", p => {
+    const target = p.target || null;
+    if (target !== scanTarget) { scanTarget = target; scanInfo = null; }
+    renderTarget(p.distance);
+  });
+  Open77.on("scan:toast", p => toast(p.text));
+
+  // -- загрузка скрипта ------------------------------------------------------------------
+  const bars = {};
+  function runBar(id, label, ms) {
+    clearInterval(bars[id]);
+    const start = Date.now();
+    $(id + "Label").textContent = label;
+    $(id).classList.add("on");
+    const tick = () => {
+      const left = Math.max(0, ms - (Date.now() - start));
+      $(id + "Fill").style.width = `${Math.min(100, (1 - left / ms) * 100)}%`;
+      $(id + "Time").textContent = `${(left / 1000).toFixed(1)} с`;
+    };
+    tick();
+    bars[id] = setInterval(tick, 50);
+  }
+  function stopBar(id) { clearInterval(bars[id]); $(id).classList.remove("on"); }
+  let msgTimer = null;
+  function hackMsg(text, ok) {
+    if (!text) return;
+    const el = $("hackMsg");
+    el.textContent = text;
+    el.className = "show " + (ok ? "ok" : "bad");
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(() => { el.className = ""; }, 3000);
+  }
+  Open77.on("upl:start", p => runBar("upl", `Загрузка: ${p.label}`, p.ms));
+  Open77.on("upl:end", p => { stopBar("upl"); hackMsg(p.text, p.ok); });
+  Open77.on("inc:start", p => {
+    $("incTip").textContent = "Уйдите из поля зрения или дальности · ударьте хакера" + (p.purge ? " · INSERT — Purge" : "");
+    runBar("inc", `Входящий взлом: ${p.label}`, p.ms);
+  });
+  Open77.on("inc:end", p => { stopBar("inc"); hackMsg(p.text, !p.ok); });
+  Open77.on("inc:note", p => hackMsg(p.text, false));
+
+  // -- киберпсихоз ------------------------------------------------------------------------
+  let psyTimer = null;
+  Open77.on("psy:on", p => {
+    const ends = Date.now() + (p.seconds || 90) * 1000;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((ends - Date.now()) / 1000));
+      $("psyTime").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    };
+    tick();
+    clearInterval(psyTimer);
+    psyTimer = setInterval(tick, 250);
+    $("psy").classList.add("on");
+  });
+  Open77.on("psy:off", () => { clearInterval(psyTimer); $("psy").classList.remove("on"); });
+
+  // -- приступ психоза: глитч ------------------------------------------------------------
+  // Полосы «разорванного» сигнала: каждые 70 мс новые места, ширина и цвета.
+  let epTimer = null;
+  const LIGHT = ["rgba(0,255,255,0.4)", "rgba(255,0,170,0.35)", "rgba(255,255,255,0.3)", "rgba(0,0,0,0.45)"];
+  const HEAVY = ["rgba(255,30,50,0.75)", "rgba(255,255,255,0.7)", "rgba(0,255,255,0.6)", "rgba(0,0,0,0.85)", "rgba(255,0,140,0.6)"];
+
+  function epFrame(severe) {
+    const box = $("epBars");
+    box.replaceChildren();
+    // Тихие кадры между всплесками — глитч «дёргается», а не висит сплошной пеленой.
+    if (Math.random() < (severe ? 0.2 : 0.4)) return;
+    const colors = severe ? HEAVY : LIGHT;
+    const count = (severe ? 8 : 3) + Math.floor(Math.random() * (severe ? 8 : 4));
+    for (let i = 0; i < count; i++) {
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const h = 2 + Math.floor(Math.random() * (severe ? 30 : 12));
+      const c1 = colors[Math.floor(Math.random() * colors.length)];
+      const c2 = colors[Math.floor(Math.random() * colors.length)];
+      const shift = Math.floor((Math.random() - 0.5) * (severe ? 120 : 50));
+      bar.style.top = `${Math.random() * 100}%`;
+      bar.style.height = `${h}px`;
+      bar.style.left = `${Math.max(0, Math.random() * 60 - 20)}%`;
+      bar.style.width = `${severe ? 20 + Math.random() * 80 : 10 + Math.random() * 40}%`;
+      // Расслоение цвета: два канала со сдвигом, между ними «цифровой» шум.
+      bar.style.background = `linear-gradient(90deg, transparent, ${c1} 8%, ${c1} 40%, transparent 41%, ${c2} 46%, ${c2} 92%, transparent)`;
+      bar.style.transform = `translateX(${shift}px)`;
+      bar.style.boxShadow = `${shift > 0 ? -4 : 4}px 0 0 rgba(0,255,255,0.5), ${shift > 0 ? 4 : -4}px 0 0 rgba(255,0,80,0.5)`;
+      box.append(bar);
+    }
+    $("epFlash").style.opacity = severe && Math.random() < 0.08 ? "0.35" : "0";
+  }
+
+  Open77.on("ep:glitch", p => {
+    clearInterval(epTimer);
+    if (!p.on) {
+      $("ep").className = "";
+      $("epBars").replaceChildren();
+      $("epFlash").style.opacity = "0";
+      return;
+    }
+    $("ep").className = "on" + (p.severe ? " severe" : "");
+    epFrame(p.severe);
+    epTimer = setInterval(() => epFrame(p.severe), 70);
+  });
+
+  // -- Сандевистан ------------------------------------------------------------------------
+  let odTimer = null;
+  Open77.on("od:on", () => {
+    const started = Date.now();
+    const tick = () => {
+      const sec = Math.floor((Date.now() - started) / 1000);
+      $("odTime").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} · X — выключить · рассудок −1 каждые 5 с`;
+    };
+    tick();
+    clearInterval(odTimer);
+    odTimer = setInterval(tick, 1000);
+    $("od").classList.add("on");
+  });
+  Open77.on("od:off", () => { clearInterval(odTimer); $("od").classList.remove("on"); });
+
+  Open77.ready();
+</script>
+</body>
+</html>
