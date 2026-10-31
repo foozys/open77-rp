@@ -14,7 +14,7 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
 .slot.filled{border-style:solid;background:#55313b}
 .figure{display:flex;align-items:center;justify-content:center}
 .figure svg{width:100%;height:370px;filter:drop-shadow(0 0 9px #e66c78)}
-#options{display:none;position:relative;z-index:5;border:1px solid #81404f;background:#240d1b;padding:16px;margin-top:16px}
+#options{display:none;position:fixed;z-index:20;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,85vw);max-height:75vh;overflow:auto;box-shadow:0 0 0 120vmax rgba(0,0,0,.65),0 15px 70px #000;border:1px solid #81404f;background:#240d1b;padding:16px;margin-top:16px}
 #options.show{display:block}#options h2{color:#ff8085;font-size:15px;letter-spacing:2px}
 #choices{display:flex;flex-wrap:wrap;gap:8px}#choices button{flex:1 1 200px}
 #consent,#game{display:none}#consent.show,#game.show{display:block}
@@ -124,7 +124,7 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
             </g>
             <g id="r-heart"><path class="heart" d="M108 128 L98 117 Q95 110 101 108 Q105 107 108 111 Q111 107 115 108 Q121 110 118 117 Z"/></g>
           </svg><div class="cyScan"></div></div><div class="cyCol right" id="rightSlots"></div></div></div>
-<div id="options"><h2 id="slotName">Выбор импланта</h2><div id="choices"></div></div>
+<div id="options"><h2 id="slotName">Выбор импланта</h2><div id="choices"></div><div class="actions"><button id="backSlots">Назад к слотам</button></div></div>
 <div id="consent"><div class="summary" id="summary"></div><div class="actions">
 <button id="deny">Отказаться</button><button id="accept">Согласиться на операцию</button></div></div>
 <div id="game"><div id="board"><svg id="links" preserveAspectRatio="none"></svg><div id="left" class="col left"></div><div id="right" class="col right"></div></div>
@@ -135,9 +135,10 @@ const $=x=>document.getElementById(x);
 let mode="",patient=0,slotData=null,consentToken="",token="",stage="",size=0,labels=[],picked=-1,
 pairs=[],locked=false,deadline=0,timer=null;
 function visible(name){$("screen").classList.add("open");for(const id of ["slots","options","consent","game"])$(id).classList.remove("show");if(name==="slots")$("slots").classList.add("show");else $(name).classList.add("show");$("message").textContent="";}
-function close(){clearInterval(timer);timer=null;mode="";$("screen").classList.remove("open");$("close").disabled=false;Open77.emit("surgery:close",{});}
+function close(){clearInterval(timer);timer=null;$("options").classList.remove("show");mode="";$("screen").classList.remove("open");$("close").disabled=false;Open77.emit("surgery:close",{});}
 $("close").onclick=()=>{if(mode==="game")return;close();};
 function action(implant){Open77.emit("surgery:offer",{patient,slot:slotData.id,implant});close();}
+$("backSlots").onclick=()=>{$("options").classList.remove("show");};
 function select(slot){
  slotData=slot;$("options").classList.add("show");$("slotName").textContent=slot.label+" · "+(slot.implantLabel||"свободно");
  $("choices").replaceChildren();let has=false;
