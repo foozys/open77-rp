@@ -9,3 +9,4 @@ permissions { "network.events", "input.actions" }
 
 client_script "client/main.lua"
 web_file "web/index.html"
+web_files { "web/assets/nightcity-skyline.svg" }
