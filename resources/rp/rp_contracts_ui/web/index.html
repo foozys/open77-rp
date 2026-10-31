@@ -66,6 +66,11 @@ Open77.on("contract:dossier",p=>{
  $("dossierName").textContent="Цель: "+p.targetName;$("dossierBio").textContent="Биометрическая сигнатура: "+p.biometric;
  $("dossierDesc").textContent=p.description;
 });
+Open77.on("contract:scanResult",p=>{
+ const alert=document.createElement("div");
+ alert.textContent=p.text||"Нет данных";alert.style.cssText="position:absolute;top:8%;left:50%;transform:translateX(-50%);z-index:40;padding:15px 24px;background:#0b1924;border:2px solid #62e9f4;color:#9bfcff;font-size:19px";
+ document.body.append(alert);setTimeout(()=>alert.remove(),3500);
+});
 Open77.on("contract:close",()=>{$("shade").classList.remove("on");});
 Open77.emit("ui:ready",{});
 </script></body></html>
