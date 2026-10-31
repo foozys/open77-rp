@@ -547,6 +547,93 @@
  #cyberView .cyTile{width:65px;height:80px}
  .bottomSystemStrip{left:202px}
 }
+
+/* === REDLINE V4 : illustrated art direction and final HUD finishing === */
+#panel {
+  background:
+    radial-gradient(ellipse 50% 90% at 42% 10%,rgba(136,18,55,.2),transparent 80%),
+    radial-gradient(ellipse 55% 65% at 67% 55%,rgba(14,137,152,.07),transparent 85%),
+    repeating-linear-gradient(0deg,transparent 0 3px,rgba(196,247,255,.007) 3px 4px),
+    #080c13;
+  border:0;
+  outline:2px solid #e9385a;
+  outline-offset:-8px;
+}
+#panel::before {top:119px;left:23px;right:23px;height:4px;background:linear-gradient(90deg,#ff375c 0%,#f34b66 64%,#19e3eb 90%);box-shadow:0 0 14px #ff4363a8;z-index:3}
+#hudHeader {
+  height:125px;align-items:flex-start;padding:23px 27px 18px 34px;
+  background:
+    linear-gradient(90deg,rgba(13,10,17,.99) 0%,rgba(15,10,20,.96) 29%,rgba(15,9,20,.45) 50%,rgba(8,13,20,.45) 75%,rgba(5,13,17,.92) 100%),
+    url("assets/nightcity-skyline.svg") center 37% / cover no-repeat;
+  overflow:hidden;
+}
+#hudHeader::after {bottom:1px}
+.hudBrand{position:relative;z-index:2;max-width:620px}
+.hudEyebrow{color:#7deff6;font:700 10px Consolas,monospace;letter-spacing:3px}
+#hudTitle{font-size:39px;color:#fff1f4;text-shadow:0 0 8px #fe5972,0 0 25px #ff355877}
+#hudSubtitle{font-size:12px;color:#f8e7ed;letter-spacing:.85px}
+.hudMark{border-color:#ff5b77;background:#2d0b1d66;box-shadow:0 0 18px #ff36586c,inset 0 0 20px #ff456d48;z-index:2}
+.hudRight{margin-left:auto;z-index:2;align-self:center;padding:12px 8px;background:#061019a8;border-right:3px solid #15dfec}
+#tabs{top:151px!important;bottom:54px!important}
+#tabs::after{content:"NC//77";position:absolute;bottom:95px;left:18px;font:italic 900 35px/1 Arial,sans-serif;color:#ff40663b;letter-spacing:-2px;pointer-events:none}
+#tabs .tab{height:64px;clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,0 100%);font-size:15px}
+#tabs .tab.active{background:linear-gradient(105deg,#7f1a39da,#3c1125c9);box-shadow:inset 0 0 12px #ff597b4a}
+#tabs .tab.active::after{content:"///";float:right;letter-spacing:0;color:#ff8698}
+.sidebarExtras{margin-top:16px}
+.sidebarExtras>div{background:#1119228a;opacity:.67}
+.sidebarFooter{border-top-color:#f1436370}
+#invView>header.invInternalHeader{border-bottom:0!important;min-height:42px}
+#invView>header.invInternalHeader .hint::before,#cyberView>.hint::before{content:"//";color:#ff4864;font:900 21px Arial,sans-serif;letter-spacing:-3px;margin-right:10px}
+#grids{padding-top:13px}
+.inventoryCells{
+  background:
+    linear-gradient(135deg,rgba(3,29,34,.91),rgba(2,16,27,.9)),
+    repeating-linear-gradient(45deg,transparent 0 13px,#30dfea11 13px 14px);
+  clip-path:polygon(15px 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%,0 15px);
+  border:2px solid #fc4a67;
+  border-top:4px solid #ff4260;
+  box-shadow:inset 0 0 25px #0be0ea1c,0 0 15px #fa507b27;
+}
+.inventoryCells::before{color:#61fbff;top:9px}
+.inventoryFrame{border:2px solid #23f5f8;background:#041318;box-shadow:inset 0 0 35px #1fc9e344,0 0 0 6px #0a3335,0 0 28px #05f2f638}
+#grid{background-image:linear-gradient(#117582 1px,transparent 1px),linear-gradient(90deg,#117582 1px,transparent 1px),radial-gradient(circle at center,#0d6771 1px,transparent 1px);background-size:var(--cell) var(--cell),var(--cell) var(--cell),var(--cell) var(--cell);}
+#gearBox{background:linear-gradient(150deg,#071822d9,#071018d4);border:1px solid #f7465a59;border-top:0;padding:11px 13px 15px;box-shadow:inset 0 0 25px #0bafbd19}
+.gearTitle{font-style:italic;font-weight:800;border-bottom:1px solid #fa486a73;padding:6px 0 9px;margin-bottom:12px}
+.gearTitle::before{content:"//";color:#fa526a;letter-spacing:-2px;font-size:22px}
+.wslot,.bslot{clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%,0 11px)}
+.wslot{background:linear-gradient(140deg,#0e3b43af,#08121c) !important;border:2px solid #19e7f0;box-shadow:inset 0 0 30px #22eaf81b,0 0 9px #2bfbf733}
+.wslot:has(.item){border-color:#ffda69;box-shadow:0 0 15px #f9cd4c40,inset 0 0 12px #ffcd4925}
+.wslot .item{border:0!important;background:transparent!important;outline:0!important}
+.bslot{border-color:#25ddf4;background:linear-gradient(140deg,#072832,#040f19)}
+.bslot:has(.item){border-color:#ffce60}
+.item{overflow:hidden}
+.item .name{background:linear-gradient(90deg,#090e18d9,#09101b4d)}
+#cyberView .cyMain{
+ background:
+ radial-gradient(ellipse 30% 70% at 50% 60%,#f64b6523,transparent),
+ radial-gradient(circle at 50% 83%,#e1234933,transparent 24%),
+ repeating-linear-gradient(0deg,transparent 0 35px,#f4435806 35px 36px),
+ #070e16;
+ border:1px solid #0a94a64d;box-shadow:inset 0 0 35px #12b7c016;
+ clip-path:polygon(18px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 16px),calc(100% - 18px) 100%,0 100%,0 18px);
+}
+#cyberView .cyBodyBox{background:radial-gradient(ellipse 48% 83% at 50% 50%,#c82e5d38,transparent 96%);border-bottom:none}
+#cyberView .cyBodyBox::before{content:"";position:absolute;inset:4%;border:1px dashed #ff4a6c40;border-radius:50%;transform:scaleX(.83);pointer-events:none}
+#cyberView .cyBodyBox:after{height:32px;bottom:0;border-color:#ff4568;box-shadow:0 0 22px #ff4769b8,inset 0 0 25px #ff386bc2}
+#cyberView .cyTile{clip-path:polygon(11px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 11px)}
+#cyberView .cyTile.empty{border:2px solid #32e5ed;box-shadow:inset 0 0 18px #0de0e51f;background:linear-gradient(135deg,#0a343f99,#08111ae5)}
+#cyberView .cyTile.empty .tPlus{color:#9bcfd5;font-size:31px}
+#cyberView .cyTile.filled{border:2px solid #ffd25b;outline-color:#ffa7384d;box-shadow:inset 0 0 20px #ffcf3430,0 0 12px #ffc44c47}
+#cyberView .cyHead::before{content:"//";font-size:19px;color:#ff4660;letter-spacing:-3px;margin-right:9px}
+#cyberView .cyCol.right .cyHead::before{display:inline-block;height:auto;width:auto;border-radius:0;background:none;opacity:1}
+#cyberView #humMeter,#cyberView #sanMeter{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);box-shadow:inset 0 0 25px #ea315721}
+#cyberView #sanMeter{box-shadow:inset 0 0 22px #32edfc23}
+@media(max-width:1200px){
+ #hudHeader{background-position: 56% 50%}
+ #hudTitle{font-size:30px}
+ #gearBox{width:260px;flex-basis:260px}
+ #cyberView .cyMain{overflow:hidden}
+}
 </style>
 </head>
 <body>
