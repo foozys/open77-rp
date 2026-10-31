@@ -160,6 +160,19 @@ AddEventHandler("rp_inventory:used",function(playerArg,item,characterId,meta)
             targetName=row.target_name,biometric="NC-"..string.format("%08X",tonumber(row.target_id))})
     end)
 end)
+-- Контрактные подсказки для штатного сканера Kiroshi. Не раскрывать истинную
+-- личность до data_breach: обычное сканирование лишь сравнивает приметы.
+exports("kiroshi_contract",function(hacker,target,revealed)
+    if GetInvokingResource()~="rp_cyberware" then return nil end
+    local h,t=person(hacker),person(target)
+    if not h or not t then return nil end
+    local row=sql("single",[[SELECT id FROM rp_fixer_contracts
+        WHERE target_id=? AND mercenary_id=? AND status='active'
+        ORDER BY id LIMIT 1]],{t.id,h.id})
+    if not row then return nil end
+    return {id=tonumber(row.id),possible=true,confirmed=revealed==true}
+end)
+
 -- Верификация цели только по ID персонажа. Ранение цели проверяет rp_medical.
 local function verify(hunter,target)
     local a,b=person(hunter),person(target)
@@ -197,21 +210,6 @@ RegisterCommand("contractverify",function(source,args)
     if p and t then CreateThread(function()verify(p,t) end)
     else note(p,"Использование: /contractverify <ID раненого персонажа>") end
 end,false)
-RegisterNetEvent("rp_contracts:scan",function(raw)
-    local hunter,target=id(source),id(raw)
-    if not hunter or not target then return end
-    local a,b=person(hunter),person(target)
-    if not a or not b or not near(hunter,target,8) then return end
-    CreateThread(function()
-        local row=sql("single",[[SELECT id FROM rp_fixer_contracts
-            WHERE target_id=? AND mercenary_id=? AND status='active' LIMIT 1]],{b.id,a.id})
-        TriggerClientEvent("rp_contracts:scanResult",hunter,{
-            target=target,match=row~=nil,
-            text=row and ("БИОМЕТРИЧЕСКОЕ СОВПАДЕНИЕ // заказ #"..row.id)
-                or "Сигнатура не совпадает с активным заказом."
-        })
-    end)
-end)
 RegisterNetEvent("rp_contracts:ready",function()
     local p=id(source);if p then TriggerClientEvent("rp_contracts:role",p,{fixer=faction(p)=="fixer",mercenary=faction(p)=="mercenary"}) end
 end)
