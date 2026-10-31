@@ -221,6 +221,11 @@ function draw(){
    path.setAttribute("stroke",removed?"#4d474d":["#ed757a","#77cedc","#dfaf6e","#ad8be0"][i%4]);
    path.setAttribute("stroke-width",removed?"1.8":"5");path.setAttribute("stroke-linecap","round");
    $("links").append(path);
+   const tag=document.createElementNS("http://www.w3.org/2000/svg","text");
+   tag.setAttribute("x","122");tag.setAttribute("y",a+5);
+   tag.setAttribute("fill","#fff5ec");tag.setAttribute("text-anchor","end");
+   tag.setAttribute("font-size","15");tag.textContent="№ "+(i+1);
+   $("links").append(tag);
    if(removed)continue;
    // На каждом проводе шесть возможных участков. Нужная точка указывает
    // красный узел; последовательность определяет сервер.
