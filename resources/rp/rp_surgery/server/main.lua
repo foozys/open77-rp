@@ -150,11 +150,24 @@ local function startStage(d)
     for i=1,amount do labels[order[i]]=i end
     local token=tostring(Open77.time.unix())..":"..tostring(math.random(100000,999999))
     op.solution=order;op.token=token;op.expires=Open77.time.unix()+seconds;op.resolving=false
+    if op.stage=="remove" then
+        local cutOrder,points={},{}
+        for i=1,amount do cutOrder[i]=i;points[i]=math.random(2,5) end
+        for i=amount,2,-1 do
+            local j=math.random(i);cutOrder[i],cutOrder[j]=cutOrder[j],cutOrder[i]
+        end
+        op.cutOrder,op.cutPoints=cutOrder,points
+    else
+        op.cutOrder,op.cutPoints=nil,nil
+    end
     TriggerClientEvent("rp_surgery:game",d,{token=token,wires=amount,seconds=seconds,
-        experience=count,labels=labels,stage=op.stage})
+        experience=count,labels=labels,stage=op.stage,
+        cutOrder=op.cutOrder,cutPoints=op.cutPoints})
     SetTimeout((seconds+2)*1000,function()
         local x=operations[d]
-        if x and x.token==token and not x.finished then CreateThread(function()finish(d,false) end) end
+        if x and x.token==token and not x.finished and not x.resolving then
+            x.resolving=true;CreateThread(function()finish(d,false) end)
+        end
     end)
 end
 AddEventHandler("rp_surgery:nextStage",startStage)
@@ -228,13 +241,22 @@ RegisterNetEvent("rp_surgery:result",function(payload)
     if not op or op.finished or op.resolving or payload.token~=op.token then return end
     -- Блокируем повторные ответы до завершения серверной операции.
     op.resolving=true
-    local chosen=payload.pairs
+    local chosen=op.stage=="remove" and payload.cuts or payload.pairs
     local correct=type(chosen)=="table" and #chosen==#op.solution
     if correct then
         local seen={}
         for i=1,#op.solution do
-            local n=math.tointeger(tonumber(chosen[i]))
-            if n~=op.solution[i] or seen[n] then correct=false;break end
+            local n,point
+            if op.stage=="remove" then
+                local cut=type(chosen[i])=="table" and chosen[i] or {}
+                n=math.tointeger(tonumber(cut.wire))
+                point=math.tointeger(tonumber(cut.point))
+                if n~=op.cutOrder[i] or point~=op.cutPoints[n] then correct=false;break end
+            else
+                n=math.tointeger(tonumber(chosen[i]))
+                if n~=op.solution[i] then correct=false;break end
+            end
+            if seen[n] then correct=false;break end
             seen[n]=true
         end
     end
