@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Нейронная сшивка</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:transparent;color:#def6fa;font:16px Segoe UI,Arial,sans-serif;user-select:none}
+#screen{display:none;position:absolute;inset:0;background:#020810c9;align-items:center;justify-content:center}
+#screen.open{display:flex}.panel{width:min(880px,90vw);padding:30px;background:#091421f5;border:1px solid #4de3ed;border-top:4px solid #4de3ed;box-shadow:0 0 70px #00ddef33}
+h1{font-size:25px;color:#52edfa;letter-spacing:4px;margin:0 0 8px}.hint{color:#91bac6;font-size:14px;margin-bottom:20px}
+#items{display:flex;flex-direction:column;gap:8px}button{background:#101e2b;border:1px solid #55d4e3;color:#d5fbff;padding:10px 16px;cursor:pointer;font:inherit}
+button:hover{background:#214357}button:disabled{opacity:.35;cursor:default}
+#game{display:none}#choice{display:none}#game.show,#choice.show{display:block}
+#board{position:relative;height:340px;border:1px solid #326773;background:repeating-linear-gradient(0deg,#0a1d29 0 24px,#102635 25px 26px);overflow:hidden}
+#links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.col{position:absolute;top:12px;bottom:12px;display:flex;flex-direction:column;justify-content:space-around;z-index:2}
+.col.left{left:18px}.col.right{right:18px}
+.node{width:116px;padding:8px;background:#143147;border:1px solid #50d5e2;color:#d9f9ff}
+.node.selected{background:#257a81}.node.done{border-color:#53ef9a;color:#53ef9a}
+#status{padding-top:14px;display:flex;justify-content:space-between;color:#a7e9ee}
+#message{min-height:22px;color:#ff7788;margin-top:12px}
+footer{display:flex;justify-content:space-between;margin-top:18px}
+</style></head><body>
+<div id="screen"><div class="panel">
+<h1 id="headline">НЕЙРОННАЯ СШИВКА</h1>
+<div class="hint" id="hint">Соедините нейронные контакты с соответствующими проводами до истечения времени.</div>
+<section id="choice"><div id="items"></div></section>
+<section id="game"><div id="board"><svg id="links" preserveAspectRatio="none"></svg><div id="left" class="col left"></div><div id="right" class="col right"></div></div>
+<div id="status"><span id="progress"></span><span id="time"></span></div></section>
+<div id="message"></div><footer><span id="skill"></span><button id="close">Закрыть</button></footer>
+</div></div>
+<script>
+const $=id=>document.getElementById(id);
+let mode="",token="",size=0,selected=-1,connections=[],start=0,deadline=0,patient=0,timer=null,locked=false;
+function exit(){clearInterval(timer);timer=null;$("screen").classList.remove("open");mode="";Open77.emit("surgery:close",{});}
+$("close").onclick=exit;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&mode==="choose")exit();});
+function show(){ $("screen").classList.add("open");$("message").textContent=""; }
+function choose(p){
+ mode="choose";show();patient=p.patient;$("headline").textContent="УСТАНОВКА ИМПЛАНТА";$("hint").textContent="Выберите имплант из инвентаря пациента. После его согласия начнётся операция.";
+ $("game").classList.remove("show");$("choice").classList.add("show");$("items").replaceChildren();$("skill").textContent="";
+ for(const item of p.items||[]){let b=document.createElement("button");b.textContent=item.label+" ("+item.id+")";b.onclick=()=>{Open77.emit("surgery:offer",{patient,implant:item.id});exit();};$("items").append(b);}
+ if(!(p.items||[]).length)$("items").textContent="У пациента нет имплантов.";
+}
+function render(){
+ let left=$("left"),right=$("right");left.replaceChildren();right.replaceChildren();$("links").replaceChildren();
+ for(let i=0;i<size;i++){
+  let a=document.createElement("button");a.className="node"+(selected===i?" selected":"")+(connections[i]?" done":"");a.textContent="Нейрон "+(i+1);a.onclick=()=>{if(locked||connections[i])return;selected=i;render();};left.append(a);
+  let b=document.createElement("button");b.className="node"+(connections.includes(i+1)?" done":"");b.textContent="Провод "+(i+1);b.onclick=()=>{if(locked||selected<0)return;connections[selected]=i+1;selected=-1;render();if(connections.filter(Boolean).length===size)submit();};right.append(b);
+ }
+ const rect=$("board").getBoundingClientRect();$("links").setAttribute("viewBox",`0 0 ${rect.width} ${rect.height}`);
+ for(let i=0;i<size;i++)if(connections[i]){
+  const y1=(i+.5)*rect.height/size,y2=(connections[i]-.5)*rect.height/size;
+  const el=document.createElementNS("http://www.w3.org/2000/svg","path");
+  el.setAttribute("d",`M 143 ${y1} C ${rect.width*.4} ${y1}, ${rect.width*.6} ${y2}, ${rect.width-143} ${y2}`);
+  el.setAttribute("stroke","#56edc9");el.setAttribute("stroke-width","3");el.setAttribute("fill","none");$("links").append(el);
+ }
+ $("progress").textContent=`Соединено: ${connections.filter(Boolean).length}/${size}`;
+}
+function submit(){
+ if(locked)return;locked=true;clearInterval(timer);timer=null;
+ Open77.emit("surgery:submit",{token,pairs:connections});
+ $("message").textContent="Проверка нейронных соединений сервером...";
+}
+function game(p){
+ mode="game";show();token=p.token;size=p.wires;selected=-1;connections=[];locked=false;
+ $("headline").textContent="НЕЙРОННАЯ СШИВКА";$("hint").textContent="Выберите нейрон слева, затем соответствующий провод справа. Каждый провод можно использовать один раз.";
+ $("choice").classList.remove("show");$("game").classList.add("show");$("skill").textContent="Проведено операций: "+p.experience;$("close").disabled=true;
+ render();deadline=Date.now()+p.seconds*1000;clearInterval(timer);
+ timer=setInterval(()=>{let s=Math.max(0,Math.ceil((deadline-Date.now())/1000));$("time").textContent="Осталось: "+s+" с";if(s===0){clearInterval(timer);timer=null;submit();}},200);
+}
+Open77.on("surgery:choose",choose);Open77.on("surgery:game",game);
+Open77.on("surgery:finish",p=>{$("message").textContent=p.success?"Операция успешно завершена.":"Операция провалена.";});
+Open77.on("surgery:close",()=>{$("screen").classList.remove("open");clearInterval(timer);});
+Open77.emit("ui:ready",{});
+</script></body></html>
