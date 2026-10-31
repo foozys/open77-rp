@@ -304,10 +304,10 @@
       hint.textContent = i.contractHint;
       card.append(hint);
     }
-    if (i.contractCanVerify) {
+    if (i.contractCanVerify || i.contractApproach) {
       const action = document.createElement("div");
       action.className = "contractVerify";
-      action.textContent = "ЦЕЛЬ ОБЕЗВРЕЖЕНА · K — ПОДТВЕРДИТЬ ЛИКВИДАЦИЮ";
+      action.textContent = i.contractCanVerify ? "ЦЕЛЬ ОБЕЗВРЕЖЕНА · K — ПОДТВЕРДИТЬ ЛИКВИДАЦИЮ" : "ЦЕЛЬ ОБЕЗВРЕЖЕНА · ПОДОЙДИТЕ НА 3 М ДЛЯ ПОДТВЕРЖДЕНИЯ";
       card.append(action);
     }
     if (i.tier === "public") return;
