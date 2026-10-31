@@ -213,6 +213,168 @@
     color: var(--text); font: inherit; }
   #dialog button { margin-left: 6px; padding: 6px 12px; background: var(--accent); border: 0; color: #041014;
     font: inherit; font-weight: 600; cursor: pointer; }
+
+/* =====================================================================
+   NIGHT CITY / REDLINE  — визуальная тема инвентаря и имплантов.
+   Оригинал: design-backups/inventory-and-implants-before-redesign.html
+   Только CSS: DOM, item layout, drag/drop, inventory events не изменены.
+   ===================================================================== */
+:root{
+  --bg:rgba(9,11,17,.965);--line:rgba(54,231,240,.43);
+  --accent:#39e7ed;--red:#ff4f64;--warn:#ff4f64;
+  --gold:#ffc43b;--text:#eef5f7;--muted:#9db9c1;
+}
+#root{background:radial-gradient(ellipse at 50% 38%,rgba(46,12,25,.43),rgba(3,6,12,.8) 76%);backdrop-filter:blur(5px)}
+#panel{
+  width:min(1660px,calc(100vw - 44px));height:min(940px,calc(100vh - 36px));
+  max-width:none;max-height:none;
+  padding:94px 26px 26px 250px;gap:0;
+  background:
+   radial-gradient(ellipse at 85% 12%,rgba(68,12,27,.26),transparent 54%),
+   repeating-linear-gradient(90deg,transparent 0 39px,rgba(38,203,229,.015) 39px 40px),
+   linear-gradient(135deg,#130b16 0%,#080d15 57%,#090e15 100%);
+  border:2px solid rgba(254,77,101,.75);border-top:3px solid #ff5568;
+  box-shadow:inset 0 0 0 5px rgba(255,75,98,.035),0 25px 100px #000b,0 0 28px #ff315125;
+  overflow:hidden;
+}
+#panel::before{
+ content:"";position:absolute;left:20px;right:20px;top:72px;height:2px;
+ background:linear-gradient(90deg,#ff5065,rgba(255,70,92,.4) 58%,#16d9e4);
+ box-shadow:0 0 12px #ff36545a;pointer-events:none;
+}
+#panel::after{
+ content:"NIGHT CITY   /   CYBERWARE MANAGEMENT SYSTEM";
+ position:absolute;bottom:8px;right:28px;color:#63bec7;font:10px Consolas,monospace;
+ letter-spacing:2px;opacity:.64;pointer-events:none;
+}
+#tabs{
+ position:absolute;left:22px;top:94px;bottom:28px;width:210px;padding:0 12px 0 0;
+ border-right:1px solid rgba(255,71,96,.35);gap:8px;
+}
+#tabs::before{
+ content:"OPEN // 77";position:absolute;top:-79px;left:5px;
+ font:bold 16px Consolas,monospace;color:#fc6371;letter-spacing:3px;
+ text-shadow:0 0 16px #f74c6577;
+}
+.tab{
+ transform:none;writing-mode:horizontal-tb;text-align:left;padding:15px 14px;
+ font:700 16px/1.25 "Segoe UI",Arial,sans-serif;letter-spacing:.6px;
+ border:1px solid rgba(255,72,97,.2);
+ border-left:3px solid transparent;
+ background:rgba(25,19,29,.48);color:#b0c0cb;
+ transition:background .15s,border-color .15s,box-shadow .15s;
+}
+.tab[data-tab="inv"]::before{content:"▣";margin-right:13px;color:#6cdee8}
+.tab[data-tab="cyber"]::before{content:"▤";margin-right:13px;color:#6cdee8}
+.tab:hover{color:#fff;background:#2d1b2a}
+.tab.active{
+ color:#fff;border-color:#ff4a63;border-left:4px solid #ff5968;
+ background:linear-gradient(90deg,rgba(166,26,50,.42),rgba(46,18,34,.65));
+ box-shadow:inset 0 0 16px #ff3b5129,0 0 13px #ff364029;
+}
+.tab.active::before{color:#ff7582}
+#invView,#cyberView{width:100%;min-width:0;height:100%;overflow:auto;scrollbar-width:thin;scrollbar-color:#d34565 #111b26}
+#invView>header{position:relative;min-height:76px;align-items:flex-start;margin-bottom:18px;gap:15px}
+#invView h1,#cyberView>h1{
+ color:#ff6472;font-size:33px;letter-spacing:1px;text-shadow:0 0 20px #fb32513c;
+}
+#invView h1::before{content:"◇";color:#ff7182;margin-right:14px}
+#cyberView>h1::before{content:"▤";color:#ff7182;margin-right:14px}
+#invView .hint,#cyberView>.hint{font-size:12px;line-height:1.5;color:#cad6dd;max-width:800px}
+#weight{width:340px;min-width:240px}
+#weightText{font:700 20px Consolas,monospace;color:#69e7ed}
+#weightBar{height:10px;background:#0c252e;border:1px solid #219aa8;box-shadow:0 0 8px #18bfda33}
+#weightFill{background:linear-gradient(90deg,#0a8798,#24eff2);box-shadow:0 0 12px #20f7f2}
+#grids{gap:34px;justify-content:space-between}
+#grids>div:first-child{min-width:0}
+#grid,#lootGrid{
+ background-color:rgba(5,22,27,.68);--line:rgba(44,207,222,.4);
+ outline:2px solid #24a8b9;outline-offset:9px;
+ box-shadow:0 0 0 14px rgba(10,41,48,.28),inset 0 0 30px #0007;
+}
+#gearBox{width:350px;flex:0 0 350px;padding:0 4px}
+.gearTitle{color:#54e7eb;font-size:18px;letter-spacing:2px;margin:0 0 15px}
+.gearTitle::before{content:"//";color:#ff6472;margin-right:12px}
+.gearTitle.belt{margin-top:32px}
+.wslot{width:100%;height:100px;border:2px solid #19bbcb;
+ background:linear-gradient(120deg,rgba(13,46,54,.6),rgba(3,13,19,.84));
+ box-shadow:inset 0 0 18px #10d8f014,0 0 9px #17dfe81c;
+ margin-bottom:11px;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);
+}
+.wslot .slotKey{color:#48f8ff;font-size:18px;right:11px;top:8px}
+.beltRow{gap:6px}.bslot{
+ flex:1;min-width:0;height:102px;border:2px solid #13b1c3;
+ background:linear-gradient(160deg,#0b2632e0,#071319d6);
+ clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
+}
+.bslot .slotKey{font-size:13px;right:7px;top:5px}
+.item{
+ border:2px solid rgba(39,223,238,.7);
+ background-image:linear-gradient(135deg,#0e333ca6,#091117bb);
+ box-shadow:inset 0 0 16px #30e6ed1d;
+ border-radius:3px;
+}
+.item:hover{border-color:#ffcf57;box-shadow:inset 0 0 10px #ffc14b33,0 0 14px #ffd45166}
+.item .name{color:#fff;font-weight:700}
+.item .count{font-size:15px;color:#fff}
+.item.dragging{opacity:.25}
+.wslot .item,.bslot .item{border:1px solid #e7bb51}
+#ghost{border:2px dashed #4efcff;background:#063743b7}
+#tooltip,#menu,#dialog,#cyTip,#deckBox{
+ background:#0b1420f5!important;border:1px solid #23d8e2!important;
+ box-shadow:0 14px 45px #000c,0 0 15px #25d0e72e!important;
+}
+#menu button:hover{background:#16404b}
+#panel.cyber{
+ background:
+  radial-gradient(ellipse at 48% 50%,rgba(175,28,54,.3),transparent 47%),
+  repeating-linear-gradient(0deg,transparent 0 32px,#fa314506 32px 33px),
+  linear-gradient(120deg,#140a14,#090d16 75%);
+ border-top-color:#ff586a;
+}
+#cyberView{display:none;width:100%;overflow:auto}
+#panel.cyber #cyberView{display:block}
+#cyberView .cyMain{
+ grid-template-columns:92px minmax(178px,1fr) minmax(230px,320px) minmax(178px,1fr) 92px;
+ gap:clamp(7px,1vw,18px);height:min(585px,calc(100% - 90px));
+ min-height:500px;margin-top:12px;
+}
+.cyBodyBox{height:100%;min-height:490px}
+#cyBody{filter:drop-shadow(0 0 14px #ff546d9a) drop-shadow(0 0 25px #ff4d6042)}
+.cyCol{gap:25px}
+.cyHead{font-size:15px;color:#ff8692;letter-spacing:.6px;margin-bottom:8px}
+.cyTiles{gap:6px;justify-content:flex-end}
+.cyCol.right .cyTiles{justify-content:flex-start}
+.cyTile{
+ width:clamp(56px,5vw,90px);height:clamp(72px,6.9vw,102px);
+ border:2px solid #39c8d7;
+ background:linear-gradient(140deg,#112533dc,#120d1ae0);
+ box-shadow:inset 0 0 16px #09cde425;
+}
+.cyTile.filled{border:2px solid #f0c34c;border-left:5px solid #f5bc3b;box-shadow:0 0 10px #f0b62c3a,inset 0 0 14px #eab64319}
+.cyTile.empty{border:1px dashed #f1506b;background:#340e1d59}
+.cyTile:hover,.cyTile.sel{border-color:#ff6c7a;box-shadow:0 0 18px #ff40576a}
+.cyTile .tName{font-size:clamp(9px,.8vw,13px);color:#f8f2e9}
+.cyTile .tSlot{font-size:9px;letter-spacing:.3px}
+.vMeter{gap:10px}
+.vTitle{font-size:12px;color:#ff9baa}
+.vBar{height:350px;width:47px}
+.vValue{font:700 16px Consolas,monospace;padding:4px 5px}
+.vNote{font-size:10px}
+.cyFoot{border-top:1px solid #e54e5b55;padding-top:10px}
+#deckBox{border-top:3px solid #30dfeb!important}
+@media(max-width:1280px){
+ #panel{padding-left:195px}
+ #tabs{width:165px}
+ .tab{font-size:13px;padding:12px 8px}
+ #grids{gap:18px}
+ #gearBox{width:275px;flex-basis:275px}
+ #cyberView .cyMain{grid-template-columns:72px minmax(145px,1fr) 225px minmax(145px,1fr) 72px;gap:6px}
+ .cyTile{width:62px;height:76px}
+ .vNote{width:72px}
+ #weight{width:240px}
+}
+
 </style>
 </head>
 <body>
