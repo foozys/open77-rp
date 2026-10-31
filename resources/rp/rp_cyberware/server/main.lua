@@ -356,6 +356,12 @@ local function setMaxHealthKeeping(playerId, maxHealth, fraction)
     if current ~= want then Open77.players.setHealth(playerId, want) end
 end
 
+-- Постоянная травма после неудачной операции; снимется после установки implant_heart.
+local surgeryInjuries = {} -- [characterId] = true
+local function injured(characterId)
+    return surgeryInjuries[characterId] == true
+end
+
 -- Пассивные: здоровье, броня, регенерация, расход еды. healthFraction — при входе.
 local function applyPassives(playerId, healthFraction)
     local s = state[playerId]
@@ -368,6 +374,14 @@ local function applyPassives(playerId, healthFraction)
             armor = p.armor or armor
             regen = p.regen or regen
             hunger = p.hungerRate or hunger
+        end
+    end
+    if injured(s.characterId) then
+        if s.slots.heart == "implant_heart" then
+            surgeryInjuries[s.characterId] = nil
+            db("update", "DELETE FROM rp_surgery_injuries WHERE character_id = ?", { s.characterId })
+        else
+            maxHealth = math.max(1, maxHealth - 10)
         end
     end
     if s.maxHealth ~= maxHealth or healthFraction then setMaxHealthKeeping(playerId, maxHealth, healthFraction) end
@@ -384,6 +398,14 @@ local function applyPassives(playerId, healthFraction)
     sync("rp_needs", "set_rate", playerId, hunger)
 end
 
+-- Постоянные травмы сохраняются по персонажу, не по текущей сессии.
+Open77.database.ready(function()
+    local ok, err = db("update", [[CREATE TABLE IF NOT EXISTS rp_surgery_injuries (
+        character_id BIGINT UNSIGNED NOT NULL PRIMARY KEY
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
+    if ok == nil then log("error", "таблица травм: %s", tostring(err)) end
+end)
+
 -- -- загрузка и сохранение ---------------------------------------------------------------
 
 local function load(playerId, characterId)
@@ -398,6 +420,8 @@ local function load(playerId, characterId)
     for _, scriptId in ipairs(okDecode and type(list) == "table" and list or {}) do
         if CyberConfig.quickhacks[scriptId] then scripts[#scripts + 1] = scriptId end
     end
+    local injuryRow = db("single", "SELECT character_id FROM rp_surgery_injuries WHERE character_id = ?", { characterId })
+    surgeryInjuries[characterId] = injuryRow ~= nil or nil
     state[playerId] = { characterId = characterId, slots = slots, psychosis = tonumber(saved and saved.psychosis) or 0,
                         nextEpisode = Open77.time.unix() + CyberConfig.episodeMinutes * 60,
                         scripts = scripts, ramAt = Open77.time.unix(), selected = 1 }
@@ -541,6 +565,31 @@ local function remove(patient, slot, price, payTo)
     log("info", "игрок %d (#%d): снят %s за %d", patient, s.characterId, implantId, price)
     return true
 end
+
+-- API для операции игрока-рипера. Только серверный rp_surgery, а не клиент.
+exports("surgery_install", function(patient, implantId)
+    if GetInvokingResource() ~= "rp_surgery" then return nil, "caller_denied" end
+    patient = math.tointeger(tonumber(patient))
+    if not patient or type(implantId) ~= "string" then return nil, "invalid_argument" end
+    return install(patient, implantId, 0, SOURCE_CLINIC)
+end)
+
+exports("surgery_fail", function(patient, implantId)
+    if GetInvokingResource() ~= "rp_surgery" then return nil, "caller_denied" end
+    patient = math.tointeger(tonumber(patient))
+    local s = patient and state[patient]
+    local def = type(implantId) == "string" and CyberConfig.implants[implantId]
+    if not s or not def then return nil, "invalid_patient" end
+    local taken, why = await("rp_inventory", "take", patient, implantId, 1)
+    if not taken then return nil, why end
+    surgeryInjuries[s.characterId] = true
+    local recorded, err = db("update", "INSERT IGNORE INTO rp_surgery_injuries (character_id) VALUES (?)", {s.characterId})
+    if recorded == nil then
+        log("error", "травма после операции не записана: %s", tostring(err))
+    end
+    applyPassives(patient)
+    return true, def.slot == "os"
+end)
 
 -- -- NPC-клиника -------------------------------------------------------------------------
 
