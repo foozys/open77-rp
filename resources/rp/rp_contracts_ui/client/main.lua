@@ -20,7 +20,9 @@ local function target(ctx)
     local t=type(ctx)=="table" and ctx.target
     return t and not t.isLocalPlayer and math.tointeger(tonumber(t.playerId)) or nil
 end
-exports("contractCanVerify",function(ctx)return role.mercenary and target(ctx)~=nil end)
+-- UX-предикат не должен зависеть от устаревшего события role при загрузке.
+-- Сервер в rp_contracts:verify проверяет назначение и персонажа.
+exports("contractCanVerify",function(ctx)return target(ctx)~=nil end)
 exports("contractVerify",function(ctx)
     local id=target(ctx);if not id then return false end
     TriggerServerEvent("rp_contracts:verify",id);return true
@@ -33,8 +35,8 @@ local function registerMenu()
     }
     local p,why=Open77.exports.call("open77_contextmenu","registerPlayers",entries)
     if not p then print("[rp_contracts_ui] contextmenu: "..tostring(why));return end
-    local _,err=p:await()
-    if err then print("[rp_contracts_ui] contextmenu: "..tostring(err)) end
+    local tokens,err=p:await()
+    if not tokens then print("[rp_contracts_ui] contextmenu registration failed: "..tostring(err)) end
 end
 AddEventHandler("onClientResourceStart",function(name)
     if name=="open77_contextmenu" then CreateThread(registerMenu) end
@@ -43,7 +45,12 @@ AddEventHandler("onClientResourceStart",function(name)
     if name~=GetCurrentResourceName()then return end
     local created,why=Open77.webui.create({entry="web/index.html",layer="menu",
         width=1920,height=1080,transparent=true,visible=true})
-    if not created then print("[rp_contracts_ui] WebUI: "..tostring(why));return end
+    if not created then
+        print("[rp_contracts_ui] WebUI: "..tostring(why))
+        TriggerServerEvent("rp_contracts:ready")
+        CreateThread(registerMenu)
+        return
+    end
     page=created
     page:on("ui:ready",function()ready=true end)
     page:on("contract:close",close)
