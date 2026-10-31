@@ -380,12 +380,14 @@
 <body>
 <div id="root">
   <div id="panel">
+    <div id="hudHeader"><div class="hudMark">▣</div><div class="hudBrand"><div class="hudEyebrow">NIGHT CITY // PERSONAL SYSTEM</div><div id="hudTitle">ИНВЕНТАРЬ</div><div id="hudSubtitle">УПРАВЛЕНИЕ СНАРЯЖЕНИЕМ, ОРУЖИЕМ И ПРЕДМЕТАМИ</div></div><div class="hudRight"><span class="hudSignal">● СИСТЕМА АКТИВНА</span><span class="hudSignal cyan">OPEN//77</span></div></div>
     <div id="tabs">
       <button class="tab active" data-tab="inv">Инвентарь</button>
       <button class="tab" data-tab="cyber">Импланты</button>
+      <div class="sidebarExtras"><div>◈ ПЕРСОНАЖ</div><div>▥ СТАТИСТИКА</div></div><div class="sidebarFooter">NEURAL LINK<br><span>CONNECTED / SECURE</span></div>
     </div>
     <div id="invView">
-    <header>
+    <header class="invInternalHeader">
       <div>
         <h1>Инвентарь</h1>
         <div class="hint">Перетащите мышью · R — повернуть · ПКМ — действия · I / Esc — закрыть · при обыске — тащите между сетками</div>
@@ -393,17 +395,17 @@
       <div id="weight"><div id="weightText"></div><div id="weightBar"><div id="weightFill"></div></div></div>
     </header>
     <div id="grids">
-      <div>
+      <div class="inventoryCells">
         <div class="mineTitle">Ваш инвентарь</div>
-        <div id="grid"></div>
+        <div class="inventoryFrame"><div id="grid"></div></div>
         <div id="overflow"><div class="title">Не помещается — переложите или выбросьте</div><div id="overflowList"></div></div>
       </div>
       <div id="gearBox">
-        <div class="gearTitle">Оружие</div>
+        <div class="gearTitle">Оружие <span class="gearCaption">WEAPON SYSTEMS</span></div>
         <div class="wslot" data-target="w1"><span class="slotKey">1</span><div class="slotHint">Оружие</div></div>
         <div class="wslot" data-target="w2"><span class="slotKey">2</span><div class="slotHint">Оружие</div></div>
         <div class="wslot" data-target="w3"><span class="slotKey">3</span><div class="slotHint">Оружие</div></div>
-        <div class="gearTitle belt">Пояс</div>
+        <div class="gearTitle belt">Пояс <span class="gearCaption">QUICK ACCESS</span></div>
         <div class="beltRow">
           <div class="bslot" data-target="b1"><span class="slotKey">4</span></div>
           <div class="bslot" data-target="b2"><span class="slotKey">5</span></div>
@@ -420,11 +422,12 @@
         <div id="lootGear"></div>
       </div>
     </div>
+    <div class="bottomSystemStrip"><span>◉ ЛКМ — ДЕЙСТВИЕ / ПЕРЕТАЩИТЬ</span><span>⟳ R — ПОВЕРНУТЬ</span><span>▣ ПКМ — МЕНЮ</span><span>ESC — ЗАКРЫТЬ</span></div>
     </div>
     <div id="cyberView">
       <h1>Импланты</h1>
       <div class="hint">Наведите на слот — подробности. Ставит и снимает рипердок. Нейроблокатор (аптека) снижает психоз.</div>
-      <div class="cyMain">
+      <div class="cyMain"><div class="cyConnectors" aria-hidden="true"></div>
         <div class="vMeter" id="humMeter">
           <div class="vTitle" style="color: #f3c018">Человечность</div>
           <div class="vWrap"><div class="vBar"><div class="vFill" id="humFill"></div></div><div class="vMark" id="humMark"><span></span></div></div>
@@ -528,6 +531,32 @@
   const gridEl = side => $(side === "loot" ? "lootGrid" : "grid");
   const stacksOf = side => side === "loot" ? (state.loot ? state.loot.stacks : []) : state.stacks;
 
+
+  // Стилизованные векторные изображения предметов без внешних ассетов.
+  // Данные, геометрия сетки и функции предметов остаются прежними.
+  function itemIllustration(key, d) {
+    const k = String(key || "").toLowerCase();
+    let drawing;
+    if (d.weapon || /rifle|pistol|shotgun|smg|weapon|revolver|sniper|katana|knife/.test(k)) {
+      drawing = '<path d="M11 43 L16 32 L48 31 L53 24 L80 23 L86 28 L107 28 L113 35 L91 37 L80 47 L65 47 L59 38 L40 40 L35 52 L21 52 L24 41 Z" fill="#29353b" stroke="#e8c68b" stroke-width="2"/><path d="M20 32 L80 29 L86 35 L26 39" fill="#b3bdc5" stroke="#293c4a" stroke-width="2"/><path d="M61 39 L78 38 L81 51 L69 54 Z" fill="#76584b" stroke="#ecc58a" stroke-width="2"/><path d="M42 33 L44 23 L51 23 L52 33" stroke="#ffca48" stroke-width="3" fill="none"/>';
+    } else if (/med|bandage|heal|stim|inject/.test(k)) {
+      drawing = '<rect x="25" y="15" width="72" height="51" rx="7" fill="#5f1725" stroke="#ff8796" stroke-width="3"/><path d="M52 20 V10 H72 V20" fill="none" stroke="#ffd8a5" stroke-width="4"/><path d="M56 26 H68 V38 H80 V50 H68 V62 H56 V50 H44 V38 H56 Z" fill="#fff1e9" stroke="#ffc6bb" stroke-width="2"/><path d="M31 58 H43 M78 58 H91" stroke="#f86b70" stroke-width="3"/>';
+    } else if (/ammo|bullet|cartridge/.test(k)) {
+      drawing = '<rect x="25" y="26" width="65" height="38" rx="4" fill="#735326" stroke="#f8c956" stroke-width="2"/><path d="M32 33 H82 M32 43 H82 M32 53 H82" stroke="#e3bc5b" stroke-width="2"/><path d="M43 16 V34 M58 10 V34 M73 14 V34" stroke="#ffe18c" stroke-width="7" stroke-linecap="round"/>';
+    } else if (/chip|deck|cyber|shard|module|processor|quickhack|implant/.test(k)) {
+      drawing = '<g transform="rotate(-12 61 40)"><rect x="29" y="14" width="64" height="55" rx="5" fill="#123b45" stroke="#4bf5fd" stroke-width="3"/><rect x="40" y="24" width="41" height="33" rx="3" fill="#1c7084" stroke="#d6faff" stroke-width="2"/><path d="M45 40 H76 M60 28 V53" stroke="#65efff" stroke-width="2"/><path d="M38 7 V15 M50 7 V15 M62 7 V15 M74 7 V15 M86 7 V15 M38 69 V77 M50 69 V77 M62 69 V77 M74 69 V77 M86 69 V77" stroke="#ffce69" stroke-width="5"/></g>';
+    } else if (/water|drink|bottle|soda/.test(k)) {
+      drawing = '<path d="M51 13 H73 V24 Q79 30 79 37 V65 Q79 71 72 71 H50 Q44 71 44 65 V37 Q44 30 51 24 Z" fill="#116979" stroke="#a5fbff" stroke-width="3"/><rect x="52" y="8" width="19" height="10" rx="2" fill="#a4cbd7"/><rect x="46" y="40" width="31" height="18" fill="#48bdcc" opacity=".65"/>';
+    } else if (/phone|radio|scanner/.test(k)) {
+      drawing = '<rect x="39" y="9" width="45" height="66" rx="6" fill="#172b3d" stroke="#ffbf51" stroke-width="3"/><rect x="45" y="18" width="33" height="44" fill="#0e5a69"/><path d="M50 32 H73 M50 40 H66 M50 48 H72" stroke="#64e7f3" stroke-width="2"/><circle cx="61" cy="68" r="3" fill="#ffd15c"/>';
+    } else {
+      drawing = '<path d="M30 28 L61 13 L92 28 V60 L61 76 L30 60 Z" fill="#193846" stroke="#f3b957" stroke-width="3"/><path d="M30 28 L61 45 L92 28 M61 45 V76" fill="none" stroke="#62e3ed" stroke-width="3"/><path d="M44 22 L75 38" stroke="#b3c8d0" stroke-width="3"/>';
+    }
+    const icon = document.createElement("div");
+    icon.className = "itemArt";
+    icon.innerHTML = '<svg viewBox="0 0 122 84" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><filter id="iglow"><feGaussianBlur stdDeviation="2"/></filter></defs><ellipse cx="62" cy="73" rx="45" ry="5" fill="#02070b" opacity=".5"/>' + drawing + '</svg>';
+    return icon;
+  }
   function tile(stack, index, w, h, side) {
     const d = def(stack);
     const el = document.createElement("div");
@@ -540,6 +569,7 @@
     const magText = d.mag ? `${stack.m || 0}/${d.mag}` : d.weapon && !d.melee ? `▮ ${stack.wr || 0}` : "";
     el.innerHTML = `<div class="name"></div>${badge ? `<div class="count"></div>` : ""}${magText ? `<div class="mag"></div>` : ""}`;
     el.querySelector(".name").textContent = d.label;
+    el.append(itemIllustration(stack.i, d));
     if (badge) el.querySelector(".count").textContent = badge;
     if (magText) el.querySelector(".mag").textContent = magText;
     el.addEventListener("pointerdown", e => startDrag(e, index, stack, el, side));
@@ -982,9 +1012,11 @@
     const el = document.createElement("div");
     el.className = "cyTile " + (slot.implant ? "filled" : "empty");
     if (slot.implant) {
+      el.append(itemIllustration(slot.implant.id || slot.id || "implant", { label: slot.implant.label }));
       el.innerHTML = `<div class="tName"></div><div class="tCost"></div>`;
       el.querySelector(".tName").textContent = shortName(slot.implant.label);
       el.querySelector(".tCost").textContent = `−${slot.implant.humanity}`;
+      el.append(itemIllustration(slot.implant.id || slot.id || "implant", {}));
     } else {
       el.innerHTML = `<div class="tPlus">+</div><div class="tSlot"></div>`;
       el.querySelector(".tSlot").textContent = slot.label;
