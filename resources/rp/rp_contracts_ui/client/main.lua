@@ -27,19 +27,34 @@ exports("contractVerify",function(ctx)
     local id=target(ctx);if not id then return false end
     TriggerServerEvent("rp_contracts:verify",id);return true
 end)
+local registering,registered=false,false
 local function registerMenu()
-    local entries={
-        {id="fixer_verify",label="Подтвердить ликвидацию",icon="info",
-         order=31,group="Контракт",distance=3,networked=true,allowSelf=false,
-         canInteract="contractCanVerify",onSelect="contractVerify"}
-    }
-    local p,why=Open77.exports.call("open77_contextmenu","registerPlayers",entries)
-    if not p then print("[rp_contracts_ui] contextmenu: "..tostring(why));return end
-    local tokens,err=p:await()
-    if not tokens then print("[rp_contracts_ui] contextmenu registration failed: "..tostring(err)) end
+    if registering then return end
+    registering=true
+    local entry={id="fixer_verify",label="Подтвердить ликвидацию",icon="info",
+        order=-40,group="Контракт",distance=3.0,allowSelf=false,
+        canInteract="contractCanVerify",onSelect="contractVerify"}
+    for attempt=1,8 do
+        local p,why=Open77.exports.call("open77_contextmenu","registerPlayers",entry)
+        if p then
+            local token,err=p:await()
+            if token then
+                registered=true
+                print("[rp_contracts_ui] ALT action registered")
+                registering=false
+                return
+            end
+            why=err
+        end
+        print("[rp_contracts_ui] ALT registration attempt "..attempt..": "..tostring(why))
+        Wait(800)
+    end
+    registering=false
 end
 AddEventHandler("onClientResourceStart",function(name)
-    if name=="open77_contextmenu" then CreateThread(registerMenu) end
+    if name=="open77_contextmenu" or name==GetCurrentResourceName() then
+        CreateThread(registerMenu)
+    end
 end)
 AddEventHandler("onClientResourceStart",function(name)
     if name~=GetCurrentResourceName()then return end
