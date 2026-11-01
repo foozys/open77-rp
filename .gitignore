@@ -30,3 +30,9 @@
 /.claude/projects/
 /.claude/history/
 /.claude/todos/
+
+# Official Open77 server-package docs copied with the dedicated server (not project docs).
+/docs/metrics.md
+/docs/rcon.md
+/docs/server-configuration.md
+/docs/server-query.md

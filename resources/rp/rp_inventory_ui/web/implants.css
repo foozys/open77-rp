@@ -1,0 +1,198 @@
+/* Implants concept v1. Scoped to the implants tab; inventory retains its layout. */
+#root.cyberActive { background: rgba(2, 5, 8, .38); backdrop-filter: none; }
+#panel.cyber {
+  --red: #ff625c; --accent: #62ecf2; --gold: #f5cd45; --muted: #9aafb7;
+  width: calc(100vw - 24px); height: calc(100vh - 24px); max-width: 2200px;
+  padding: 92px 34px 22px 128px !important; display: block;
+  border: 1px solid #285056; border-top: 3px solid var(--red); outline: none;
+  clip-path: none; box-shadow: none;
+  background: radial-gradient(ellipse 35% 85% at 53% 43%, #53192380, transparent 90%),
+    linear-gradient(115deg, #100d13f5, #070d12f5 76%);
+}
+#panel.cyber #hudHeader {
+  left: 128px; right: 34px; top: 20px; height: 55px; padding: 0;
+  background: none; border: 0; align-items: flex-start;
+}
+#panel.cyber #hudHeader::after, #panel.cyber .hudMark,
+#panel.cyber .hudEyebrow, #panel.cyber #hudSubtitle,
+#panel.cyber .hudSignal:not(.cyan), #panel.cyber .sidebarExtras,
+#panel.cyber .sidebarFooter, #panel.cyber .bottomSystemStrip { display: none; }
+#panel.cyber #hudTitle {
+  font: 700 32px/1.15 "Segoe UI", Arial, sans-serif;
+  letter-spacing: 4px; color: var(--red); text-shadow: none;
+}
+#panel.cyber .hudRight { padding-top: 5px; }
+#panel.cyber .hudSignal.cyan { font: 12px/1.5 Consolas, monospace; letter-spacing: 4px; color: #6fbbc4; }
+#panel.cyber #tabs {
+  left: 20px; top: 22px !important; bottom: 22px !important; width: 72px; padding: 0 17px 0 0;
+  border-right: 1px solid #285056; gap: 12px; align-items: stretch;
+}
+#panel.cyber .tab {
+  writing-mode: vertical-rl; transform: rotate(180deg); width: 48px; min-height: 154px;
+  padding: 15px 10px; flex: 0 0 auto; border: 1px solid transparent;
+  background: transparent; font-size: 13px; letter-spacing: 3px;
+  color: #9aafb7; box-shadow: none; text-align: center; clip-path: none; transition: none;
+}
+#panel.cyber .tab::before, #panel.cyber .tab::after,
+#panel.cyber #tabs::after, #panel.cyber::before, #panel.cyber::after,
+#cyberView > .hint::before, #cyberView .cyBodyBox::before { display: none; }
+#panel.cyber .hudRight { background: none; border: none; align-self: flex-start; }
+#panel.cyber .tab.active { border: 1px solid #31848e; background: #12333b66; color: var(--accent); }
+#panel.cyber .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#panel.cyber #cyberView {
+  display: flex; flex-direction: column; width: 100%; height: 100%; overflow: visible; min-height: 0;
+}
+#cyberView > .hint {
+  padding: 0; border: 0; margin: -12px 0 15px; color: #9aafb7;
+  font-size: 12px; line-height: 1.5; flex: 0 0 auto; max-width: 100%;
+}
+#cyberView .cyMain {
+  display: grid; grid-template-columns: 155px minmax(210px, 1fr) minmax(280px, 1.2fr) minmax(210px, 1fr) 155px;
+  gap: 30px; height: auto; flex: 1; min-height: 0; max-height: none; margin: 0;
+  position: relative; background: none; align-items: stretch; border: 0; box-shadow: none; clip-path: none;
+}
+#cyberView .cyCol {
+  align-items: flex-start; text-align: left; justify-content: space-around;
+  gap: 16px; min-width: 0; min-height: 0; padding: 24px 0;
+  overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #763039 transparent;
+}
+#cyberView .cyGroup { flex: 0 0 auto; max-width: 100%; }
+#cyberView .cyHead {
+  font: 600 17px/1.2 "Arial Narrow", "Segoe UI", sans-serif;
+  letter-spacing: 1.7px; color: var(--red); text-shadow: none; margin-bottom: 12px;
+}
+#cyberView .cyHead::before, #cyberView .cyHead::after,
+#cyberView .cyCol.right .cyHead::before { display: none; }
+#cyberView .cyTiles { gap: 10px; flex-wrap: wrap; }
+#cyberView .cyTile {
+  width: clamp(86px, 7.5vw, 142px); height: clamp(86px, 7.5vw, 142px);
+  max-width: 100%; padding: 0; outline: none; border: 1px solid #ad484d;
+  background: linear-gradient(135deg, #3d141c70, #170d1550); box-shadow: none;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%);
+}
+#cyberView .cyTile.empty { border: 1px solid #ad484d; background: linear-gradient(135deg, #36131d80, #200e1650); }
+#cyberView .cyTile.empty::after {
+  display: block; border-width: 6px; border-bottom-color: #ae4249; border-right-color: #ae4249;
+}
+#cyberView .cyTile.filled {
+  border: 1px solid #4b8087; border-left: 5px solid var(--gold); box-shadow: none;
+  background: repeating-linear-gradient(135deg, transparent 0 5px, #71a1a808 5px 6px), #0b151a;
+}
+#cyberView .cyTile.sel, #cyberView .cyTile:focus-visible {
+  outline: none; border-color: var(--accent); background-color: #18333b;
+  box-shadow: inset 0 0 18px #62ecf21a;
+}
+#cyberView .cyTile .tName {
+  position: absolute; top: auto; bottom: 24px; left: 7px; right: 5px; z-index: 3;
+  max-height: 34px; font-size: 12px; line-height: 1.15; font-weight: 600;
+  color: #edf3f4; text-shadow: 0 1px 4px #000; overflow: hidden;
+}
+#cyberView .cyTile.filled::before {
+  content: ""; position: absolute; inset: 43% 0 0; z-index: 2;
+  background: linear-gradient(transparent, #060c11e8 65%); pointer-events: none;
+}
+#cyberView .cyTile .tCost { display: block; right: 16px; bottom: 5px; z-index: 3; font-size: 12px; color: var(--gold); }
+#cyberView .cyTile .tSlot { left: 9px; bottom: 9px; right: 4px; font-size: 11px; color: #b9a5aa; text-transform: none; }
+#cyberView .cyTile.empty .tPlus { font: 300 30px/1 "Segoe UI", sans-serif; color: #e35b61; }
+#cyberView .cyTile .tBadge { left: 7px; bottom: 5px; z-index: 3; color: var(--accent); font-size: 11px; }
+#cyberView .implantArt {
+  position: absolute; top: 0; left: 0; width: 100%; aspect-ratio: 1;
+  background-image: url("assets/implants/icons-v1.png"); background-size: 400% 300%;
+  background-repeat: no-repeat; pointer-events: none;
+}
+#cyberView .cyTile .itemArt { inset: 2px 2px 30px; filter: none; }
+#cyberView .cyBodyBox {
+  position: relative; height: 100%; min-height: 0; border: 0; overflow: hidden;
+  background: radial-gradient(ellipse 70% 60% at 50% 37%, #b6323d1c, transparent);
+}
+#cyberView .cyBodyBox::after, #cyberView .cyScan { display: none; }
+#cyberView #cyBody { width: 100%; height: 100%; filter: none; pointer-events: none; }
+#cyBody .region { opacity: 0; transition: opacity .16s; }
+#cyBody .region path, #cyBody .region ellipse {
+  fill: #62ecf225; stroke: #9bf7fa; stroke-width: 2;
+}
+#cyBody .region.has { opacity: .2; }
+#cyBody .region.lit { opacity: 1; }
+#cyberView .cyConnectors { overflow: hidden; }
+#cyberView .cyConnectors svg { display: block; width: 100%; height: 100%; filter: none; }
+#cyberView .cyConnectors path { fill: none; stroke: #b64d53; stroke-width: 1; opacity: .55; }
+#cyberView #humMeter, #cyberView #sanMeter {
+  align-self: stretch; min-height: 0; padding: 40px 0 20px; gap: 13px;
+  background: none; border: 0; box-shadow: none; justify-content: flex-start; clip-path: none;
+}
+#cyberView .vTitle { font-size: 13px; letter-spacing: 2px; word-break: normal; color: var(--c) !important; }
+#cyberView .vWrap { flex: 1; min-height: 120px; width: 52px; max-height: 660px; }
+#cyberView .vBar { height: 100%; width: 100%; }
+#cyberView .vValue { font-size: 20px; padding: 4px 12px; background: #060c10; white-space: nowrap; }
+#cyberView .vNote { width: 100%; min-height: 48px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+#cyberView .vMark span { font-size: 12px; top: -10px; }
+#cyberView .cyFoot {
+  flex: 0 0 auto; margin: 10px 0 0; padding: 9px 0 0; border-top: 1px solid #28505666;
+  color: #9aafb7; gap: 18px; font-size: 12px; line-height: 1.5;
+}
+#cyberView .cyFoot .cyCloseHint { margin-left: auto; color: #62ecf2; white-space: nowrap; }
+#root.cyberActive #cyTip {
+  width: min(320px, calc(100vw - 24px)); border: 1px solid #46858c !important;
+  background: #080f15fa !important; box-shadow: 0 12px 40px #0008 !important;
+}
+#deckBackdrop { position: fixed; inset: 0; z-index: 20; background: #02060bbd; }
+#deckBackdrop[hidden] { display: none; }
+#cyberView #deckBox {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(600px, calc(100% - 24px)); max-height: calc(100% - 20px);
+  overflow-y: auto; padding: 22px; background: #0b1119 !important; border: 1px solid #45828b !important;
+  border-top: 3px solid var(--accent) !important; box-shadow: 0 20px 80px #000b !important;
+}
+#cyberView #deckBox .dHead { gap: 16px; align-items: center; }
+#cyberView #deckBox .dHead button { width: 36px; height: 36px; flex: 0 0 auto; border: 1px solid #45828b; color: var(--accent); }
+#cyberView #deckBox .dSub { line-height: 1.6; margin-bottom: 20px; }
+#cyberView #deckBox .dSlots { gap: 8px; }
+#cyberView #deckBox .dSlot { width: 96px; height: 85px; padding: 8px; font-size: 12px; }
+#cyberView #deckBox .dSlot.empty { font-size: 26px; }
+#cyberView #deckBox .dRow { padding: 12px 8px; }
+#cyberView #deckBox button:focus-visible, #cyberView #deckBox .dSlot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 1550px) {
+  #panel.cyber { padding: 78px 22px 16px 106px !important; }
+  #panel.cyber #hudHeader { left: 106px; right: 22px; top: 18px; }
+  #panel.cyber #hudTitle { font-size: 27px; }
+  #panel.cyber #tabs { left: 14px; width: 64px; }
+  #cyberView .cyMain { grid-template-columns: 120px minmax(180px, 1fr) minmax(230px, 1.2fr) minmax(180px, 1fr) 120px; gap: 18px; }
+  #cyberView .cyHead { font-size: 14px; letter-spacing: 1px; margin-bottom: 8px; }
+  #cyberView .cyTiles { gap: 7px; }
+  #cyberView .cyTile { width: clamp(80px, 7.5vw, 112px); height: clamp(80px, 7.5vw, 112px); }
+  #cyberView .vTitle { font-size: 11px; letter-spacing: 1px; }
+  #cyberView .vValue { font-size: 17px; }
+  #cyberView .vWrap { width: 44px; }
+  #cyberView .cyCol { padding: 12px 0; gap: 12px; }
+}
+@media (max-height: 800px), (max-width: 1200px) {
+  #panel.cyber { padding: 73px 18px 12px 94px !important; }
+  #panel.cyber #hudHeader { left: 94px; top: 14px; }
+  #panel.cyber #tabs { left: 10px; width: 60px; }
+  #panel.cyber #hudTitle { font-size: 24px; }
+  #cyberView > .hint { font-size: 11px; margin-bottom: 8px; }
+  #cyberView .cyMain { grid-template-columns: 100px minmax(163px, 1fr) minmax(165px, 1.15fr) minmax(163px, 1fr) 100px; gap: 12px; }
+  #cyberView .cyHead { font-size: 12px; letter-spacing: .6px; margin-bottom: 6px; }
+  #cyberView .cyTile { width: 78px; height: 78px; }
+  #cyberView .cyTiles { gap: 6px; }
+  #cyberView .cyTile .tName { font-size: 10px; bottom: 19px; left: 4px; max-height: 24px; }
+  #cyberView .cyTile .tCost, #cyberView .cyTile .tBadge { font-size: 10px; bottom: 3px; }
+  #cyberView .cyTile .tSlot { font-size: 10px; left: 5px; bottom: 6px; }
+  #cyberView .cyCol { gap: 10px; padding: 8px 0; }
+  #cyberView #humMeter, #cyberView #sanMeter { padding: 18px 0 6px; gap: 10px; }
+  #cyberView .vTitle { font-size: 10px; letter-spacing: .5px; }
+  #cyberView .vValue { font-size: 15px; padding: 3px 7px; }
+  #cyberView .vNote { font-size: 10px; min-height: 42px; }
+  #cyberView .vWrap { width: 36px; }
+  #cyberView .cyFoot { font-size: 10px; margin-top: 4px; padding-top: 5px; }
+}
+@media (max-width: 1000px) {
+  #cyberView .cyMain { grid-template-columns: 80px minmax(148px, 1fr) minmax(120px, 1fr) minmax(148px, 1fr) 80px; gap: 8px; }
+  #cyberView .cyTile { width: 70px; height: 76px; }
+  #cyberView .cyHead { font-size: 11px; letter-spacing: 0; }
+  #cyberView .vTitle { font-size: 9px; letter-spacing: 0; }
+  #cyberView .cyFoot .cyCloseHint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #cyberView .vFill, #cyBody .region { transition: none; }
+}

@@ -1,0 +1,194 @@
+/* Inventory companion to implants.css. CELL remains 76px in CSS and JS. */
+#root:not(.cyberActive) { background: rgba(2,5,8,.38); backdrop-filter: none; }
+#panel:not(.cyber) {
+  --accent:#62ecf2; --red:#ff625c; --gold:#f5cd45; --muted:#9aafb7;
+  width:calc(100vw - 24px); height:calc(100vh - 24px); max-width:2200px;
+  padding:92px 34px 56px 128px !important; display:block;
+  border:1px solid #285056; border-top:3px solid var(--red); outline:none;
+  clip-path:none; box-shadow:none;
+  background:radial-gradient(ellipse 40% 85% at 40% 45%,#53192350,transparent 90%),linear-gradient(115deg,#100d13f5,#070d12f5 76%);
+}
+#panel:not(.cyber)::before,#panel:not(.cyber)::after,
+#panel:not(.cyber) #hudHeader::after,#panel:not(.cyber) .hudMark,
+#panel:not(.cyber) .hudEyebrow,#panel:not(.cyber) #hudSubtitle,
+#panel:not(.cyber) .hudSignal:not(.cyan),#panel:not(.cyber) .sidebarExtras,
+#panel:not(.cyber) .sidebarFooter,#panel:not(.cyber) #tabs::after,
+#panel:not(.cyber) .tab::before,#panel:not(.cyber) .tab::after { display:none; }
+#panel:not(.cyber) #hudHeader {
+  left:128px; right:34px; top:20px; height:55px; padding:0;
+  background:none; border:0; align-items:flex-start;
+}
+#panel:not(.cyber) #hudTitle {
+  font:700 32px/1.15 "Segoe UI",Arial,sans-serif; letter-spacing:4px; color:var(--red); text-shadow:none;
+}
+#panel:not(.cyber) .hudRight { background:none; border:0; padding:5px 0 0; align-self:flex-start; }
+#panel:not(.cyber) .hudSignal.cyan { font:12px/1.5 Consolas,monospace; letter-spacing:4px; color:#6fbbc4; }
+#panel:not(.cyber) #tabs {
+  left:20px; top:22px !important; bottom:22px !important; width:72px;
+  padding:0 17px 0 0; border-right:1px solid #285056; gap:12px; align-items:stretch;
+}
+#panel:not(.cyber) .tab {
+  writing-mode:vertical-rl; transform:rotate(180deg); width:48px; min-height:154px;
+  padding:15px 10px; flex:0 0 auto; border:1px solid transparent;
+  background:transparent; font-size:13px; letter-spacing:3px; color:#9aafb7;
+  box-shadow:none; text-align:center; clip-path:none; transition:none;
+}
+#panel:not(.cyber) .tab.active { border:1px solid #31848e; background:#12333b66; color:var(--accent); }
+#panel:not(.cyber) .tab:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+#invView { height:100%; overflow:hidden; }
+#invView > header.invInternalHeader {
+  min-height:45px; margin:0 0 26px; padding:0 0 15px; gap:24px;
+  border:0; border-bottom:1px solid #28505666 !important; align-items:center;
+}
+#invView > header.invInternalHeader .hint { font-size:12px; line-height:1.6; color:var(--muted); max-width:790px; }
+#invView > header.invInternalHeader .hint::before { display:none; }
+#weight { min-width:210px; width:240px; flex-shrink:0; }
+#weightText { font:600 18px/1.3 Consolas,monospace; color:var(--accent); }
+#weightBar { height:5px; margin-top:8px; border:0; background:#143039; box-shadow:none; }
+#weightFill { box-shadow:none; }
+#grids {
+  display:grid; grid-template-columns:minmax(0,max-content) minmax(260px,360px);
+  gap:32px; align-items:start; justify-content:center; width:100%;
+  height:calc(100% - 71px); overflow:auto; padding:14px 12px 20px;
+  scrollbar-width:thin; scrollbar-color:#73353b transparent;
+}
+#grids > .inventoryCells {
+  display:block; min-width:0; padding:0; border:0; clip-path:none;
+  background:none; box-shadow:none; align-self:start;
+}
+#grids > .inventoryCells::before,#grids > .inventoryCells::after { display:none; }
+#grids .storageHeading { display:flex; align-items:baseline; justify-content:space-between; gap:18px; margin-bottom:14px; }
+#grids .mineTitle,#grids .lootTitle {
+  display:block; font:600 17px/1.3 "Segoe UI",sans-serif; color:var(--red) !important;
+  letter-spacing:1.5px !important; text-transform:uppercase; margin:0 !important; padding:0;
+}
+#gridSize { color:#7b949d; font:12px/1.3 Consolas,monospace; letter-spacing:1px; white-space:nowrap; }
+#grids .inventoryFrame {
+  width:max-content; max-width:100%; padding:7px; overflow:auto;
+  border:1px solid #9f454c; border-top:2px solid var(--red); background:#0c1118;
+  box-shadow:none; scrollbar-width:thin; scrollbar-color:#38585d transparent;
+}
+#grid,#lootGrid {
+  background-color:#0a1319; background-image:linear-gradient(#294047 1px,transparent 1px),linear-gradient(90deg,#294047 1px,transparent 1px);
+  background-size:var(--cell) var(--cell); border-right:1px solid #294047; border-bottom:1px solid #294047;
+  outline:none; box-shadow:none;
+}
+#invView .item {
+  border:1px solid #8e8c63 !important; border-left:3px solid var(--gold) !important;
+  border-radius:0; outline:0; background:linear-gradient(145deg,#263239aa,#0b121bec);
+  box-shadow:none; padding:0;
+}
+#invView .item::before { display:none; }
+#invView .item::after {
+  content:""; position:absolute; right:0; bottom:0; width:0; height:0;
+  border:5px solid transparent; border-right-color:var(--accent); border-bottom-color:var(--accent); pointer-events:none;
+}
+#invView .item:hover { border-color:var(--accent) !important; box-shadow:inset 0 0 18px #62ecf21a; }
+#invView .item .name {
+  left:5px; right:4px; top:4px; max-height:30px; font-size:11px; line-height:1.2;
+  font-weight:600; color:#edf3f4; background:linear-gradient(90deg,#081017df,#08101766); text-shadow:0 1px 3px #000;
+}
+#invView .item .count,#invView .item .mag {
+  bottom:4px; font:600 11px/1.2 Consolas,monospace; text-shadow:0 1px 3px #000; color:var(--gold);
+}
+#invView .item .count { right:10px; }
+#invView .item .mag { left:5px; }
+#invView .itemArt { inset:24px 4px 16px; opacity:1; filter:drop-shadow(0 3px 3px #0007); }
+#invView .itemArt svg { width:100%; height:100%; max-height:none; }
+#invView .item.hidden {
+  border:1px dashed #65434c !important; background:repeating-linear-gradient(135deg,#49202a22 0 7px,transparent 7px 14px);
+}
+#invView .item.hidden::after { display:none; }
+#invView .item.hidden .q { color:#ac7b84; }
+#invView .item.hidden.searching { border-color:var(--red) !important; }
+#gearBox { width:100%; min-width:0; flex:none; display:block; padding:0; border:0; background:none; box-shadow:none; }
+#gearBox .gearTitle {
+  font:600 17px/1.3 "Segoe UI",sans-serif; color:var(--red); letter-spacing:1.5px;
+  text-transform:uppercase; margin:0 0 14px; padding:0; border:0;
+}
+#gearBox .gearTitle::before,#gearBox .gearCaption { display:none; }
+#gearBox .wslot {
+  width:100%; height:112px !important; margin-bottom:10px; border:1px solid #a94b51;
+  background:linear-gradient(135deg,#36131d66,#170e1644) !important; box-shadow:none;
+  clip-path:none;
+}
+#gearBox .wslot:has(.item) { border-color:#697b73; box-shadow:none; }
+#gearBox .slotKey { right:9px; top:7px; z-index:4; font:13px/1 Consolas,monospace; color:var(--accent); }
+#gearBox .slotHint { color:#85646c; font-size:11px; letter-spacing:1px; }
+#gearBox .wslot .item { border:0 !important; border-left:3px solid var(--gold) !important; background:#0b151a !important; }
+#gearBox .wslot .item .name { right:30px; }
+#gearBox .wslot .itemArt { inset:22px 20px 12px; }
+#gearBox .gearTitle.belt { margin:27px 0 14px; }
+#gearBox .beltRow { display:flex; width:100%; gap:7px; }
+#gearBox .bslot { min-width:0; flex:1; height:96px; border:1px solid #a94b51; background:#27111a66; box-shadow:none; clip-path:none; }
+#gearBox .bslot:has(.item) { border-color:#697b73; }
+#gearBox .bslot .item { border:0 !important; border-left:3px solid var(--gold) !important; }
+#gearBox .bslot .item .name { top:22px; font-size:9px; }
+#gearBox .bslot .itemArt { inset:38px 1px 16px; }
+#gearBox > .hint { color:var(--muted); font-size:11px; line-height:1.6; }
+#overflow { margin-top:18px; }
+#overflow .title { color:var(--red); font-size:12px; }
+#overflowList { margin-top:8px; }
+#overflowList .item { min-width:165px; }
+#overflowList .itemArt { display:none; }
+#panel:not(.cyber) .bottomSystemStrip {
+  left:128px; right:34px; bottom:15px; height:25px; padding:9px 0 0;
+  border-top:1px solid #28505666; background:none; color:var(--muted);
+  font:11px/1.2 "Segoe UI",sans-serif; letter-spacing:.3px;
+}
+#grids.looting { grid-template-columns:repeat(2,minmax(0,max-content)); justify-content:center; gap:28px 32px; }
+#grids.looting > .inventoryCells { grid-column:1; grid-row:1; }
+#grids.looting #lootBox { grid-column:2; grid-row:1; min-width:0; }
+#grids.looting #gearBox { grid-column:1 / -1; grid-row:2; max-width:360px; }
+#lootBox .lootTitle { min-height:23px; margin:0 0 14px !important; }
+#lootName { display:block; max-width:650px; color:var(--muted); font-size:11px; margin:6px 0 0; text-transform:none; letter-spacing:0; }
+#lootFrame { width:max-content; max-width:100%; padding:7px; border:1px solid #9f454c; border-top:2px solid var(--red); background:#0c1118; overflow:auto; }
+#lootSearch { margin:8px 0 0; padding:6px 12px; background:var(--red); font-size:11px; }
+#lootGear { max-width:none; gap:8px; }
+#lootGear .item { width:140px; height:76px; }
+#root:not(.cyberActive) #tooltip,#root:not(.cyberActive) #menu,#root:not(.cyberActive) #dialog {
+  background:#080f15fa !important; border:1px solid #46858c !important; box-shadow:0 12px 40px #0008 !important;
+  max-height:calc(100vh - 16px); max-width:calc(100vw - 16px); overflow:auto;
+}
+#root:not(.cyberActive) #menu button { font-size:13px; padding:10px 14px; }
+#root:not(.cyberActive) #menu button:hover { background:#173039; color:#62ecf2; }
+#root:not(.cyberActive) #ghost { border:2px solid #78dc8c; background:#15332eaa; }
+#root:not(.cyberActive) #ghost.bad { border-color:#ff625c; background:#51202aaa; }
+#gearBox .hover { border-color:#78dc8c !important; background:#15332eaa !important; }
+#gearBox .deny { border-color:#ff625c !important; background:#51202aaa !important; }
+@media(max-width:1800px) {
+  #grids.looting { grid-template-columns:minmax(0,max-content) minmax(260px,320px); }
+  #grids.looting #gearBox { grid-column:2; grid-row:1; }
+  #grids.looting #lootBox { grid-column:1; grid-row:2; }
+}
+@media(max-width:1550px) {
+  #panel:not(.cyber) { padding:78px 22px 48px 106px !important; }
+  #panel:not(.cyber) #hudHeader { left:106px; right:22px; top:18px; }
+  #panel:not(.cyber) #hudTitle { font-size:27px; }
+  #panel:not(.cyber) #tabs { left:14px; width:64px; }
+  #panel:not(.cyber) .bottomSystemStrip { left:106px; right:22px; font-size:10px; }
+  #grids,#grids.looting { grid-template-columns:minmax(0,max-content) minmax(240px,300px); gap:24px; padding:10px 0 20px; }
+  #grids .mineTitle,#grids .lootTitle,#gearBox .gearTitle { font-size:14px; }
+  #invView > header.invInternalHeader .hint { font-size:11px; }
+  #weight { width:190px; min-width:190px; }
+  #weightText { font-size:16px; }
+}
+@media(max-height:800px),(max-width:1200px) {
+  #panel:not(.cyber) { padding:73px 18px 44px 94px !important; }
+  #panel:not(.cyber) #hudHeader { left:94px; top:14px; }
+  #panel:not(.cyber) #hudTitle { font-size:24px; }
+  #panel:not(.cyber) #tabs { left:10px; width:60px; }
+  #panel:not(.cyber) .bottomSystemStrip { left:94px; right:18px; bottom:12px; font-size:9px; }
+  #invView > header.invInternalHeader { min-height:35px; padding-bottom:10px; margin-bottom:10px; }
+  #grids { height:calc(100% - 45px); padding-top:4px; }
+  #grids .storageHeading { margin-bottom:10px; }
+  #gearBox .wslot { height:90px !important; }
+  #gearBox .bslot { height:82px; }
+  #gearBox .gearTitle.belt { margin-top:22px; }
+}
+@media(max-width:1200px) {
+  #grids,#grids.looting { grid-template-columns:minmax(0,max-content); justify-content:start; }
+  #grids #gearBox,#grids.looting #gearBox { grid-column:1; grid-row:auto; max-width:360px; }
+  #grids.looting #lootBox { grid-column:1; grid-row:2; }
+  #grids.looting #gearBox { grid-row:3; }
+}
