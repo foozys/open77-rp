@@ -153,7 +153,7 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
               <path d="M85 236 L81 330 L79 410 M115 236 L119 330 L121 410"/>
             </g>
             <g id="r-heart"><path class="heart" d="M108 128 L98 117 Q95 110 101 108 Q105 107 108 111 Q111 107 115 108 Q121 110 118 117 Z"/></g>
-          </svg><div class="cyScan"></div></div><div class="cyCol right" id="rightSlots"></div></div></div>
+          </svg><div class="cyScan"></div><button type="button" id="bodyViewToggle" aria-label="Переключить отображение тела">◈ ГОЛОГРАММА</button></div><div class="cyCol right" id="rightSlots"></div></div></div>
 <div id="options"><h2 id="slotName">Выбор импланта</h2><div id="choices"></div><div class="actions"><button id="backSlots">Назад к слотам</button></div></div>
 <div id="consent"><div class="consentFrame">
  <div class="consentPre">NEURAL SURGERY // CONSENT PROTOCOL</div>
@@ -172,6 +172,13 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
 const $=x=>document.getElementById(x);
 let mode="",patient=0,slotData=null,consentToken="",token="",stage="",size=0,labels=[],picked=-1,
 pairs=[],cuts=[],cutOrder=[],cutPoints=[],locked=false,deadline=0,timer=null;
+// Только визуальное сравнение: серверные механики и выбор слота не меняются.
+$("bodyViewToggle").addEventListener("click",()=>{
+ const box=document.querySelector("#slots .cyBodyBox");
+ const diagram=box.classList.toggle("diagramMode");
+ $("bodyViewToggle").textContent=diagram?"▦ СХЕМА":"◈ ГОЛОГРАММА";
+ $("bodyViewToggle").setAttribute("aria-pressed",String(diagram));
+});
 function setSurgeryPhase(name,context){
  const order=["slots","consent","game"];const i=order.indexOf(name);
  for(const el of document.querySelectorAll(".caseTrack .phase")){
