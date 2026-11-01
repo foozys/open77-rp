@@ -6,3 +6,4 @@ dependency "open77_contextmenu"
 permissions { "network.events" }
 client_script "client/main.lua"
 web_file "web/index.html"
+web_files { "web/surgery-redline.css", "web/assets/patient-hologram.svg" }
