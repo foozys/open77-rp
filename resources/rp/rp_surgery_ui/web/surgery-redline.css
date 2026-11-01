@@ -198,3 +198,42 @@ button:disabled{opacity:.4;cursor:default}
  .bottomTelemetry{flex-basis:24px}
  #board{min-height:280px}
 }
+
+
+/* Anatomical raster integration: the illustrated transparent image is rendered
+   in <image.surgeryBodyArt>; original region groups remain as hit-free hover overlay.
+   This keeps every existing CY_REGION and surgery action intact. */
+#slots #cyBody .surgeryBodyArt {
+  opacity:1;
+  filter:drop-shadow(0 0 10px #ff476f6b) drop-shadow(0 0 22px #13d9ed34);
+}
+#slots #cyBody #r-skin .solid,
+#slots #cyBody #r-skin .limb,
+#slots #cyBody #r-bones path,
+#slots #cyBody #r-bones ellipse,
+#slots #cyBody #r-heart .heart {
+  opacity:.10;
+  transition:opacity .16s ease,stroke .16s ease,fill .16s ease;
+}
+#slots #cyBody #r-skin .lit .solid,
+#slots #cyBody #r-skin .lit .limb,
+#slots #cyBody #r-bones.lit path,
+#slots #cyBody #r-bones.lit ellipse,
+#slots #cyBody #r-heart.lit .heart {
+  opacity:.96;
+}
+#slots #cyBody #r-skin.lit .solid,
+#slots #cyBody #r-skin.lit .limb {
+  opacity:.85;
+}
+#slots .cyBodyBox::before {
+  z-index:0;
+  background:repeating-radial-gradient(ellipse at center,
+     transparent 0 26px,#37e1ef0e 27px 28px,transparent 29px 48px);
+}
+#slots .cyScan {
+  z-index:3;
+  mix-blend-mode:screen;
+  pointer-events:none;
+}
+#slots .cyBodyBox::after {z-index:2}
