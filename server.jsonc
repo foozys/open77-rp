@@ -22,7 +22,7 @@
     "port": 11778,
     // Адрес в Tailscale: у провайдера CGNAT (WAN роутера 10.76.x.x), проброс портов не работает.
     // Друзья подключаются через Tailscale (машину шарят им), хост — тоже по этому адресу или 127.0.0.1.
-    "publicEndpoint": "100.90.118.2:11778",
+    "publicEndpoint": "100.65.195.32:11778",
     "maximumPlayers": 32
   },
   "simulation": {
@@ -160,7 +160,7 @@
     "download": {
       "enabled": true,
       "listenUrl": "http://0.0.0.0:11779",
-      "publicBaseUrl": "http://100.90.118.2:11779/",
+      "publicBaseUrl": "http://100.65.195.32:11779/",
       "allowInsecureHttp": true,
       "cacheDirectory": ".open77/resource-cache",
       "signingKeyFile": ".open77/resource-signing-key.json",
