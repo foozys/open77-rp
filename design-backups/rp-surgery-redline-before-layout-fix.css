@@ -1,0 +1,262 @@
+
+/* RIPPER//77 — Surgical Suite / independent visual layer.
+   The original Open77 event protocol and surgery logic remain in index.html. */
+:root { --s-red:#ff4966; --s-cyan:#4ff0f4; --s-gold:#ffca68; --s-ink:#07121b; --s-text:#eef7f6; }
+#screen {
+  background:radial-gradient(ellipse 80% 75% at 50% 46%,rgba(41,12,26,.73),rgba(2,5,11,.90) 85%),
+   repeating-linear-gradient(0deg,transparent 0 3px,rgba(200,250,252,.012) 3px 4px);
+  backdrop-filter:blur(5px);
+  padding:16px;
+}
+#screen::before {content:"";pointer-events:none;position:fixed;inset:2%;border:1px solid #ed496328;clip-path:polygon(0 0,100% 0,100% 100%,0 100%);}
+.panel {
+  position:relative;width:min(1560px,96vw);height:min(930px,96vh);max-height:96vh;
+  padding:0!important;overflow:hidden;
+  color:var(--s-text);border:1px solid #ff5871!important;border-top:2px solid #ff6685!important;
+  background:
+    radial-gradient(ellipse at 50% 13%,rgba(155,24,51,.12),transparent 72%),
+    repeating-linear-gradient(0deg,transparent 0 30px,rgba(49,239,244,.027) 30px 31px),
+    linear-gradient(140deg,#140e1b 0%,#07121d 42%,#080b13 100%)!important;
+  box-shadow:0 0 0 5px #0d1b238e,0 0 0 6px #ff567834,0 22px 100px #000e,inset 0 0 38px #ec436311!important;
+  clip-path:polygon(22px 0,calc(100% - 28px) 0,100% 28px,100% calc(100% - 24px),calc(100% - 25px) 100%,22px 100%,0 calc(100% - 22px),0 22px);
+  display:flex;flex-direction:column;
+}
+.panel::before {content:"";position:absolute;inset:5px;border:1px solid rgba(255,74,106,.24);pointer-events:none;z-index:6;clip-path:polygon(15px 0,calc(100% - 15px) 0,100% 15px,100% calc(100% - 15px),calc(100% - 15px) 100%,15px 100%,0 calc(100% - 15px),0 15px);}
+.surgicalHeader {
+  flex:0 0 122px;display:grid;grid-template-columns:86px minmax(0,1fr) 330px;align-items:center;gap:20px;
+  padding:18px 36px 14px 36px;position:relative;
+  border-bottom:3px solid var(--s-red);
+  background:
+   linear-gradient(90deg,#130b18 0%,#181022e6 44%,#121422de 70%,#06111b 100%),
+   repeating-linear-gradient(110deg,transparent 0 32px,#f74f6411 32px 33px);
+}
+.surgicalHeader::after{content:"";position:absolute;right:34px;bottom:-3px;width:30%;height:3px;background:#41eafb;box-shadow:0 0 12px #3df2fd;}
+.surgeryEmblem{width:74px;height:74px;border:1px solid #ff6279;display:grid;place-items:center;
+ background:linear-gradient(140deg,#5015265c,#0c1e28);box-shadow:0 0 18px #f9496465,inset 0 0 22px #f7366242;
+ clip-path:polygon(13px 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%,0 13px);}
+.surgeryEmblem svg{width:52px;height:52px;filter:drop-shadow(0 0 6px #fd5078)}
+.surgicalHeaderText{min-width:0}
+.systemCaption{font:700 11px Consolas,monospace;color:#75e8ec;letter-spacing:3px;text-transform:uppercase;margin-bottom:5px;}
+#title{margin:0;text-align:left;font:bold italic clamp(26px,2.25vw,39px)/1.15 "Segoe UI",Arial,sans-serif;letter-spacing:1px;color:#fff0f1;
+ text-shadow:0 0 14px #ef486985,0 0 2px #fff;}
+.surgicalSubtitle{font:600 11px/1.4 Consolas,monospace;color:#ecb3bd;letter-spacing:1.5px;margin-top:7px}
+.liveIndicator{display:flex;align-items:center;justify-content:flex-end;gap:10px;color:#e2a8b9;font:11px Consolas,monospace;letter-spacing:1px}
+.liveIndicator .pulse{width:8px;height:8px;border-radius:50%;background:#ff5374;box-shadow:0 0 12px #ff426a;animation:ripperPulse 2s ease-in-out infinite}
+@keyframes ripperPulse{50%{opacity:.45;box-shadow:0 0 5px #ff426a}}
+.systemBars{height:5px;margin-top:17px;background:repeating-linear-gradient(90deg,#32e4e9 0 26px,transparent 26px 32px,#ff4264 32px 38px,transparent 38px 43px);opacity:.86}
+.hardwareSignature{color:#4ff7f9;font:800 italic 19px Segoe UI,Arial,sans-serif;letter-spacing:1px;text-align:right;margin-top:9px}
+.caseRibbon{
+  flex:0 0 74px;display:grid;grid-template-columns:minmax(210px,1fr) auto minmax(210px,1fr);
+  align-items:center;gap:20px;border-bottom:1px solid #e93e605e;padding:8px 35px 9px;
+  background:linear-gradient(90deg,#35102065,#12101b 50%,#0b222c53);
+}
+.caseField{color:#7a9ca7;font:10px Consolas,monospace;letter-spacing:1.4px}
+.caseField strong{display:block;font:bold 15px Consolas,monospace;color:#d6f7f7;margin-top:4px;letter-spacing:.6px}
+.caseField.right{text-align:right}
+.caseTrack{display:flex;align-items:center;gap:7px}
+.caseTrack .phase{padding:9px 14px;border:1px solid #42636b;background:#091923;color:#6f9299;font:bold 10px Consolas,monospace;letter-spacing:1px;white-space:nowrap}
+.caseTrack .phase.current{border-color:#f74d72;color:#ffb7c7;background:#6620385b;box-shadow:0 0 14px #ff38552d}
+.caseTrack .phase.passed{border-color:#31e2e9;color:#5cecf0}
+#help{flex:0 0 43px;display:flex;align-items:center;justify-content:center;text-align:center;margin:0!important;padding:10px 25px;
+ font:12px/1.35 Segoe UI,Arial,sans-serif;color:#a8c9d2;letter-spacing:.2px;
+ background:#040d16a0;border-bottom:1px solid #295562a8}
+#help::before{content:"//";color:#ff5071;font:bold 19px Consolas,monospace;letter-spacing:-3px;margin-right:11px}
+#slots,#consent,#game{flex:1;min-height:0;overflow:auto;padding:18px 34px 16px}
+#slots.show{display:block}
+#slots .cyMain{position:relative;display:grid;grid-template-columns:minmax(230px,1fr) minmax(270px,350px) minmax(230px,1fr);
+ gap:12px;align-items:stretch;min-height:0;height:100%;width:100%;max-width:1300px;margin:auto;padding:11px 25px 16px;
+ background:
+  radial-gradient(ellipse 27% 84% at center,#d8315c24,transparent 94%),
+  repeating-linear-gradient(0deg,transparent 0 38px,#4ffbff06 38px 39px);
+ border:1px solid #2ec3cc48;box-shadow:inset 0 0 34px #17d4e60f;
+}
+.cyMain::before{content:"SURGICAL AUGMENTATION MAP  //  PATIENT NEURAL PROFILE";position:absolute;left:15px;top:7px;right:15px;color:#78f6fc8e;
+ font:9px Consolas,monospace;letter-spacing:2px;text-align:center;pointer-events:none;}
+#slots .cyCol{display:grid;grid-template-rows:repeat(4,minmax(0,1fr));gap:9px;padding:30px 6px 12px;}
+#slots .cyCol.left{align-items:stretch;text-align:left}
+#slots .cyCol.right{align-items:stretch;text-align:left}
+#slots .cyGroup{position:relative;padding:8px 11px 8px 12px;min-height:100px;
+ border:1px solid #ff607036;border-left:2px solid #fa5271;
+ background:linear-gradient(117deg,#220d1c9c,#071a268c 85%);
+ clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);}
+#slots .cyCol.right .cyGroup{border-left:1px solid #ff607036;border-right:2px solid #fa5271}
+#slots .cyHead{font:bold italic 13px Segoe UI,Arial,sans-serif;color:#ff8d9e;letter-spacing:1.3px;margin-bottom:7px;text-transform:uppercase}
+#slots .cyHead::before{content:"//";color:#ff526d;letter-spacing:-2px;margin-right:9px;}
+#slots .cyHead::after,#slots .cyCol.right .cyHead::before{display:none}
+#slots .cyTiles{display:flex;justify-content:flex-start!important;gap:8px}
+#slots .cyTile{width:clamp(94px,6.2vw,122px);height:clamp(76px,8.5vh,98px);
+ flex:0 0 auto;padding:6px;cursor:pointer!important;text-align:left;
+ border:1px solid #39eaf0!important;outline:none;overflow:hidden;
+ color:#eaf8fa;background:linear-gradient(155deg,#0a3040e6,#07131be8 75%)!important;
+ clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+ box-shadow:inset 0 0 15px #2cd6e51b;
+ transition:filter .15s,box-shadow .15s,border-color .15s}
+#slots .cyTile::after{right:0;bottom:0;border-width:6px;border-color:transparent var(--s-cyan) var(--s-cyan) transparent;}
+#slots .cyTile.filled{border:2px solid var(--s-gold)!important;background:linear-gradient(120deg,#43302499,#12222b 78%)!important;box-shadow:inset 0 0 19px #e6ae3a23,0 0 12px #eec2481c}
+#slots .cyTile.filled::after{border-color:transparent var(--s-gold) var(--s-gold) transparent}
+#slots .cyTile.empty{border-style:solid!important}
+#slots .cyTile:hover,#slots .cyTile:focus{filter:brightness(1.14);border-color:#fff4c2!important;box-shadow:0 0 16px #65eaff88,inset 0 0 20px #52f1f51f!important}
+#slots .cyTile .tName{font-size:10px;line-height:1.18;position:relative;z-index:2;color:#ffdda8;text-shadow:0 1px 4px #000}
+#slots .cyTile .tSlot{font-size:9px;z-index:2;color:#b8eced;text-shadow:0 1px 3px #000;bottom:4px;left:6px}
+#slots .cyTile .tPlus{color:#8acdd1;opacity:.72;font-size:27px;z-index:1;align-items:center;justify-content:flex-end;padding-right:7px}
+.tileVisual{position:absolute;inset:12px 8px 10px 8px;width:calc(100% - 16px);height:calc(100% - 22px);pointer-events:none;opacity:.75;filter:drop-shadow(0 0 5px #2de5f6ac)}
+.cyTile.filled .tileVisual{opacity:1;filter:drop-shadow(0 0 6px #f6b95f8f)}
+#slots .cyBodyBox{position:relative;align-self:stretch;height:100%;min-height:500px;display:flex;align-items:center;justify-content:center;overflow:hidden;
+ border:1px solid #ef637e4d;background:radial-gradient(ellipse at center,#f8406426,transparent 76%);}
+#slots .cyBodyBox::before{content:"";pointer-events:none;position:absolute;inset:12px 15%;border:1px solid #ed60774b;border-radius:50%;box-shadow:inset 0 0 20px #fd486517}
+#slots .cyBodyBox::after{content:"";pointer-events:none;position:absolute;bottom:8px;left:20%;right:20%;height:35px;border:2px solid #ff6682;border-radius:50%;box-shadow:0 0 17px #ff4977,inset 0 0 15px #ff4977;transform:perspective(110px) rotateX(54deg)}
+#slots #cyBody{max-width:95%;height:calc(100% - 15px);max-height:600px;filter:drop-shadow(0 0 11px #e73f6a94)}
+#slots #cyBody .solid{fill:rgba(255,40,78,.06)!important;stroke:#ffb2bd99;stroke-width:.8}
+#slots #cyBody .limb{stroke:rgba(251,145,162,.19)!important}
+#slots #cyBody .bones path,#slots #cyBody .bones ellipse{stroke:#56f3ffb3;stroke-width:.8}
+#slots #cyBody .heart{fill:#ff7890}
+#slots #cyBody .lit .solid{stroke:#73f8ff!important;fill:rgba(60,238,250,.20)!important;stroke-width:1.7}
+#slots #cyBody .lit .limb{stroke:#70efffc9!important}
+#slots #cyBody .lit.bones path,#slots #cyBody .lit.bones ellipse{stroke:#65f9ff;stroke-width:2}
+#slots .cyScan{height:44px;background:linear-gradient(transparent,#4defff33,transparent);box-shadow:0 0 18px #4ae1ee22}
+.surgeryBodyArt{opacity:.89;pointer-events:none}
+#options{width:min(800px,90vw)!important;max-height:78vh;overflow:auto;padding:31px!important;margin:0!important;z-index:12;
+ background:linear-gradient(150deg,#15101e,#081e2a 75%)!important;
+ border:2px solid #ff617a!important;clip-path:polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px);
+ box-shadow:0 0 0 120vmax #03060de0,0 0 60px #ff496333,inset 0 0 25px #ff496318!important}
+#options h2{font:bold italic 24px Segoe UI,Arial,sans-serif!important;color:#fff0f5!important;margin:0 0 20px!important;border-bottom:1px solid #ff67866e;padding-bottom:14px;letter-spacing:.8px}
+#options h2::before{content:"// ";color:#ff5674}
+#choices{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px!important}
+#choices button{min-height:94px;text-align:left;padding:16px 20px!important;border:1px solid #59dee6!important;border-left:4px solid #ffc36a!important;
+ background:linear-gradient(110deg,#213846,#101824)!important;clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,0 100%)}
+#choices button:hover{background:#31616a!important;color:white}
+#consent.show{display:flex!important;flex-direction:column;align-items:center;justify-content:center}
+.consentFrame{width:min(860px,95%);margin:auto;padding:32px 35px 28px;border:1px solid #ff6179;
+ background:linear-gradient(145deg,#3b1524d1,#0d1e28dd 72%);box-shadow:inset 0 0 55px #e52b4b17,0 0 27px #e3465b31}
+.consentPre{font:700 12px Consolas,monospace;color:#ff7189;letter-spacing:3px;text-transform:uppercase}
+.consentHeading{font:bold italic 32px Segoe UI,Arial,sans-serif;margin:13px 0 10px;color:#fff4f2}
+.consentCaution{display:flex;align-items:center;gap:18px;color:#ffe09c;font-size:14px;border:1px solid #e8ad446a;
+ background:#8a4c163a;padding:14px 17px;margin:18px 0 22px}
+.consentCaution b{font-size:34px;color:#ffcc63}
+.summary{padding:28px 20px!important;border:1px solid #79dadc78!important;background:#051923aa;text-align:left!important;font-size:19px!important;color:#e9f9fa;line-height:1.6!important}
+#game.show{display:flex!important;flex-direction:column}
+.gameTopline{display:flex;justify-content:space-between;align-items:center;gap:14px;border-bottom:1px solid #ff567660;padding:2px 5px 13px;font:700 12px Consolas,monospace;color:#55e9ee;letter-spacing:1.2px}
+.gameTopline .phaseNotice{color:#ffbdc9}
+#board{flex:1;min-height:320px;height:auto!important;margin-top:15px;overflow:hidden;
+ border:1px solid #fc5a74!important;box-shadow:inset 0 0 50px #0acbe817,0 0 20px #ff456326;
+ background:
+ repeating-linear-gradient(90deg,transparent 0 31px,#36b0bc18 31px 32px),
+ repeating-linear-gradient(0deg,transparent 0 31px,#36b0bc18 31px 32px),
+ radial-gradient(ellipse at center,#172b3a,#090f1c 70%)!important;
+}
+#board::before{content:"NEURAL MATRIX  //  MEDICAL GRADE ENCRYPTION";position:absolute;left:160px;top:10px;color:#76cdd282;font:10px Consolas,monospace;letter-spacing:2px;pointer-events:none}
+#board::after{content:"SAFE ROUTING / 77.06";position:absolute;left:160px;bottom:8px;color:#76cdd255;font:9px Consolas,monospace;letter-spacing:1px;pointer-events:none}
+#links{z-index:1}
+.col{top:8px;bottom:8px}
+.node{width:128px!important;min-height:43px;padding:9px!important;text-align:center;background:linear-gradient(120deg,#112d3c,#080f19)!important;
+ border:1px solid #2adeea!important;color:#9cf6fa!important;
+ font:600 11px Consolas,monospace!important;letter-spacing:.5px}
+.node:hover{border-color:#ffbb70!important;background:#463748!important}
+.node.selected{border:2px solid #ffc55e!important;box-shadow:0 0 15px #eeb14b76!important;color:white!important}
+.node.done{border:1px solid #55f9b8!important;color:#6dffbb!important}
+#stats{margin:12px 4px 0;min-height:45px;align-items:center;border:1px solid #30535e;padding:9px 16px;background:#071827bd;
+ color:#b8eef0;font:700 14px Consolas,monospace;letter-spacing:.3px}
+#time{color:#ffd079;font-size:17px}
+#message{min-height:29px;margin:0 34px;text-align:center;font:600 13px Segoe UI,Arial,sans-serif;color:#ffacb7}
+#message:not(:empty){padding:6px 12px;background:#d63b5720;border:1px solid #da596a31}
+.panel>.actions{position:relative;flex:0 0 63px;align-items:center;padding:9px 35px;margin:0!important;border-top:1px solid #e74c6a57;background:#050d16}
+#skill{font:11px Consolas,monospace;color:#7cdfe6}
+button{transition:background .15s,color .15s,border-color .15s;cursor:pointer}
+.panel>.actions button,#options .actions button,#consent .actions button{padding:11px 24px;border:1px solid #f55072;color:#ffccd6;
+ background:linear-gradient(125deg,#5c1a36,#211320);font-weight:700;letter-spacing:.6px}
+.panel>.actions button:hover,#options .actions button:hover,#consent .actions button:hover{background:#893653;border-color:#fff}
+#accept{background:linear-gradient(120deg,#1c6570,#082a39)!important;border-color:#5cf2f8!important;color:#e0ffff!important}
+#deny{border-color:#ff6681}
+button:disabled{opacity:.4;cursor:default}
+.bottomTelemetry{position:relative;flex:0 0 32px;display:flex;align-items:center;justify-content:space-between;gap:14px;
+ padding:6px 35px;border-top:1px solid #48d7e45a;color:#659fa8;font:9px Consolas,monospace;letter-spacing:1.6px;text-transform:uppercase}
+.bottomTelemetry span:nth-child(2){color:#ff6d89}
+#slots:not(.show),#consent:not(.show),#game:not(.show){display:none}
+@media(max-width:1150px){
+ .panel{width:97vw;height:96vh}
+ .surgicalHeader{grid-template-columns:65px minmax(0,1fr) 180px;padding:12px 22px;gap:12px;flex-basis:97px}
+ .surgeryEmblem{width:56px;height:56px}
+ .surgicalHeaderText #title{font-size:26px}
+ .caseRibbon{padding:8px 20px;gap:10px;grid-template-columns:1fr auto 1fr}
+ .caseTrack .phase{padding:7px;font-size:9px}
+ #slots{padding:9px 15px}
+ #slots .cyMain{padding:8px 10px;grid-template-columns:minmax(205px,1fr) 240px minmax(205px,1fr);gap:6px}
+ #slots .cyTile{width:85px;height:78px}
+ #slots .cyGroup{padding:7px}
+ #slots .cyBodyBox{min-height:400px}
+ .bottomTelemetry{font-size:8px}
+}
+@media(max-height:800px){
+ .surgicalHeader{flex-basis:90px;padding-top:8px;padding-bottom:8px}
+ .caseRibbon{flex-basis:55px}
+ #help{flex-basis:34px}
+ #slots .cyCol{padding-top:20px;gap:5px}
+ #slots .cyGroup{padding:5px;min-height:78px}
+ #slots .cyTile{height:65px}
+ #slots .cyBodyBox{min-height:365px}
+ .panel>.actions{flex-basis:47px;padding:3px 24px}
+ .bottomTelemetry{flex-basis:24px}
+ #board{min-height:280px}
+}
+
+
+/* Anatomical raster integration: the illustrated transparent image is rendered
+   in <image.surgeryBodyArt>; original region groups remain as hit-free hover overlay.
+   This keeps every existing CY_REGION and surgery action intact. */
+#slots #cyBody .surgeryBodyArt {
+  opacity:1;
+  filter:drop-shadow(0 0 10px #ff476f6b) drop-shadow(0 0 22px #13d9ed34);
+}
+#slots #cyBody #r-skin .solid,
+#slots #cyBody #r-skin .limb,
+#slots #cyBody #r-bones path,
+#slots #cyBody #r-bones ellipse,
+#slots #cyBody #r-heart .heart {
+  opacity:.10;
+  transition:opacity .16s ease,stroke .16s ease,fill .16s ease;
+}
+#slots #cyBody #r-skin .lit .solid,
+#slots #cyBody #r-skin .lit .limb,
+#slots #cyBody #r-bones.lit path,
+#slots #cyBody #r-bones.lit ellipse,
+#slots #cyBody #r-heart.lit .heart {
+  opacity:.96;
+}
+#slots #cyBody #r-skin.lit .solid,
+#slots #cyBody #r-skin.lit .limb {
+  opacity:.85;
+}
+#slots .cyBodyBox::before {
+  z-index:0;
+  background:repeating-radial-gradient(ellipse at center,
+     transparent 0 26px,#37e1ef0e 27px 28px,transparent 29px 48px);
+}
+#slots .cyScan {
+  z-index:3;
+  mix-blend-mode:screen;
+  pointer-events:none;
+}
+#slots .cyBodyBox::after {z-index:2}
+
+/* Interactive A/B art preview — no change to game/server state */
+#bodyViewToggle{
+ position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:5;
+ min-width:166px;white-space:nowrap;padding:8px 12px;
+ font:700 10px Consolas,monospace;letter-spacing:1.3px;
+ color:#9ff8f9;background:linear-gradient(90deg,#092a34e9,#131f2ce9);
+ border:1px solid #35d9e2;box-shadow:0 0 12px #20dae633;
+ cursor:pointer;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);
+}
+#bodyViewToggle:hover,#bodyViewToggle:focus{background:#173c45;color:#fff}
+#slots .diagramMode #cyBody .surgeryBodyArt{opacity:0!important}
+#slots .diagramMode #cyBody #r-skin .solid{
+ opacity:1!important;fill:rgba(249,88,112,.36)!important;stroke:rgba(255,200,192,.8)!important;
+}
+#slots .diagramMode #cyBody #r-skin .limb{
+ opacity:1!important;stroke:rgba(255,119,139,.5)!important;
+}
+#slots .diagramMode #cyBody #r-bones path,
+#slots .diagramMode #cyBody #r-bones ellipse{
+ opacity:1!important;stroke:rgba(255,220,211,.6)!important;
+}
+#slots .diagramMode #cyBody #r-heart .heart{opacity:1!important}
