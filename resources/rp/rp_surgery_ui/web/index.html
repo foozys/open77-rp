@@ -71,8 +71,37 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
   .cyFoot { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--muted); }
   .cyFoot b { color: var(--text); }
 
-</style></head><body><div id="screen"><div class="panel">
-<h1 id="title">КИБЕРХИРУРГИЯ</h1><div id="help">Выберите слот на теле пациента.</div>
+</style><link rel="stylesheet" href="surgery-redline.css"></head><body><div id="screen"><div class="panel">
+<div class="surgicalHeader">
+  <div class="surgeryEmblem" aria-hidden="true">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 5 H51 L60 14 V50 L51 59 H12 L4 51 V14 Z" stroke="#ff627a" stroke-width="2"/>
+      <path d="M25 13 H39 V25 H51 V39 H39 V51 H25 V39 H13 V25 H25 Z" fill="#ff476e" stroke="#ffd9df" stroke-width="1.5"/>
+      <path d="M21 32 H43 M32 21 V43" stroke="#fff3f2" stroke-width="2.5"/>
+      <path d="M8 11 H20 M44 53 H56" stroke="#56ecf2" stroke-width="2"/>
+    </svg>
+  </div>
+  <div class="surgicalHeaderText">
+    <div class="systemCaption">NIGHT CITY // CLINICAL NEURAL INTERFACE</div>
+    <h1 id="title">КИБЕРХИРУРГИЯ</h1>
+    <div class="surgicalSubtitle">RIPPERDOC // SURGICAL SUITE · NEUROTECH DIVISION</div>
+  </div>
+  <div class="headerTelemetry">
+    <div class="liveIndicator"><span class="pulse"></span> ОПЕРАЦИОННЫЙ ТЕРМИНАЛ АКТИВЕН</div>
+    <div class="hardwareSignature">RIPPER<span style="color:#ff4a6d">//</span>77</div>
+    <div class="systemBars" aria-hidden="true"></div>
+  </div>
+</div>
+<div class="caseRibbon">
+  <div class="caseField">МЕДИЦИНСКАЯ КАРТА <strong id="patientState">ПАЦИЕНТ НЕ ВЫБРАН</strong></div>
+  <div class="caseTrack" aria-label="Этапы операции">
+    <span class="phase current" data-phase="slots">01 // ДИАГНОСТИКА</span>
+    <span class="phase" data-phase="consent">02 // СОГЛАСИЕ</span>
+    <span class="phase" data-phase="game">03 // ОПЕРАЦИЯ</span>
+  </div>
+  <div class="caseField right">ПРОТОКОЛ ВМЕШАТЕЛЬСТВА <strong id="operationState">ВЫБОР ИМПЛАНТА</strong></div>
+</div>
+<div id="help">Выберите слот на теле пациента.</div>
 <div id="slots"><div class="cyMain"><div class="cyCol left" id="leftSlots"></div><div class="cyBodyBox"><svg id="cyBody" viewBox="0 0 200 440">
             <defs>
               <linearGradient id="cyGlass" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="440">
@@ -85,6 +114,7 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
                 <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
               </filter>
             </defs>
+            <image class="surgeryBodyArt" href="assets/patient-hologram.svg" x="-12" y="-12" width="224" height="470" preserveAspectRatio="xMidYMid meet"/>
             <g id="r-skin" filter="url(#cyGlow)">
               <g id="r-legs">
                 <path class="limb" d="M85 236 L81 330" stroke-width="27"/>
@@ -125,15 +155,57 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
             <g id="r-heart"><path class="heart" d="M108 128 L98 117 Q95 110 101 108 Q105 107 108 111 Q111 107 115 108 Q121 110 118 117 Z"/></g>
           </svg><div class="cyScan"></div></div><div class="cyCol right" id="rightSlots"></div></div></div>
 <div id="options"><h2 id="slotName">Выбор импланта</h2><div id="choices"></div><div class="actions"><button id="backSlots">Назад к слотам</button></div></div>
-<div id="consent"><div class="summary" id="summary"></div><div class="actions">
-<button id="deny">Отказаться</button><button id="accept">Согласиться на операцию</button></div></div>
-<div id="game"><div id="board"><svg id="links" preserveAspectRatio="none"></svg><div id="left" class="col left"></div><div id="right" class="col right"></div></div>
+<div id="consent"><div class="consentFrame">
+ <div class="consentPre">NEURAL SURGERY // CONSENT PROTOCOL</div>
+ <div class="consentHeading">РАЗРЕШЕНИЕ НА ВМЕШАТЕЛЬСТВО</div>
+ <div class="consentCaution"><b>!</b><span>ВНИМАНИЕ // Возможны травмы, повреждение импланта и ухудшение состояния. Решение принимает только пациент.</span></div>
+ <div class="summary" id="summary"></div>
+ <div class="actions"><button id="deny">ОТКАЗАТЬСЯ</button><button id="accept">ПОДТВЕРДИТЬ ОПЕРАЦИЮ</button></div>
+</div></div>
+<div id="game">
+<div class="gameTopline"><span>NEURAL RECONFIGURATION // LIVE OPERATING MATRIX</span><span class="phaseNotice" id="stageNotice">ПОДГОТОВКА НЕЙРОСВЯЗЕЙ</span></div>
+<div id="board"><svg id="links" preserveAspectRatio="none"></svg><div id="left" class="col left"></div><div id="right" class="col right"></div></div>
 <div id="stats"><span id="progress"></span><span id="time"></span></div></div>
-<div id="message"></div><div class="actions"><span id="skill"></span><button id="close">Закрыть</button></div>
+<div id="message"></div><div class="actions"><span id="skill">NEURAL INTERFACE / SECURE</span><button id="close">ЗАКРЫТЬ ТЕРМИНАЛ</button></div>
+<div class="bottomTelemetry"><span>◆ NEUROTECH DIVISION / OPERATING STATION 07</span><span>DO NOT DISCONNECT DURING SURGERY</span><span>OPEN//77 · CLINICAL TERMINAL</span></div>
 </div></div><script>
 const $=x=>document.getElementById(x);
 let mode="",patient=0,slotData=null,consentToken="",token="",stage="",size=0,labels=[],picked=-1,
 pairs=[],cuts=[],cutOrder=[],cutPoints=[],locked=false,deadline=0,timer=null;
+function setSurgeryPhase(name,context){
+ const order=["slots","consent","game"];const i=order.indexOf(name);
+ for(const el of document.querySelectorAll(".caseTrack .phase")){
+  const at=order.indexOf(el.dataset.phase);
+  el.classList.toggle("current",at===i);
+  el.classList.toggle("passed",i>=0&&at<i);
+ }
+ const op=$("operationState");
+ op.textContent=context||({slots:"ПОДБОР ИМПЛАНТА",consent:"ПРОВЕРКА СОГЛАСИЯ",game:"НЕЙРОХИРУРГИЯ"}[name]||"ОЖИДАНИЕ");
+}
+function surgeryIcon(id){
+ const paths={
+ eyes:'<ellipse cx="50" cy="38" rx="31" ry="17"/><circle cx="50" cy="38" r="12"/><circle cx="50" cy="38" r="5"/><path d="M15 38 L4 38 M85 38 L96 38 M50 15 V25 M50 51 V63"/>',
+ os:'<rect x="27" y="14" width="46" height="48" rx="4"/><path d="M38 26 H62 V48 H38 Z M46 31 L54 38 L46 45"/><path d="M27 22 H18 M27 34 H18 M27 47 H18 M27 56 H18 M73 22 H82 M73 34 H82 M73 47 H82 M73 56 H82"/>',
+ arms:'<path d="M25 24 L42 15 L56 25 L51 47 L40 58 L22 47 Z M56 25 L74 20 L81 32 L71 48 L56 47 Z"/><circle cx="49" cy="36" r="8"/><path d="M26 39 L12 42 M71 48 L80 60"/>',
+ skeleton:'<path d="M50 12 V66 M26 23 Q50 13 74 23 M25 31 Q50 23 75 31 M28 40 Q50 34 72 40 M33 50 Q50 44 67 50 M33 62 L50 70 L67 62"/><path d="M50 20 V58"/>',
+ tendons:'<path d="M23 17 Q51 22 34 43 Q22 53 44 65 M40 15 Q67 27 52 40 Q40 53 60 68 M60 15 Q83 22 67 42 Q52 54 79 64"/><circle cx="34" cy="43" r="4"/><circle cx="67" cy="42" r="4"/>',
+ skin:'<path d="M12 32 L50 11 L88 32 L50 55 Z M12 44 L50 67 L88 44 M21 53 L50 69 L79 53"/><path d="M32 22 L70 44 M70 22 L32 44"/>',
+ heart:'<path d="M50 63 C9 39 19 15 36 18 Q46 20 50 29 Q62 12 75 21 Q95 42 50 63 Z"/><path d="M24 43 H42 L48 29 L56 53 L62 42 H83"/>',
+ blood:'<path d="M50 9 Q26 38 26 49 A24 24 0 0 0 74 49 Q74 38 50 9Z"/><path d="M42 59 Q34 51 39 43 M57 36 Q61 42 60 46"/>',
+ metabolism:'<path d="M26 12 H68 L85 30 V52 L67 69 H32 L15 52 V30 Z"/><path d="M27 31 H72 M27 39 H72 M27 48 H72 M35 22 V59 M50 20 V62 M64 22 V59"/>',
+ ice:'<path d="M50 10 L79 24 L75 49 Q66 63 50 70 Q34 63 25 49 L21 24 Z"/><path d="M50 18 V61 M32 37 H68 M36 26 L64 54 M64 26 L36 54"/>',
+ purge:'<path d="M50 8 L62 28 L85 27 L73 47 L84 65 L60 63 L50 74 L40 62 L16 65 L27 47 L15 27 L38 28 Z"/><path d="M33 37 L50 54 L68 32 M49 16 V25"/>',
+ legs:'<path d="M29 13 L47 13 L53 36 L45 57 L39 71 L25 71 L30 53 L23 36 Z M59 13 H74 L79 36 L71 53 L75 71 H62 L56 57 L50 36 Z"/><circle cx="38" cy="39" r="7"/><circle cx="68" cy="39" r="7"/>'
+ };
+ const el=document.createElementNS("http://www.w3.org/2000/svg","svg");
+ el.setAttribute("viewBox","0 0 100 80");el.setAttribute("class","tileVisual");
+ el.setAttribute("aria-hidden","true");
+ el.innerHTML='<defs><linearGradient id="sIcon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#82f9fb" stop-opacity=".38"/><stop offset="1" stop-color="#ff607d" stop-opacity=".08"/></linearGradient></defs>'+
+ '<g transform="translate(0 1)" fill="url(#sIcon)" stroke="currentColor" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round">'+(paths[id]||paths.os)+'</g>'+
+ '<circle cx="50" cy="39" r="36" fill="none" stroke="#67f9ff" stroke-opacity=".13" stroke-dasharray="3 6"/>';
+ el.style.color="#59e6ef";
+ return el;
+}
 function visible(name){$("screen").classList.add("open");for(const id of ["slots","options","consent","game"])$(id).classList.remove("show");if(name==="slots")$("slots").classList.add("show");else $(name).classList.add("show");$("message").textContent="";}
 function close(){clearInterval(timer);timer=null;$("options").classList.remove("show");mode="";$("screen").classList.remove("open");$("close").disabled=false;Open77.emit("surgery:close",{});}
 $("close").onclick=()=>{if(mode==="game")return;close();};
@@ -157,7 +229,7 @@ function highlightSlot(id,on){
  if(el)el.classList.toggle("lit",on);
 }
 function editor(p){
- mode="slots";patient=p.patient;$("title").textContent="ИМПЛАНТЫ · ID "+patient;
+ mode="slots";patient=p.patient;setSurgeryPhase("slots","ПОДБОР ИМПЛАНТА");$("patientState").textContent="ПАЦИЕНТ ID "+String(p.patient);$("title").textContent="ИМПЛАНТЫ · ID "+patient;
  $("help").textContent="Выберите слот. В списке доступны только импланты из карманов пациента.";
  visible("slots");$("leftSlots").replaceChildren();$("rightSlots").replaceChildren();
  const bySlot=new Map((p.slots||[]).map(s=>[s.id,s])),options=p.options||[];
@@ -171,6 +243,7 @@ function editor(p){
     const tile=document.createElement("button");tile.type="button";tile.className="cyTile "+(sl.implant?"filled":"empty");
     if(sl.implant){const label=document.createElement("div");label.className="tName";label.textContent=sl.implantLabel||sl.implant;tile.append(label);}
     else {const plus=document.createElement("div");plus.className="tPlus";plus.textContent="+";tile.append(plus);}
+    tile.prepend(surgeryIcon(sl.id));
     const caption=document.createElement("div");caption.className="tSlot";caption.textContent=sl.label;tile.append(caption);
     tile.addEventListener("mouseenter",()=>highlightSlot(sl.id,true));
     tile.addEventListener("mouseleave",()=>highlightSlot(sl.id,false));
@@ -185,7 +258,7 @@ function editor(p){
  }
 }
 function consent(p){
- mode="consent";consentToken=p.token;$("title").textContent="ПОДТВЕРЖДЕНИЕ ОПЕРАЦИИ";
+ mode="consent";consentToken=p.token;setSurgeryPhase("consent","СОГЛАСИЕ ПАЦИЕНТА");$("patientState").textContent="РИПЕР ID "+String(p.doctor);$("title").textContent="ПОДТВЕРЖДЕНИЕ ОПЕРАЦИИ";
  $("help").textContent="Операция может закончиться повреждением здоровья и уничтожением импланта.";
  visible("consent");$("summary").textContent="Рипер ID "+p.doctor+" предлагает операцию: "+(p.old?"снятие "+p.old+(p.new?" и установка "+p.new:""):"установка "+p.new)+".";
  $("close").disabled=false;
@@ -302,7 +375,7 @@ function draw(){
  $("progress").textContent="Соединено: "+pairs.filter(Boolean).length+"/"+size;
 }
 function game(p){
- mode="game";stage=p.stage;token=p.token;size=p.wires;labels=p.labels||[];
+ mode="game";stage=p.stage;setSurgeryPhase("game",stage==="remove"?"ДЕМОНТАЖ ИМПЛАНТА":"УСТАНОВКА ИМПЛАНТА");$("stageNotice").textContent=stage==="remove"?"CUT-SEQUENCE // ДЕМОНТАЖ":"MATCH-SEQUENCE // НЕЙРОСШИВКА";token=p.token;size=p.wires;labels=p.labels||[];
  cutOrder=p.cutOrder||[];cutPoints=p.cutPoints||[];cuts=[];
  picked=-1;pairs=[];locked=false;$("title").textContent=stage==="remove"?"ДЕМОНТАЖ НЕЙРОСВЯЗЕЙ":"НЕЙРОННАЯ СШИВКА";
  $("help").textContent=stage==="remove"?"Найдите красные узлы на запутанных проводах и разрежьте их в указанном порядке. Неправильная точка или порядок — провал.":"Соедините нейроны и провода с одинаковыми номерами.";
@@ -317,7 +390,7 @@ Open77.on("surgery:game",game);
 Open77.on("surgery:stage",p=>{$("message").textContent=p.text||"Следующий этап";});
 Open77.on("surgery:finish",p=>{
  clearInterval(timer);timer=null;$("message").textContent=p.cancelled?"Операция отменена.":p.success?"Операция прошла успешно.":"Операция провалена.";
- $("close").disabled=false;mode="finished";
+ $("close").disabled=false;mode="finished";$("operationState").textContent=p.success?"ОПЕРАЦИЯ УСПЕШНА":p.cancelled?"ОПЕРАЦИЯ ОТМЕНЕНА":"ОПЕРАЦИЯ НЕУДАЧНА";
 });
 Open77.on("surgery:close",()=>{clearInterval(timer);$("screen").classList.remove("open");});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&mode!=="game")close();});
