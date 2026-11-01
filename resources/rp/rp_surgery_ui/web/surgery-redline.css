@@ -237,3 +237,26 @@ button:disabled{opacity:.4;cursor:default}
   pointer-events:none;
 }
 #slots .cyBodyBox::after {z-index:2}
+
+/* Interactive A/B art preview — no change to game/server state */
+#bodyViewToggle{
+ position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:5;
+ min-width:166px;white-space:nowrap;padding:8px 12px;
+ font:700 10px Consolas,monospace;letter-spacing:1.3px;
+ color:#9ff8f9;background:linear-gradient(90deg,#092a34e9,#131f2ce9);
+ border:1px solid #35d9e2;box-shadow:0 0 12px #20dae633;
+ cursor:pointer;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);
+}
+#bodyViewToggle:hover,#bodyViewToggle:focus{background:#173c45;color:#fff}
+#slots .diagramMode #cyBody .surgeryBodyArt{opacity:0!important}
+#slots .diagramMode #cyBody #r-skin .solid{
+ opacity:1!important;fill:rgba(249,88,112,.36)!important;stroke:rgba(255,200,192,.8)!important;
+}
+#slots .diagramMode #cyBody #r-skin .limb{
+ opacity:1!important;stroke:rgba(255,119,139,.5)!important;
+}
+#slots .diagramMode #cyBody #r-bones path,
+#slots .diagramMode #cyBody #r-bones ellipse{
+ opacity:1!important;stroke:rgba(255,220,211,.6)!important;
+}
+#slots .diagramMode #cyBody #r-heart .heart{opacity:1!important}
