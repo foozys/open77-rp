@@ -5,6 +5,14 @@
 !/README.md
 !/PROJECT_CONTEXT.md
 !/CLAUDE.md
+!/HANDOFF-CLAUDE.md
+!/UI-REDESIGN.md
+!/RIPPER-UI-REDESIGN.md
+!/.claude/
+!/.claude/rules/
+!/.claude/rules/*.md
+!/docs/
+!/docs/*.md
 !/TESTING-2P.md
 !/DOCS.md
 !/server.jsonc
@@ -16,3 +24,9 @@
 /resources/*
 !/resources/rp/
 /resources/rp/rp_clothes/dist/
+
+# Claude Code local sessions, credentials and machine-specific settings.
+/.claude/settings.local.json
+/.claude/projects/
+/.claude/history/
+/.claude/todos/
