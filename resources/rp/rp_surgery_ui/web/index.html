@@ -114,7 +114,7 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
                 <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
               </filter>
             </defs>
-            <image class="surgeryBodyArt" href="assets/patient-hologram.svg" x="-12" y="-12" width="224" height="470" preserveAspectRatio="xMidYMid meet"/>
+            <image class="surgeryBodyArt" href="assets/patient-hologram.svg" x="8" y="5" width="184" height="426" preserveAspectRatio="xMidYMid meet"/>
             <g id="r-skin" filter="url(#cyGlow)">
               <g id="r-legs">
                 <path class="limb" d="M85 236 L81 330" stroke-width="27"/>
@@ -153,6 +153,8 @@ button:disabled{opacity:.45;cursor:default}.actions{display:flex;gap:12px;justif
               <path d="M85 236 L81 330 L79 410 M115 236 L119 330 L121 410"/>
             </g>
             <g id="r-heart"><path class="heart" d="M108 128 L98 117 Q95 110 101 108 Q105 107 108 111 Q111 107 115 108 Q121 110 118 117 Z"/></g>
+            <!-- Independent targets are calibrated to the PNG, not the old sketch. -->
+            <g id="r-holo-targets" aria-hidden="true" pointer-events="none"></g>
           </svg><div class="cyScan"></div><button type="button" id="bodyViewToggle" aria-label="Переключить отображение тела">◈ ГОЛОГРАММА</button></div><div class="cyCol right" id="rightSlots"></div></div></div>
 <div id="options"><h2 id="slotName">Выбор импланта</h2><div id="choices"></div><div class="actions"><button id="backSlots">Назад к слотам</button></div></div>
 <div id="consent"><div class="consentFrame">
@@ -178,6 +180,7 @@ $("bodyViewToggle").addEventListener("click",()=>{
  const diagram=box.classList.toggle("diagramMode");
  $("bodyViewToggle").textContent=diagram?"▦ СХЕМА":"◈ ГОЛОГРАММА";
  $("bodyViewToggle").setAttribute("aria-pressed",String(diagram));
+ highlightSlot(null,false);
 });
 function setSurgeryPhase(name,context){
  const order=["slots","consent","game"];const i=order.indexOf(name);
@@ -231,9 +234,44 @@ const CY_GROUPS={
  right:[{label:"Кровообращение",slots:["heart","blood"]},{label:"Метаболизм",slots:["metabolism"]},{label:"Защита разума",slots:["ice","purge"]},{label:"Ноги",slots:["legs"]}]
 };
 const CY_REGION={eyes:"head",os:"head",ice:"head",purge:"head",arms:"arms",legs:"legs",tendons:"legs",skeleton:"bones",skin:"skin",heart:"heart",blood:"torso",metabolism:"torso"};
+// The generated patient's proportions differ from the legacy 200×440 sketch.
+// Hologram mode uses calibrated, non-interactive reticles; diagram mode uses
+// the original body paths. Neither mode changes surgery events or slot logic.
+const CY_HOLO_TARGETS={
+ head:[[100,58]], arms:[[44,218],[156,218]], legs:[[88,351],[112,351]],
+ bones:[[100,175]], skin:[[100,202]], heart:[[111,155]],
+ torso:[[100,204]]
+};
 function highlightSlot(id,on){
- const el=document.getElementById("r-"+(CY_REGION[id]||"skin"));
- if(el)el.classList.toggle("lit",on);
+ const body=$("cyBody"), overlay=$("r-holo-targets");
+ if(!body||!overlay)return;
+ for(const el of body.querySelectorAll(".lit"))el.classList.remove("lit");
+ overlay.replaceChildren();
+ body.classList.remove("holo-active");
+ if(!on||!id)return;
+ const region=CY_REGION[id]||"skin";
+ if(document.querySelector("#slots .cyBodyBox.diagramMode")){
+  const el=document.getElementById("r-"+region);
+  if(el)el.classList.add("lit");
+  return;
+ }
+ const points=CY_HOLO_TARGETS[region]||CY_HOLO_TARGETS.skin;
+ const ns="http://www.w3.org/2000/svg";
+ for(const [x,y] of points){
+  const ring=document.createElementNS(ns,"circle");
+  ring.setAttribute("class","holoTargetRing");
+  ring.setAttribute("cx",x);ring.setAttribute("cy",y);ring.setAttribute("r","14");
+  overlay.append(ring);
+  const dot=document.createElementNS(ns,"circle");
+  dot.setAttribute("class","holoTargetDot");
+  dot.setAttribute("cx",x);dot.setAttribute("cy",y);dot.setAttribute("r","3.2");
+  overlay.append(dot);
+  const h=document.createElementNS(ns,"path");
+  h.setAttribute("class","holoTargetCross");
+  h.setAttribute("d","M "+(x-24)+" "+y+" h 8 M "+(x+16)+" "+y+" h 8 M "+x+" "+(y-24)+" v 8 M "+x+" "+(y+16)+" v 8");
+  overlay.append(h);
+ }
+ body.classList.add("holo-active");
 }
 function editor(p){
  mode="slots";patient=p.patient;setSurgeryPhase("slots","ПОДБОР ИМПЛАНТА");$("patientState").textContent="ПАЦИЕНТ ID "+String(p.patient);$("title").textContent="ИМПЛАНТЫ · ID "+patient;
