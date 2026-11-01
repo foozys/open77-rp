@@ -633,3 +633,57 @@ button:disabled{opacity:.4;cursor:default}
   #slots { overflow-y:auto; }
   #slots .cyMain { min-height:400px; }
 }
+
+
+/* ---------------------------------------------------------------
+   2026-11-01: generated image / legacy SVG alignment.
+   The old r-skin/r-bones/r-heart paths are a different anatomy.
+   Hide the entire legacy illustration in hologram mode (including
+   all hover states); never display those misregistered cyan limbs.
+   Their markup and highlighting remain available in diagram mode.
+   --------------------------------------------------------------- */
+#slots .cyBodyBox:not(.diagramMode) #cyBody #r-skin,
+#slots .cyBodyBox:not(.diagramMode) #cyBody #r-bones,
+#slots .cyBodyBox:not(.diagramMode) #cyBody #r-heart {
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+#slots .cyBodyBox.diagramMode #cyBody #r-skin,
+#slots .cyBodyBox.diagramMode #cyBody #r-bones,
+#slots .cyBodyBox.diagramMode #cyBody #r-heart {
+  opacity:1!important;
+  visibility:visible!important;
+}
+#slots .cyBodyBox.diagramMode #r-holo-targets{
+  visibility:hidden!important;
+}
+#slots #cyBody .surgeryBodyArt {
+  opacity:1!important;
+  pointer-events:none;
+  transition:filter .16s ease;
+}
+#slots #cyBody.holo-active .surgeryBodyArt{
+  filter:drop-shadow(0 0 9px #fa5678a3) drop-shadow(0 0 14px #47e9ef72);
+}
+#slots #cyBody #r-holo-targets {
+  pointer-events:none!important;
+  filter:drop-shadow(0 0 5px #44f4ff);
+}
+#slots #r-holo-targets .holoTargetRing {
+  fill:rgba(46,239,247,.08);
+  stroke:#65f9ff;
+  stroke-width:1.6;
+  stroke-dasharray:3 2;
+}
+#slots #r-holo-targets .holoTargetDot{
+  fill:#f4ffff;
+  stroke:#4ef9fc;
+  stroke-width:1.4;
+}
+#slots #r-holo-targets .holoTargetCross{
+  fill:none;
+  stroke:#ff6984;
+  stroke-width:1.5;
+  stroke-linecap:round;
+}
