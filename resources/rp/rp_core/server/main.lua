@@ -61,6 +61,7 @@ end)
 -- true, или false, причина (dead | downed | held | psycho | no_character), текст для игрока.
 local ACT_RULES = {
     inventory = { downed = true, held = true, psycho = true },
+    execute = { downed = true, held = true }, -- добить раненого (rp_medical, шаг 4.7)
     money = { downed = true, held = true },
     phone = { held = true },
     overdrive = { held = true },

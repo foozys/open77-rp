@@ -124,8 +124,12 @@ loadMember = function(playerId)
         log("error", "работа #%d: %s", character.id, err)
         return
     end
-    members[playerId] = { characterId = character.id, job = row and row.job or nil,
-                          grade = row and row.grade or nil, duty = false }
+    -- Работа, которой больше нет в JobsConfig (ripperdoc, шаг 4.1), — как безработный;
+    -- строку в БД не трогаем: новая работа перезапишет её через setJob.
+    local job = row and JobsConfig.jobs[row.job] and row.job or nil
+    if row and not job then log("info", "персонаж #%d: работы %s больше нет — безработный", character.id, tostring(row.job)) end
+    members[playerId] = { characterId = character.id, job = job,
+                          grade = job and row.grade or nil, duty = false }
     pushHud(playerId)
 end
 

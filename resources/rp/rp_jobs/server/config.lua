@@ -44,16 +44,9 @@ JobsConfig = {
                 { label = "Владелец", salary = 500, permissions = { "job.manage" } },
             },
         },
-        -- Рипердоки (rp_cyberware): на смене ставят и снимают импланты другим игрокам с их
-        -- согласия; плата за установку — в кассу soc:ripperdoc.
-        ripperdoc = {
-            label = "Клиника рипердоков", payFrom = "society",
-            ranks = {
-                { label = "Ассистент", salary = 200, permissions = { "cyber.inspect" } },
-                { label = "Рипердок", salary = 400, permissions = { "cyber.install" } },
-                { label = "Главный рипердок", salary = 600, permissions = { "job.manage" } },
-            },
-        },
+        -- Работа ripperdoc убрана (решение владельца 2026-11-02, шаг 4.1): импланты ставят
+        -- Риперы — фракция ripper и rp_surgery. Строки rp_character_jobs с ней не удаляются,
+        -- rp_jobs считает такого персонажа безработным (loadMember).
     },
 }
 

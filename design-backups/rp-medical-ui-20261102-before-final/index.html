@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Ранение</title>
+<style>
+  :root { --accent: #ff5e6c; --cyan: #5ef6ff; --text: #e8f1f2; --muted: #a8b6ba; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 16px/1.4 "Segoe UI", Arial, sans-serif; user-select: none; pointer-events: none; }
+  #root { display: none; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(120, 0, 10, 0) 40%, rgba(90, 0, 10, 0.55) 100%); }
+  #root.open { display: block; }
+  #box { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); min-width: 520px; text-align: center;
+    padding: 18px 28px; background: rgba(10, 12, 18, 0.82); border: 1px solid rgba(255, 94, 108, 0.4);
+    border-top: 3px solid var(--accent); }
+  h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: 6px; color: var(--accent); text-transform: uppercase; }
+  .line { margin: 6px 0; color: var(--muted); }
+  .line b { color: var(--text); }
+  kbd { display: inline-block; min-width: 22px; padding: 1px 7px; margin-right: 6px; border: 1px solid var(--cyan);
+    color: var(--cyan); font: 600 14px "Segoe UI", Arial; }
+  .off { opacity: 0.45; }
+  #status { color: var(--cyan); min-height: 20px; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="box">
+    <h1>Вы ранены</h1>
+    <div class="line" id="status"></div>
+    <div class="line" id="call"></div>
+    <div class="line" id="hospital"></div>
+  </div>
+</div>
+<script>
+  const $ = id => document.getElementById(id);
+  const money = n => `${String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} €$`;
+  const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  let state = null, received = 0, timer = null;
+
+  function left(key) {
+    if (!state || state[key] === undefined || state[key] === null) return null;
+    return Math.max(0, state[key] - (Date.now() - received) / 1000);
+  }
+
+  function render() {
+    if (!state) return;
+    const giveUp = left("giveUpIn"), callIn = left("callIn"), npcIn = left("npcIn");
+    $("status").textContent = npcIn !== null
+      ? (npcIn > 0 ? `Бригада Trauma Team приедет через ${mmss(npcIn)} · ${money(state.npcPrice)}` : "Бригада на месте…")
+      : (state.called ? "Медики вызваны. Ждите помощи." : "Ждите помощи или вызовите медиков.");
+    const call = $("call");
+    call.className = "line" + (callIn > 0 ? " off" : "");
+    call.innerHTML = `<kbd>G</kbd>${state.called ? "Вызвать медиков ещё раз" : "Вызвать медиков"}` +
+      (callIn > 0 ? ` · через ${Math.ceil(callIn)} с` : "");
+    const hospital = $("hospital");
+    hospital.className = "line" + (giveUp > 0 ? " off" : "");
+    hospital.innerHTML = `<kbd>H</kbd>Очнуться в больнице · <b></b>` + (giveUp > 0 ? ` · через ${mmss(giveUp)}` : "");
+    hospital.querySelector("b").textContent = money(state.hospitalPrice);
+  }
+
+  Open77.on("med:downed", p => {
+    state = p;
+    received = Date.now();
+    $("root").classList.add("open");
+    render();
+    if (!timer) timer = setInterval(render, 250);
+  });
+  Open77.on("med:clear", () => {
+    state = null;
+    $("root").classList.remove("open");
+    if (timer) { clearInterval(timer); timer = null; }
+  });
+
+  Open77.ready();
+</script>
+</body>
+</html>

@@ -31,6 +31,11 @@ RegisterNetEvent("rp_admin:panel", function(payload)
 end)
 
 -- Вкладка «Журнал»: записи от сервера (права и фильтры проверяет сервер).
+-- Вкладка «Замороженные»: список погибших персонажей (данные и права — сервер).
+RegisterNetEvent("rp_admin:frozen", function(payload)
+    if type(payload) == "table" and isOpen then send("adm:frozen", payload) end
+end)
+
 -- Странице — пачками по 10 строк: размер сообщения WebUI ограничен, кириллица в JSON тяжёлая.
 -- Первая пачка заменяет таблицу (или дописывает, если это «Ещё»), остальные дописываются.
 RegisterNetEvent("rp_admin:journal", function(payload)
@@ -84,6 +89,10 @@ AddEventHandler("onClientResourceStart", function(name)
     page:on("ui:ready", function() pageReady = true end)
     page:on("adm:close", close)
     page:on("adm:refresh", function() TriggerServerEvent("rp_admin:panel") end)
+    page:on("adm:frozen", function() TriggerServerEvent("rp_admin:frozen") end)
+    page:on("adm:frozenRestore", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_admin:frozenRestore", math.tointeger(tonumber(p.id))) end
+    end)
     page:on("adm:journal", function(q)
         if type(q) ~= "table" then return end
         local ok, why = TriggerServerEvent("rp_admin:journal", {

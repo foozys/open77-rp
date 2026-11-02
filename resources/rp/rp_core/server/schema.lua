@@ -149,3 +149,16 @@ Migrations.add(8, "audit_characters_and_ops", {
     [[CREATE INDEX IF NOT EXISTS idx_audit_op ON rp_audit_log (op_id)]],
     [[CREATE INDEX IF NOT EXISTS idx_audit_created ON rp_audit_log (created_at)]],
 })
+
+-- Окончательная смерть (шаг 4.7): персонаж «заморожен» — данные целы, слот у игрока свободен,
+-- администрация может восстановить его в течение frozenDays (rp_core/server/frozen.lua).
+Migrations.add(9, "character_frozen", {
+    [[
+        ALTER TABLE rp_characters
+            MODIFY COLUMN status ENUM('creating', 'active', 'deleted', 'frozen') NOT NULL DEFAULT 'creating',
+            ADD COLUMN IF NOT EXISTS frozen_at     DATETIME         NULL AFTER deleted_at,
+            ADD COLUMN IF NOT EXISTS frozen_slot   TINYINT UNSIGNED NULL AFTER frozen_at,
+            ADD COLUMN IF NOT EXISTS frozen_reason VARCHAR(255)     NULL AFTER frozen_slot
+    ]],
+    [[CREATE INDEX IF NOT EXISTS idx_characters_frozen ON rp_characters (status, frozen_at)]],
+})

@@ -47,7 +47,8 @@ RpConfig = {
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
-                          "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber" } },
+                          "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber",
+                          "rp.frozen" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 
@@ -61,6 +62,11 @@ RpConfig = {
             value = true, type = "boolean",
             apply = "live", group = "Ядро", label = "Аудит в БД",
             description = "Писать значимые действия (выдача денег, баны, админ-команды) в таблицу rp_audit_log.",
+        },
+        frozenDays = {
+            value = 10, type = "integer", min = 1, max = 365,
+            apply = "live", group = "Персонажи", label = "Хранить погибших, дней",
+            description = "Сколько дней персонаж после окончательной смерти хранится замороженным: администрация может восстановить его (F3 → «Замороженные»). Потом — удалён, как обычно.",
         },
         auditRetentionDays = {
             value = 180, type = "integer", min = 0, max = 3650,

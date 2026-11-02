@@ -124,6 +124,21 @@
   .jrow .op { color: var(--cyan); cursor: pointer; margin-left: 6px; }
   .jrow .op:hover { text-decoration: underline; }
   #jMore { align-self: center; }
+
+  /* Вкладка «Замороженные» (шаг 4.7) — та же ячейка сетки */
+  #frozen { grid-column: 2; grid-row: 2; display: none; flex-direction: column; min-height: 0; padding: 12px 16px; gap: 8px; }
+  #frozen.open { display: flex; }
+  #fHead { display: flex; gap: 10px; align-items: center; }
+  #fHead .btn { padding: 5px 12px; font-size: 12px; }
+  #fStatus { flex: 1; color: var(--muted); font-size: 12px; }
+  #fStatus.err { color: var(--accent); }
+  #fList { flex: 1; overflow-y: auto; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+  .fcard { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 13px; user-select: text; }
+  .fcard b { font-size: 14px; }
+  .fcard .meta { color: var(--muted); font-size: 12px; }
+  .fcard .warn { color: var(--accent); font-size: 12px; }
+  .fcard .btn { grid-row: 1 / 4; grid-column: 2; align-self: center; }
 </style>
 </head>
 <body>
@@ -164,6 +179,13 @@
       <div id="jTx"></div>
       <div id="jTable"></div>
       <button class="btn ghost" id="jMore" style="display:none">Ещё (старше)</button>
+    </div>
+    <div id="frozen">
+      <div id="fHead">
+        <span id="fStatus">Персонажи после окончательной смерти. Хранятся, пока не истёк срок.</span>
+        <button class="btn ghost" id="fRefresh">Обновить список</button>
+      </div>
+      <div id="fList"></div>
     </div>
     <div id="players">
       <h2>В сети</h2>
@@ -340,6 +362,8 @@
     ]},
     // Не карточки, а свой вид (view): журнал действий rp_audit_log, право rp.audit.view.
     { id: "journal", label: "Журнал", perm: "rp.audit.view", view: "journal", actions: [] },
+    // Погибшие окончательно (шаг 4.7): список и восстановление, право rp.frozen.
+    { id: "frozen", label: "Замороженные", perm: "rp.frozen", view: "frozen", actions: [] },
   ];
 
   function options(source) {
@@ -370,10 +394,12 @@
       return el;
     }));
     const current = tabs.find(t => t.id === tab);
-    const journalView = !!(current && current.view === "journal");
-    $("actions").classList.toggle("hidden", journalView);
-    $("journal").classList.toggle("open", journalView);
-    if (journalView) { if (!J.loaded) journalQuery(false); return; }
+    const view = current && current.view;
+    $("actions").classList.toggle("hidden", !!view);
+    $("journal").classList.toggle("open", view === "journal");
+    $("frozen").classList.toggle("open", view === "frozen");
+    if (view === "journal") { if (!J.loaded) journalQuery(false); return; }
+    if (view === "frozen") { frozenQuery(); return; }
     $("actions").replaceChildren(...(current ? current.actions : []).map(a => {
       const el = document.createElement("div");
       el.className = "action";
@@ -599,8 +625,12 @@
     "whitelist_remove": "Whitelist: убран", "staff_set": "Роль назначена", "staff_remove": "Роль снята",
     "tune": "Настройка изменена", "character_create": "Персонаж создан", "character_delete": "Персонаж удалён",
     "character_slot": "Слот персонажа", "corporate_key_fail": "Неверный ключ корпората", "audit_view": "Просмотр журнала",
+    "character_freeze": "Персонаж заморожен (погиб)", "character_restore": "Персонаж восстановлен",
+    "rp_medical:execute_start": "Начато добивание", "rp_medical:execute_cancel": "Добивание не завершено",
+    "rp_medical:executed": "Добит — окончательная смерть",
   };
   const WARN_ACTIONS = new Set(["rp_vehicles:car_buy_failed", "corporate_key_fail", "rp_cyberware:psychosis",
+    "rp_medical:executed", "character_freeze", "character_restore",
     "rp_medical:downed", "ban", "kick"]);
 
   function jFilters() {
@@ -748,6 +778,53 @@
   }
   $("jCategory").addEventListener("change", () => journalQuery(false));
   $("jHours").addEventListener("change", () => journalQuery(false));
+
+  // -- замороженные персонажи ---------------------------------------------------------------
+  // Данные и восстановление — сервер (rp_admin → rp_core frozen_list / frozen_restore).
+  let frozenArmed = null; // id, для которого нажато «Восстановить» (второе нажатие — подтверждение)
+
+  function fStatus(text, err) { $("fStatus").textContent = text; $("fStatus").className = err ? "err" : ""; }
+  function frozenQuery() { frozenArmed = null; fStatus("Загрузка…"); Open77.emit("adm:frozen", {}); }
+
+  function frozenCard(f) {
+    const el = document.createElement("div");
+    el.className = "fcard";
+    const title = document.createElement("b");
+    title.textContent = `#${f.id} ${f.name}`;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `Аккаунт: ${f.account || f.license.slice(0, 8)}${f.online ? " [ID " + f.online + ", в сети]" : ""} · `
+      + `погиб ${f.frozenAt} · осталось дней: ${f.daysLeft} · ${f.reason}`;
+    const warn = document.createElement("div");
+    warn.className = "warn";
+    warn.textContent = f.replaces ? `При восстановлении будет удалён: ${f.replaces}` : "";
+    const btn = document.createElement("button");
+    btn.className = "btn";
+    btn.textContent = frozenArmed === f.id ? "Подтвердить" : "Восстановить";
+    btn.addEventListener("click", () => {
+      if (frozenArmed !== f.id) { frozenArmed = f.id; renderFrozen(); return; }
+      frozenArmed = null;
+      // Сразу убрать карточку: результат и свежий список пришлёт сервер.
+      frozenData = frozenData.filter(x => x.id !== f.id);
+      renderFrozen();
+      fStatus(`Восстановление #${f.id}…${f.online ? " Игрок будет отключён." : ""}`);
+      Open77.emit("adm:frozenRestore", { id: f.id });
+    });
+    el.append(title, btn, meta, warn);
+    return el;
+  }
+
+  let frozenData = [];
+  function renderFrozen() { $("fList").replaceChildren(...frozenData.map(frozenCard)); }
+
+  Open77.on("adm:frozen", p => {
+    if (!p || p.error) { fStatus(p && p.error ? p.error : "Список недоступен.", true); return; }
+    frozenData = p.list || [];
+    renderFrozen();
+    const tail = frozenData.length ? `Замороженных: ${frozenData.length}.` : "Замороженных персонажей нет.";
+    fStatus(p.message ? `${p.message} ${tail}` : tail, p.message && p.message.startsWith("Не "));
+  });
+  $("fRefresh").addEventListener("click", frozenQuery);
 
   // -- события ----------------------------------------------------------------------------
   $("submit").addEventListener("click", submit);

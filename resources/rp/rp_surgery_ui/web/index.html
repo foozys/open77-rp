@@ -252,7 +252,8 @@ function consent(p){
  const reg=region(host,CY_REGION[p.slot]||"skin");if(reg)reg.classList.add("lit");
  $("consentArt").replaceChildren(art(p.slot));$("consentArt").className="dArt "+(p.old?"filled":"empty");
  $("consentSlotName").textContent=SLOT_NAMES[p.slot]||String(p.slot||"—");
- visible("consent");$("summary").textContent="Рипер ID "+p.doctor+" предлагает операцию: "+(p.old?"снятие "+p.old+(p.new?" и установка "+p.new:""):"установка "+p.new)+".";
+ visible("consent");const oldName=p.oldLabel||p.old,newName=p.newLabel||p.new;
+ $("summary").textContent="Рипер ID "+p.doctor+" предлагает операцию: "+(p.old?"снятие «"+oldName+"»"+(p.new?" и установка «"+newName+"»":""):"установка «"+newName+"»")+".";
  $("close").disabled=false;
  // Только отображение срока: истечение проверяет сервер.
  clearInterval(consentTimer);consentTimer=null;$("consentTimer").textContent="";

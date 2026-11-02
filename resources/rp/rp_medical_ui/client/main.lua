@@ -3,6 +3,7 @@
 
 local page, pageReady = nil, false
 local isDowned = false
+local finishable = {} -- [playerId] = true — кого сервер разрешает добить (пункт ALT-меню)
 local callBlips = {} -- [patient playerId] = blip id
 
 local function send(event, payload)
@@ -59,6 +60,49 @@ RegisterNetEvent("rp_medical:clear", function()
     CreateThread(unlock)
 end)
 
+-- Окончательная смерть: отсчёт до отключения (отключает сервер).
+RegisterNetEvent("rp_medical:final", function(payload)
+    send("med:final", type(payload) == "table" and payload or {})
+end)
+
+-- ALT-меню «Добить» (шаг 4.7): пункт виден над раненым, которого сервер разрешает добить.
+RegisterNetEvent("rp_medical:finishable", function(list)
+    finishable = {}
+    for _, id in ipairs(type(list) == "table" and list or {}) do
+        local n = math.tointeger(tonumber(id))
+        if n then finishable[n] = true end
+    end
+end)
+
+local function targetOf(ctx)
+    local t = type(ctx) == "table" and ctx.target
+    return t and not t.isLocalPlayer and math.tointeger(tonumber(t.playerId)) or nil
+end
+exports("medCanExecute", function(ctx)
+    local id = targetOf(ctx)
+    return id ~= nil and finishable[id] == true and not isDowned
+end)
+exports("medExecute", function(ctx)
+    local id = targetOf(ctx)
+    if not id then return false end
+    TriggerServerEvent("rp_medical:execute", id)
+    return true
+end)
+
+local function registerMenu()
+    local entry = { id = "med_execute", label = "Добить", icon = "person", order = 5, danger = true,
+        group = "Раненый", distance = 2.5, allowSelf = false, networked = true,
+        canInteract = "medCanExecute", onSelect = "medExecute" }
+    local pending, why = Open77.exports.call("open77_contextmenu", "registerPlayers", entry)
+    if not pending then return print("[rp_medical_ui] контекстное меню: " .. tostring(why)) end
+    local token, err = pending:await()
+    if not token then print("[rp_medical_ui] контекстное меню: " .. tostring(err)) end
+end
+
+AddEventHandler("onClientResourceStart", function(name)
+    if name == "open77_contextmenu" then CreateThread(registerMenu) end
+end)
+
 -- Медику: вызов с меткой и маршрутом.
 RegisterNetEvent("rp_medical:callIncoming", function(call)
     if type(call) ~= "table" or not call.patient then return end
@@ -84,6 +128,12 @@ end)
 
 AddEventHandler("onClientResourceStart", function(name)
     if name ~= GetCurrentResourceName() then return end
+    -- Новая сессия: снять блокировки раненого, если они пережили переподключение
+    -- (окончательная смерть отключает игрока прямо из позы раненого).
+    pcall(Open77.players.resetControls)
+    pcall(Open77.input.setActionBlocked, "Movement", false)
+    CreateThread(function() contextMenu(true) end)
+    CreateThread(registerMenu)
     local created, reason = Open77.webui.create({
         entry = "web/index.html", layer = "hud",
         width = 1920, height = 1080, transparent = true, visible = true,

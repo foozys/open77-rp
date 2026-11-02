@@ -158,13 +158,39 @@ local function status(playerId)
     })
 end
 
+-- -- добивание: кого можно (шаг 4.7) -------------------------------------------------------
+
+-- Корпорат (предыстория corporate) или фракция с deathRule = "corporate" (Наёмник).
+local function finishable(playerId)
+    local character = characterOf(playerId)
+    if not character then return false end
+    if character.background == "corporate" then return true end
+    local faction = sync("rp_factions", "faction", playerId)
+    return type(faction) == "table" and faction.deathRule == "corporate"
+end
+
+-- Кого сейчас можно добить — клиентам для пункта ALT-меню «Добить» (решает всё равно сервер).
+local function pushFinishable(target)
+    local list = {}
+    for id, d in pairs(downed) do
+        if d.finishable and not d.execution then list[#list + 1] = id end
+    end
+    TriggerClientEvent("rp_medical:finishable", target or -1, list)
+end
+
 -- Ранение закончилось (подняли, больница, вышел из игры).
 local function finish(playerId, keepMark)
     local d = downed[playerId]
     if not d then return end
     downed[playerId] = nil
+    if d.finishable then pushFinishable() end
     if not keepMark then
-        db("update", "DELETE FROM rp_medical_downed WHERE character_id = ?", { d.characterId })
+        -- Без ожидания: finish вызывается из raise, а raise — из синхронных экспортов
+        -- (rp_admin rp.heal, rp_cyberware). Ожидание БД там даёт export_yielded.
+        local characterId = d.characterId
+        local queued, why = Open77.database.update("DELETE FROM rp_medical_downed WHERE character_id = ?", { characterId },
+            function(_, err) if err then log("error", "отметка ранения #%d не снята: %s", characterId, tostring(err)) end end)
+        if queued == false then log("error", "отметка ранения #%d не снята: %s", characterId, tostring(why)) end
         send(playerId, "rp_medical:clear")
     end
     -- Метки вызова у медиков больше не нужны.
@@ -204,6 +230,8 @@ local function startDowned(playerId)
     downed[playerId] = { at = Open77.time.unix(), characterId = character.id, pos = place, called = false }
     journal("downed", killer > 0 and killer or nil, playerId, { cause = life.cause, weapon = life.weapon,
         x = math.floor(place.x), y = math.floor(place.y), z = math.floor(place.z) })
+    downed[playerId].finishable = finishable(playerId)
+    if downed[playerId].finishable then pushFinishable() end
     db("update", "INSERT IGNORE INTO rp_medical_downed (character_id) VALUES (?)", { character.id })
     log("info", "игрок %d (#%d) ранен", playerId, character.id)
     status(playerId)
@@ -251,12 +279,73 @@ exports("flatline", function(playerId, on)
     return true
 end)
 
+-- -- окончательная смерть (шаг 4.7) ------------------------------------------------------
+-- Добиваемого убили (или он вышел из игры во время добивания): персонаж замораживается
+-- (rp_core freeze_character — данные целы, администрация может восстановить), погибшему —
+-- отсчёт, затем отключение с просьбой перезайти и создать нового персонажа.
+local final = {} -- [playerId] = true, идёт отсчёт
+
+local function finalDeath(playerId, online)
+    local d = downed[playerId]
+    if not d or not d.execution or final[playerId] then return end
+    final[playerId] = true
+    local life = online and Open77.players.getLifeState(playerId) or {}
+    local killer = d.execution.hit or math.tointeger(tonumber(life.killer)) or 0
+    if killer <= 0 then killer = d.execution.by end
+    local characterId, by = d.characterId, d.execution.by
+    finish(playerId)
+    journal("executed", killer, { character = characterId }, { cause = life.cause, weapon = life.weapon, by = by,
+        left = not online or nil })
+    local frozen, why = await("rp_core", "freeze_character", characterId, { reason = online and "Добит" or "Вышел из игры, когда его добивали", killer = killer })
+    if not frozen then log("error", "персонаж #%d не заморожен после добивания: %s", characterId, tostring(why)) end
+    if not online then final[playerId] = nil; return end
+    notify(playerId, "Ваш персонаж погиб. Он будет удалён.")
+    send(playerId, "rp_medical:final", { seconds = MedicalConfig.finalCountdown })
+    -- Под экраном отсчёта — поднять, сделать неуязвимым и обездвижить: игровой клиент должен
+    -- выйти из сессии живым, иначе экран смерти остаётся и после перезахода (новый персонаж
+    -- «мёртв» у себя, хотя сервер считает его живым).
+    local started = Open77.time.unix()
+    if Open77.players.isDead(playerId) then
+        local ok, why = Open77.players.revive(playerId, { health = MedicalConfig.downedHealth, graceMs = 3000 })
+        if not ok then log("warn", "погибший %d не поднят перед отключением: %s", playerId, tostring(why)) end
+        for _ = 1, 20 do
+            if not Open77.players.isDead(playerId) then break end
+            Wait(200)
+        end
+    end
+    Open77.players.setGodMode(playerId, true)
+    local frozenOk, frozenWhy = Open77.players.setFrozen(playerId, true)
+    if not frozenOk then log("debug", "погибший %d не обездвижен: %s", playerId, tostring(frozenWhy)) end
+    Wait(math.max(0, MedicalConfig.finalCountdown - (Open77.time.unix() - started)) * 1000 + 300)
+    sync("rp_core", "kick_character", characterId, "Ваш персонаж погиб. Перезайдите, чтобы создать нового персонажа.")
+    final[playerId] = nil
+end
+
 AddEventHandler("onPlayerLifeStateChanged", function(playerIdArg)
     local playerId = tonumber(playerIdArg)
     if playerId and flatline[playerId] and Open77.players.isDead(playerId) then
         flatline[playerId] = nil
         journal("flatline", nil, playerId, { cause = "psychosis" })
         TriggerEvent("rp_medical:flatlined", playerId)
+        return
+    end
+    if playerId and final[playerId] then return end
+    -- Добиваемого ударили (open77:playerDamaged ниже выставил 0 HP) — окончательная смерть.
+    -- Умер без удара (урон по времени и т.п.) — не добивание: снова раненый, добивание отменено.
+    local d = playerId and downed[playerId]
+    if d and d.execution and Open77.players.isDead(playerId) then
+        if d.execution.hit then
+            CreateThread(function() finalDeath(playerId, true) end)
+            return
+        end
+        local life = Open77.players.getLifeState(playerId) or {}
+        log("warn", "добиваемый %d умер без удара (cause=%s, weapon=%s, killer=%s) — снова раненый",
+            playerId, tostring(life.cause), tostring(life.weapon), tostring(life.killer))
+        local by = d.execution.by
+        d.execution = nil
+        notify(by, "Не получилось — попробуйте снова.")
+        pushFinishable()
+        CreateThread(function() layDown(playerId) end)
         return
     end
     if not playerId or not dbReady or not realDeath(playerId) then return end
@@ -281,6 +370,7 @@ end)
 local function callMedics(playerId)
     local d = downed[playerId]
     if not d then return notify(playerId, "Вызвать медиков можно, когда вы ранены.") end
+    if d.execution then return notify(playerId, "Сейчас нельзя.") end
     local now = Open77.time.unix()
     if d.callAt and now - d.callAt < MedicalConfig.callCooldownSeconds then
         return notify(playerId, "Вызов уже отправлен. Повторить можно через %d с.",
@@ -306,7 +396,7 @@ local function callMedics(playerId)
         CreateThread(function()
             Wait(MedicalConfig.npcArriveSeconds * 1000)
             local current = downed[playerId]
-            if not current or current.npcToken ~= token then return end
+            if not current or current.npcToken ~= token or current.execution then return end
             raise(playerId, MedicalConfig.npcHealth)
             journal("raise", nil, playerId, { by = "npc_team" })
             local paid = charge(playerId, MedicalConfig.npcPrice, "rp.medical.npc")
@@ -323,6 +413,7 @@ end
 local function goHospital(playerId)
     local d = downed[playerId]
     if not d then return notify(playerId, "Вы не ранены.") end
+    if d.execution then return notify(playerId, "Сейчас нельзя.") end
     local wait = MedicalConfig.giveUpSeconds - (Open77.time.unix() - d.at)
     if wait > 0 then return notify(playerId, "В больницу можно через %d с. Пока — ждите помощи (G — вызвать медиков).", wait) end
     local hospital = nearestHospital(d.pos)
@@ -372,7 +463,72 @@ end)
 
 RegisterNetEvent("rp_medical:call", function() local id = tonumber(source) if id then callMedics(id) end end)
 RegisterNetEvent("rp_medical:hospital", function() local id = tonumber(source) if id then goHospital(id) end end)
-RegisterNetEvent("rp_medical:request", function() local id = tonumber(source) if id then status(id) end end)
+RegisterNetEvent("rp_medical:request", function()
+    local id = tonumber(source)
+    if id then status(id); pushFinishable(id) end
+end)
+
+-- Удар по беззащитному добиваемому (любой, с уроном больше нуля) — сервер убивает его сам.
+-- Серверное событие: (victimId, attackerId, amount, attackKind, weaponTdbId, bodyPart,
+-- remainingHealth, maxHealth, lethal, downedHit) — devkit, «Damage feedback events».
+AddEventHandler("open77:playerDamaged", function(victimArg, attackerArg, amountArg, attackKind)
+    local victim = math.tointeger(tonumber(victimArg))
+    local d = victim and downed[victim]
+    if not d or not d.execution or d.execution.hit or final[victim] then return end
+    if (tonumber(amountArg) or 0) <= 0 then return end
+    local attacker = math.tointeger(tonumber(attackerArg)) or 0
+    d.execution.hit = attacker > 0 and attacker or d.execution.by
+    log("info", "добиваемый %d получил удар от %s (%s)", victim, tostring(attacker), tostring(attackKind))
+    local ok, why = Open77.players.setHealth(victim, 0)
+    if not ok then
+        log("warn", "добивание %d: не убит (%s) — окончательная смерть напрямую", victim, tostring(why))
+        CreateThread(function() finalDeath(victim, true) end)
+    end
+end)
+
+-- ALT-меню «Добить» (rp_medical_ui). Всё проверяется здесь: раненый, корпорат или Наёмник,
+-- рядом, добивающий сам не ранен и не в наручниках (rp_core can_act "execute").
+RegisterNetEvent("rp_medical:execute", function(targetArg)
+    local actor, target = tonumber(source), math.tointeger(tonumber(targetArg))
+    if not actor or not target or actor == target or not characterOf(actor) then return end
+    local d = downed[target]
+    if not d or not d.finishable or d.execution or final[target] then return notify(actor, "Этого человека сейчас не добить.") end
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", actor, "execute")
+    if not okAct or allowed ~= true then return notify(actor, "%s", text or "Сейчас нельзя.") end
+    local a, b = placeOf(actor), placeOf(target)
+    if not a or not b or a.bucket ~= b.bucket or distance(a, b) > MedicalConfig.executeDistance then
+        return notify(actor, "Подойдите ближе.")
+    end
+    local token = {}
+    d.execution = { by = actor, token = token }
+    -- Неуязвимость снята, поза (анимация) остаётся. Здоровье — полное, чтобы раненого не убило
+    -- ничто постороннее (с 1 HP он умирал сразу, без удара); убивает первый удар —
+    -- обработчик open77:playerDamaged ниже.
+    local hp = Open77.players.getHealth(target)
+    local max = hp and tonumber(hp.maxHealth) or 100
+    local ok, why = Open77.players.setHealth(target, max)
+    if not ok then log("warn", "добивание %d: здоровье не выставлено: %s", target, tostring(why)) end
+    Open77.players.setGodMode(target, false)
+    pushFinishable()
+    journal("execute_start", actor, target, nil)
+    log("info", "игрок %d добивает %d", actor, target)
+    notify(actor, "%s беззащитен. Добейте ударом — %d с.", characterName(target), MedicalConfig.executeSeconds)
+    notify(target, "%s добивает вас.", characterName(actor))
+    CreateThread(function()
+        Wait(MedicalConfig.executeSeconds * 1000)
+        local current = downed[target]
+        if not current or not current.execution or current.execution.token ~= token or final[target] then return end
+        current.execution = nil
+        Open77.players.setGodMode(target, true)
+        local hp = Open77.players.getHealth(target)
+        local max = hp and tonumber(hp.maxHealth) or 100
+        Open77.players.setHealth(target, math.max(1, math.floor(max * MedicalConfig.downedHealth)))
+        pushFinishable()
+        journal("execute_cancel", actor, target, nil)
+        notify(actor, "Вы его не добили.")
+        notify(target, "Вас не добили.")
+    end)
+end)
 RegisterCommand("medic", function(source) if source and source > 0 then callMedics(source) end end, false)
 RegisterCommand("hospital", function(source) if source and source > 0 then goHospital(source) end end, false)
 
@@ -420,6 +576,12 @@ AddEventHandler("onPlayerDisconnected", function(playerIdArg)
     local playerId = tonumber(playerIdArg)
     if not playerId then return end
     reviving[playerId], flatline[playerId] = nil, nil
+    -- Вышел, пока его добивали, — это смерть (иначе выход спасал бы от неё).
+    local d = downed[playerId]
+    if d and d.execution and not final[playerId] then
+        CreateThread(function() finalDeath(playerId, false) end)
+        return
+    end
     -- Отметка в БД остаётся: при входе — больница.
     finish(playerId, true)
 end)

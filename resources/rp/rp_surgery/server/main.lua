@@ -57,20 +57,21 @@ local function selectOperation(d,p,slot,implant)
     local ok,why=valid(d,p);if not ok then return nil,why end
     local state=stateOf(p)
     if type(state)~="table" then return nil,"Импланты пациента не загружены." end
-    local current,known=nil,false
+    local current,currentLabel,known=nil,nil,false
     for _,s in ipairs(state.slots or {}) do
-        if s.id==slot then current=s.implant;known=true;break end
+        if s.id==slot then current=s.implant;currentLabel=s.implantLabel;known=true;break end
     end
     if not known then return nil,"Неизвестный слот." end
+    local implantLabel
     if implant~=nil then
         local found=false
         for _,item in ipairs(state.options or {}) do
-            if item.slot==slot and item.id==implant then found=true;break end
+            if item.slot==slot and item.id==implant then found=true;implantLabel=item.label;break end
         end
         if not found then return nil,"Выбранного импланта нет в инвентаре пациента." end
         if implant==current then return nil,"Этот имплант уже установлен." end
     elseif not current then return nil,"Слот пуст." end
-    return {slot=slot,implant=implant,current=current}
+    return {slot=slot,implant=implant,current=current,currentLabel=currentLabel,implantLabel=implantLabel}
 end
 local function clear(d)
     local o=operations[d];operations[d]=nil
@@ -218,8 +219,10 @@ local function offer(d,p,slot,implant)
     if occupied[p] or operations[d] then return notify(d,"Пациент уже на операции.") end
     local id=tostring(Open77.time.unix())..":"..tostring(math.random(100000,999999))
     offers[p]={doctor=d,selection=selected,token=id,expires=Open77.time.unix()+60}
+    -- Названия — для текста согласия пациенту (шаг 4.5); id остаются для логики.
     TriggerClientEvent("rp_surgery:consent",p,{
-        token=id,doctor=d,slot=slot,old=selected.current,new=implant or false,seconds=60})
+        token=id,doctor=d,slot=slot,old=selected.current,new=implant or false,seconds=60,
+        oldLabel=selected.currentLabel or false,newLabel=selected.implantLabel or false})
     notify(d,"Запрос согласия отправлен пациенту.")
 end
 RegisterNetEvent("rp_surgery:offer",function(p,slot,implant)

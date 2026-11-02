@@ -17,6 +17,8 @@ dependency "rp_jobs"
 permissions {
     "players.life.read", "players.life.revive", "players.damage.apply", "players.stats.apply", "players.stats.read", "players.damage.read",
     "players.animations.control", "players.teleport", "database.access", "network.events",
+    -- players.life.freeze: погибшего (окончательная смерть) держат на месте до отключения
+    "players.life.freeze",
 }
 
 server_script "server/config.lua"

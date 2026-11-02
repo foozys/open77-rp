@@ -20,6 +20,13 @@
     color: var(--cyan); font: 600 14px "Segoe UI", Arial; }
   .off { opacity: 0.45; }
   #status { color: var(--cyan); min-height: 20px; }
+  /* Окончательная смерть (шаг 4.7): отсчёт до отключения */
+  #final { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.88);
+    flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #final.open { display: flex; }
+  #final h1 { font-size: 40px; letter-spacing: 10px; margin-bottom: 14px; }
+  #final .line { font-size: 18px; }
+  #finalCount { font: 700 120px/1 "Segoe UI", Arial; color: var(--accent); margin-top: 24px; }
 </style>
 </head>
 <body>
@@ -30,6 +37,11 @@
     <div class="line" id="call"></div>
     <div class="line" id="hospital"></div>
   </div>
+</div>
+<div id="final">
+  <h1>Персонаж погиб</h1>
+  <div class="line">Этот персонаж будет удалён. Перезайдите, чтобы создать нового.</div>
+  <div id="finalCount"></div>
 </div>
 <script>
   const $ = id => document.getElementById(id);
@@ -69,6 +81,19 @@
     state = null;
     $("root").classList.remove("open");
     if (timer) { clearInterval(timer); timer = null; }
+  });
+
+  // Только отображение: отключает сервер.
+  Open77.on("med:final", p => {
+    $("root").classList.remove("open");
+    $("final").classList.add("open");
+    let n = Math.max(1, Number(p && p.seconds) || 5);
+    $("finalCount").textContent = n;
+    const tick = setInterval(() => {
+      n -= 1;
+      $("finalCount").textContent = Math.max(1, n);
+      if (n <= 1) clearInterval(tick);
+    }, 1000);
   });
 
   Open77.ready();

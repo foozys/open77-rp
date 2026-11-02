@@ -96,7 +96,7 @@ local SELECT_COLUMNS = [[
 
 local function loadList(license)
     local rows, err = Db.query("SELECT " .. SELECT_COLUMNS ..
-        " FROM rp_characters WHERE license = ? AND status <> 'deleted' ORDER BY slot", { license })
+        " FROM rp_characters WHERE license = ? AND status IN ('creating', 'active') ORDER BY slot", { license })
     if not rows then return nil, err end
     for _, row in ipairs(rows) do normalize(row) end
     return rows

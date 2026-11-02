@@ -6,7 +6,7 @@ dependency "open77_transactions >=0.1.0"
 dependency "rp_core"
 -- импланты — предметы (экспорты take, give, counts)
 dependency "rp_inventory"
--- рипердоки — работа ripperdoc (cyber.install)
+-- работа персонажа — строка в досье сканера (экспорт rp_jobs:job)
 dependency "rp_jobs"
 dependency "rp_factions"
 dependency "rp_police"
