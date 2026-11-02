@@ -74,7 +74,7 @@ end)
 
 -- Категории фильтра панели: шаблоны LIKE по действию.
 local CATEGORIES = {
-    money = { "rp_money:%", "rp_medical:charge", "rp_shops:buy", "rp_vehicles:car_buy%" },
+    money = { "rp_money:%", "rp_medical:charge", "rp_shops:buy", "rp_vehicles:car_buy%", "rp_inventory:chip_%" },
     items = { "rp_inventory:%", "rp_shops:buy", "rp_vehicles:car_buy%" },
     admin = { "rp_admin:%", "ban", "unban", "kick", "whitelist_%", "staff_%", "tune", "audit_view",
               "rp_money:money_%", "rp_inventory:item_%", "rp_vehicles:car_give", "rp_vehicles:car_tow",

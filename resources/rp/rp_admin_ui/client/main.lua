@@ -31,8 +31,24 @@ RegisterNetEvent("rp_admin:panel", function(payload)
 end)
 
 -- Вкладка «Журнал»: записи от сервера (права и фильтры проверяет сервер).
+-- Странице — пачками по 10 строк: размер сообщения WebUI ограничен, кириллица в JSON тяжёлая.
+-- Первая пачка заменяет таблицу (или дописывает, если это «Ещё»), остальные дописываются.
 RegisterNetEvent("rp_admin:journal", function(payload)
-    if type(payload) == "table" and isOpen then send("adm:journal", payload) end
+    if type(payload) ~= "table" or not isOpen then return end
+    if payload.error or type(payload.rows) ~= "table" or #payload.rows <= 10 then
+        if not page:send("adm:journal", payload) then print("[rp_admin_ui] журнал не передан странице") end
+        return
+    end
+    local rows = payload.rows
+    for first = 1, #rows, 10 do
+        local chunk = {}
+        for i = first, math.min(first + 9, #rows) do chunk[#chunk + 1] = rows[i] end
+        local part = { rows = chunk, more = payload.more, append = first > 1 or payload.append == true,
+                       transaction = first == 1 and payload.transaction or nil }
+        if not page:send("adm:journal", part) then
+            print("[rp_admin_ui] журнал: пачка " .. first .. " не передана странице")
+        end
+    end
 end)
 
 -- Ответы команд приходят в чат; пока панель открыта, показываем их и в ней.

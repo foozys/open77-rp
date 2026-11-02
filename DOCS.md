@@ -458,9 +458,9 @@ rp.society mechanic 20000   -- пополнить кассу автомасте�
 - Красным выделены сбои и тревожные записи (`car_buy_failed`, ранение, психоз, бан, кик, неверный ключ корпората).
 
 **Что пишется** (действие = `ресурс:действие`):
-- **Деньги** (`rp_money`): `pay`, `payday`, `start_money`, `money_bank`, `money_society`, эскроу заказов `contract_reserve` / `contract_release` / `contract_refund`; плата за медпомощь `rp_medical:charge`; покупки — см. предметы.
+- **Деньги** (`rp_money`): `pay`, `payday`, `start_money`, денежная щепка `rp_inventory:chip_write` / `chip_read`, `money_bank`, `money_society`, эскроу заказов `contract_reserve` / `contract_release` / `contract_refund`; плата за медпомощь `rp_medical:charge`; покупки — см. предметы.
 - **Предметы** (`rp_inventory`): `give` (игроку), `drop`, `use`, `chip_read`, `loot_take` / `loot_return` (обыск), `item_give` / `item_take` (администрация), выдача и изъятие другими ресурсами: `instance` / `instances` (покупки уникальных вещей и одежды, щепки заказов — с ценой и ресурсом в `by`), `take`, `issue`, `pile`; `rp_shops:buy`; `rp_vehicles:car_buy` и `car_buy_failed` (деньги списаны, машина не записана — вернуть по `opId`).
-- **Администрация**: баны, кики, whitelist, роли, tunables (как раньше); `rp_admin`: `tp`, `bring`, `tpc`, `tpm`, `back`, `spectate`, `freeze`, `heal` / `revive`, `warn` / `unwarn`, `announce`.
+- **Администрация**: баны, кики, whitelist, роли, tunables (как раньше); `rp_admin`: `tp`, `bring`, `tpc`, `tpm`, `back`, `spectate`, `freeze`, `heal` / `revive`, `warn` / `unwarn`, `announce`, жалобы `report` и ответы `pm`.
 - **Ранения и смерти** (`rp_medical`): `downed` (кто ранил — `killer` платформы, причина, оружие, место), `revive` (медик), `raise` (NPC-бригада, больница, вход после ранения), `hospitalize`, `flatline`.
 - **Операции Риперов** (`rp_surgery`): `consent`, `remove`, `remove_fail`, `install`, `install_fail`; в `rp_cyberware` — `implant_install` / `implant_remove` (и в клинике, с `opId` оплаты).
 - **Заказы Фиксеров** (`rp_contracts`): `create`, `claim`, `assign`, `complete`.

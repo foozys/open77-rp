@@ -1000,6 +1000,9 @@ RegisterCommand("chip", function(source, args)
     local state, problem = ensure(playerId)
     if not state then return notify(playerId, problem) end
     if state.busy then return end
+    -- Деньги со счёта: раненым и в наручниках нельзя (rp_core can_act, шаг 3.3; аудит команд К-1).
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
+    if not okAct or allowed ~= true then return notify(playerId, text or "Сейчас нельзя.") end
     if not Store.hasOs(playerId) then
         return notify(playerId, "Записать щепку нечем: нужна нейро-ОС (кибердека или гражданская ОС).")
     end
@@ -1018,6 +1021,7 @@ RegisterCommand("chip", function(source, args)
     if not receipt then return notify(playerId, "Не получилось: %s.", explain(why or "busy")) end
     refresh(playerId)
     log("info", "щепка на %d записана игроком %d (%s)", amount, playerId, opId)
+    journal("chip_write", playerId, nil, { amount = amount }, opId)
     notify(playerId, "Щепка на %d €$ записана и лежит в инвентаре.", amount)
 end, false)
 

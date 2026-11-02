@@ -257,6 +257,12 @@ RegisterCommand("acceptjob", function(source)
     if not offer or offer.expires < Open77.time.unix() then return notify(playerId, "Предложений работы нет.") end
     local member = members[playerId]
     if member.job then return notify(playerId, "Сначала уволитесь с текущей работы (/quitjob).") end
+    -- Предложивший мог за это время уйти или потерять ранг (аудит команд К-2).
+    local from = members[offer.from]
+    local fromRank = from and from.job == offer.job and rankOf(from.job, from.grade)
+    if not fromRank or not fromRank.all["job.manage"] or from.grade <= offer.grade then
+        return notify(playerId, "Предложение больше не действует.")
+    end
     local ok, err = setJob(member.characterId, offer.job, offer.grade, actorOf(offer.from))
     if not ok then
         log("error", "найм #%d: %s", member.characterId, err)

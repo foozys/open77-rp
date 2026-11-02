@@ -452,6 +452,7 @@ RegisterCommand("report", function(source, args)
     end
     lastReport[playerId] = now
     log("info", "report %d (%s): %s", playerId, actorOf(playerId), text)
+    journal("report", playerId, nil, { text = text:sub(1, 250) })
     local staff = staffOnline()
     for _, adminId in ipairs(staff) do
         notify(adminId, "Жалоба от %s: %s (ответить — rp.pm %d <текст>)", label(playerId), text, playerId)
@@ -468,6 +469,7 @@ RegisterCommand("rp.pm", function(source, args)
     if not target then return end
     if text == "" then return notify(source, "Использование: rp.pm <ID> <текст>") end
     Open77.chat.send(target, { type = "system", author = "АДМИНИСТРАЦИЯ", text = text, color = { 255, 94, 108 } })
+    journal("pm", source, target, { text = text:sub(1, 250) })
     notify(source, "Отправлено %s.", label(target))
     log("info", "pm %s -> %d: %s", actorOf(source), target, text)
 end, false)
@@ -562,8 +564,10 @@ RegisterNetEvent("rp_admin:journal", function(query)
         if not okCall then result, why = nil, tostring(result) end
         local payload = type(result) == "table" and result or { error = tostring(why or "Журнал недоступен.") }
         payload.append = query.before ~= nil and result ~= nil
-        local ok, sendWhy = TriggerClientEvent("rp_admin:journal", playerId, payload)
-        if not ok then log("warn", "журнал для %d не отправлен: %s", playerId, tostring(sendWhy)) end
+        -- Кириллица в JSON бывает по 6 байт на букву: 50 строк не всегда влезают в 48 КиБ
+        -- обычного события. Частями (до 4 МиБ), клиент получает то же событие.
+        local id, sendWhy = TriggerLatentClientEvent("rp_admin:journal", playerId, 512 * 1024, payload)
+        if not id then log("warn", "журнал для %d не отправлен: %s", playerId, tostring(sendWhy)) end
     end)
 end)
 
