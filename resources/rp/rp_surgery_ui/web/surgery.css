@@ -1,0 +1,204 @@
+/* RIPPER//77 surgical terminal, 2026-11-01.
+   Visual language of the approved implants tab (rp_inventory_ui), adapted for
+   the ripper: phases rail, slot groups, anatomy art, operation order panel.
+   Previous theme: design-backups/rp-surgery-ui-20261101-before-implants-style/. */
+* { box-sizing: border-box; }
+:root {
+  --red: #ff625c; --accent: #62ecf2; --gold: #f5cd45; --muted: #9aafb7;
+  --text: #e9f1f2; --line: #285056; --line2: #31595f;
+  --tile: clamp(84px, 11.6vh, 128px);
+}
+html, body { margin: 0; height: 100%; }
+body { background: transparent; color: var(--text); font: 14px/1.4 "Segoe UI", Arial, sans-serif; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+#screen { display: none; position: fixed; inset: 0; background: rgba(2, 5, 8, .45); }
+#screen.open { display: block; }
+.panel {
+  position: absolute; inset: 12px; display: flex; flex-direction: column;
+  padding: 92px 34px 18px 128px;
+  border: 1px solid var(--line); border-top: 3px solid var(--red);
+  background: radial-gradient(ellipse 32% 85% at 46% 45%, #53192380, transparent 90%),
+    linear-gradient(115deg, #100d13f7, #070d12f7 76%);
+}
+
+/* Phases rail: same geometry as the inventory tabs. */
+.rail {
+  position: absolute; left: 20px; top: 22px; bottom: 22px; width: 72px; padding-right: 17px;
+  display: flex; flex-direction: column; gap: 12px; border-right: 1px solid var(--line);
+}
+.rail .phase {
+  writing-mode: vertical-rl; transform: rotate(180deg); width: 48px; min-height: 154px;
+  padding: 15px 10px; border: 1px solid transparent; text-align: center;
+  font-size: 13px; letter-spacing: 3px; color: #6d8087; user-select: none;
+}
+.rail .phase.passed { color: #c9757a; }
+.rail .phase.current { border-color: #31848e; background: #12333b66; color: var(--accent); }
+
+.head { position: absolute; left: 128px; right: 34px; top: 20px; display: flex; gap: 30px; justify-content: space-between; }
+.head h1 { margin: 0; font: 700 32px/1.15 "Segoe UI", Arial, sans-serif; letter-spacing: 4px; color: var(--red); text-transform: uppercase; }
+#help { margin-top: 6px; color: var(--muted); font-size: 13px; max-width: 1100px; }
+.sig { text-align: right; font: 12px/1.6 Consolas, monospace; letter-spacing: 4px; color: #6fbbc4; white-space: nowrap; }
+.sig b { display: block; color: var(--gold); letter-spacing: 2px; font-weight: 600; }
+.sig span { display: block; color: #8aa0a7; letter-spacing: 2px; }
+
+.view { display: none; flex: 1; min-height: 0; }
+.view.show { display: flex; }
+
+/* ---------- 01: slots ---------- */
+.cyMain {
+  flex: 1; min-height: 0; position: relative; display: grid; gap: 30px;
+  grid-template-columns: minmax(230px, 1fr) minmax(280px, 1.25fr) minmax(230px, 1fr) clamp(330px, 20vw, 390px);
+}
+.cyConnectors { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.cyConnectors svg { display: block; width: 100%; height: 100%; }
+.cyConnectors path { fill: none; stroke: #b64d53; stroke-width: 1; opacity: .6; }
+.cyConnectors path.on { stroke: var(--accent); opacity: .9; }
+.cyCol {
+  position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-around;
+  gap: 14px; min-height: 0; padding: 14px 0; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin; scrollbar-color: #763039 transparent;
+}
+.cyCol.right { align-items: flex-start; }
+.cyHead { margin: 0 0 10px; font: 600 17px/1.2 "Arial Narrow", "Segoe UI", sans-serif; letter-spacing: 1.7px; color: var(--red); text-transform: uppercase; }
+.cyTiles { display: flex; gap: 10px; flex-wrap: wrap; }
+.cyTile {
+  position: relative; width: var(--tile); height: var(--tile); padding: 0; overflow: hidden; text-align: left;
+  border: 1px solid #ad484d; background: linear-gradient(135deg, #36131d80, #200e1650);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%);
+}
+.cyTile.filled { border: 1px solid #4b8087; border-left: 5px solid var(--gold); background: repeating-linear-gradient(135deg, transparent 0 5px, #71a1a808 5px 6px), #0b151a; }
+.cyTile.filled::before { content: ""; position: absolute; inset: 43% 0 0; z-index: 2; background: linear-gradient(transparent, #060c11e8 65%); pointer-events: none; }
+.cyTile:hover { border-color: #e0797d; }
+.cyTile.filled:hover { border-color: #7fc4cb; border-left-color: var(--gold); }
+.cyTile.sel, .cyTile:focus-visible { outline: none; border-color: var(--accent) !important; background-color: #18333b; box-shadow: inset 0 0 0 1px var(--accent), inset 0 0 18px #62ecf22a; }
+.implantArt { position: absolute; background-image: url("assets/implants/icons-v1.png"); background-size: 400% 300%; background-repeat: no-repeat; pointer-events: none; }
+.cyTile .implantArt { inset: 2px 2px 30px; }
+.cyTile.empty .implantArt { opacity: .14; filter: grayscale(1); }
+.fallbackArt { position: absolute; inset: 0 0 30px; display: flex; align-items: center; justify-content: center; font: 600 22px Consolas, monospace; color: #6fbbc4; }
+.cyTile .tPlus { position: absolute; inset: 0 0 18px; z-index: 3; display: flex; align-items: center; justify-content: center; font: 300 30px/1 "Segoe UI", sans-serif; color: #e35b61; }
+.cyTile .tName { position: absolute; left: 8px; right: 5px; bottom: 24px; z-index: 3; max-height: 34px; overflow: hidden; font-size: 12px; line-height: 1.15; font-weight: 600; color: #edf3f4; text-shadow: 0 1px 4px #000; }
+.cyTile .tSlot { position: absolute; left: 9px; right: 4px; bottom: 8px; z-index: 3; font-size: 11px; color: #b9a5aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cyTile .tAvail { position: absolute; right: 6px; top: 6px; z-index: 3; padding: 0 5px; font: 600 11px/16px Consolas, monospace; color: var(--accent); border: 1px solid #31848e; background: #071418d9; }
+
+.cyBodyBox { position: relative; min-height: 0; z-index: 0; }
+.bodySvg { display: block; width: 100%; height: 100%; pointer-events: none; }
+.bodySvg .region { opacity: 0; transition: opacity .16s; }
+.bodySvg .region path, .bodySvg .region ellipse { fill: #62ecf225; stroke: #9bf7fa; stroke-width: 3; }
+.bodySvg .region.has { opacity: 0; } /* The region polygons are coarse: only hover/selection is shown. */
+.bodySvg .region.lit { opacity: 1; }
+
+/* Operation order panel (#options). */
+.dossier {
+  position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 0;
+  border: 1px solid var(--line2); background: linear-gradient(180deg, #0b141acc, #0a0f14f0);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+}
+.dHead { display: flex; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line2); font: 12px Consolas, monospace; letter-spacing: 3px; color: #6fbbc4; }
+.dHead b { color: var(--red); letter-spacing: 2px; font-weight: 600; }
+.dSel { display: grid; grid-template-columns: 116px 1fr; gap: 16px; padding: 18px; border-bottom: 1px solid #1f3a40; }
+.dArt { position: relative; width: 116px; height: 116px; border: 1px solid #4b8087; background: #0b151a; }
+.dArt.filled { border-left: 5px solid var(--gold); }
+.dArt.none { border-style: dashed; border-color: #31595f; background: none; }
+.dArt .implantArt { inset: 4px; }
+.dArt.empty .implantArt { opacity: .3; filter: grayscale(1); }
+.dKey { font: 11px Consolas, monospace; letter-spacing: 2px; color: #6f8a91; text-transform: uppercase; }
+#slotName { margin: 3px 0 12px; font: 600 22px/1.15 "Arial Narrow", "Segoe UI", sans-serif; letter-spacing: 1px; color: var(--red); text-transform: uppercase; overflow-wrap: anywhere; }
+#slotCurrent { font-size: 15px; font-weight: 600; color: #edf3f4; overflow-wrap: anywhere; }
+#slotCurrent.free { font-weight: 400; color: #c78a8e; }
+#choices { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; scrollbar-width: thin; scrollbar-color: #31595f transparent; }
+.dCap { margin: 2px 0; font: 11px Consolas, monospace; letter-spacing: 2px; color: #6f8a91; text-transform: uppercase; }
+.dCap:not(:first-child) { margin-top: 12px; }
+.dNote { color: var(--muted); font-size: 13px; line-height: 1.55; }
+.dNote b { color: var(--text); }
+.act {
+  display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 12px;
+  width: 100%; padding: 8px 12px 8px 8px; text-align: left;
+  border: 1px solid var(--line2); background: #0d1a20;
+}
+.act .implantArt { position: relative; display: block; width: 52px; height: 52px; }
+.act .aText { min-width: 0; font-size: 14px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.act .aText small { display: block; margin-bottom: 3px; font: 400 11px Consolas, monospace; letter-spacing: 1.5px; color: var(--accent); }
+.act .aGo { font: 12px Consolas, monospace; color: var(--accent); white-space: nowrap; }
+.act.remove { border-color: #7a3a40; background: #1d0f14; }
+.act.remove .aText small, .act.remove .aGo { color: #ff8a86; }
+.act:hover, .act:focus-visible { border-color: var(--accent); box-shadow: inset 0 0 14px #62ecf21f; outline: none; }
+.act.remove:hover, .act.remove:focus-visible { border-color: #ff8a86; box-shadow: inset 0 0 14px #ff625c22; }
+#backSlots { margin: 0 18px 12px; padding: 7px 10px; border: 1px solid var(--line2); background: transparent; color: var(--muted); font-size: 12px; }
+#backSlots:hover { color: var(--text); border-color: #4b8087; }
+#backSlots[hidden] { display: none; }
+.risk { margin: 0 18px 16px; padding: 11px 14px; border-left: 3px solid var(--red); background: #2a0f1566; font-size: 12px; line-height: 1.55; color: #d8b9bb; }
+.risk b { display: block; margin-bottom: 3px; font: 600 11px Consolas, monospace; letter-spacing: 2px; color: #ff8a86; }
+
+/* ---------- 02: consent ---------- */
+#consent { gap: 40px; justify-content: center; }
+.consentBody { flex: 0 1 520px; min-width: 260px; min-height: 0; position: relative; }
+.consentCard {
+  flex: 0 1 640px; align-self: center; display: flex; flex-direction: column; gap: 18px; padding: 26px 30px;
+  border: 1px solid var(--line2); border-top: 3px solid var(--red); background: linear-gradient(180deg, #0b141ae0, #0a0f14f5);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+}
+.consentPre { font: 12px Consolas, monospace; letter-spacing: 3px; color: #6fbbc4; }
+.consentHeading { font: 700 26px/1.2 "Segoe UI", Arial, sans-serif; letter-spacing: 3px; color: var(--red); }
+.consentSlot { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: center; }
+.consentSlot .dArt { width: 96px; height: 96px; }
+#consentSlotName { font: 600 20px/1.2 "Arial Narrow", "Segoe UI", sans-serif; letter-spacing: 1px; color: var(--text); text-transform: uppercase; }
+#summary { padding: 16px 18px; border: 1px solid #45828b; background: #0d1a20; font-size: 17px; line-height: 1.7; overflow-wrap: anywhere; }
+.consentCaution { display: flex; gap: 12px; padding: 12px 14px; border-left: 3px solid var(--red); background: #2a0f1566; font-size: 13px; line-height: 1.55; color: #e2c3c5; }
+.consentCaution b { font: 700 18px/1.2 Consolas, monospace; color: var(--red); }
+#consentTimer { font: 12px Consolas, monospace; letter-spacing: 2px; color: var(--gold); }
+.consentActions { display: flex; gap: 12px; justify-content: flex-end; }
+.consentActions button { min-width: 200px; padding: 13px 18px; letter-spacing: 2px; font-weight: 600; }
+#deny { border: 1px solid #7a3a40; background: #1d0f14; color: #ffb3b0; }
+#deny:hover { border-color: #ff8a86; }
+#accept { border: 1px solid #31848e; background: #12333b; color: var(--accent); }
+#accept:hover { border-color: var(--accent); box-shadow: inset 0 0 16px #62ecf22a; }
+
+/* ---------- 03: operation mini-games (logic unchanged) ---------- */
+#game { flex-direction: column; gap: 10px; }
+.gameTopline { display: flex; justify-content: space-between; font: 12px Consolas, monospace; letter-spacing: 3px; color: #6fbbc4; }
+#stageNotice { color: var(--gold); letter-spacing: 2px; }
+#board {
+  position: relative; flex: 1; min-height: 300px; border: 1px solid var(--line2);
+  background: radial-gradient(ellipse 50% 70% at 50% 50%, #3a141d55, transparent),
+    repeating-linear-gradient(0deg, #0b131899 0 23px, #16262d 24px 25px), #0a1015;
+}
+#links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.col { position: absolute; top: 9px; bottom: 9px; z-index: 2; display: flex; flex-direction: column; justify-content: space-around; }
+.col.left { left: 14px; } .col.right { right: 14px; }
+#game:has(#links) #left:empty, #game:has(#links) #right:empty { display: none; }
+.node { width: 128px; padding: 10px; border: 1px solid var(--line2); background: #0d1a20; font-size: 13px; }
+.node:hover { border-color: var(--accent); }
+.node.selected { border-color: var(--gold); background: #3a3214; color: #ffe7a0; }
+.node.done { border-color: #83ffb0; color: #83ffb0; }
+#stats { display: flex; justify-content: space-between; font-size: 14px; color: #c9d6d9; }
+#time { color: var(--gold); font-weight: 600; }
+
+/* ---------- footer ---------- */
+.foot { flex: 0 0 auto; display: flex; align-items: center; gap: 18px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #28505666; color: var(--muted); font-size: 12px; }
+.foot b { color: var(--text); }
+#message { flex: 1; text-align: center; color: #ff9292; font-size: 14px; font-weight: 600; min-height: 20px; }
+#message.ok { color: #83ffb0; }
+#close { padding: 8px 16px; border: 1px solid #31848e; background: transparent; color: var(--accent); letter-spacing: 2px; font-size: 12px; }
+#close:hover:not(:disabled) { background: #12333b; }
+
+@media (max-width: 1550px), (max-height: 860px) {
+  .panel { padding: 78px 22px 14px 106px; }
+  .rail { left: 14px; width: 64px; }
+  .rail .phase { width: 44px; min-height: 130px; font-size: 12px; letter-spacing: 2px; }
+  .head { left: 106px; right: 22px; top: 16px; }
+  .head h1 { font-size: 26px; }
+  #help { font-size: 12px; }
+  .cyMain { gap: 18px; grid-template-columns: minmax(190px, 1fr) minmax(220px, 1.2fr) minmax(190px, 1fr) clamp(290px, 22vw, 340px); }
+  .cyHead { font-size: 14px; letter-spacing: 1px; margin-bottom: 7px; }
+  .cyTiles { gap: 7px; }
+  .cyTile .tName { font-size: 11px; bottom: 21px; }
+  .cyTile .tSlot { font-size: 10px; bottom: 6px; }
+  .dSel { grid-template-columns: 92px 1fr; padding: 14px; }
+  .dArt { width: 92px; height: 92px; }
+  #choices { padding: 12px 14px; }
+  .risk { margin: 0 14px 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .bodySvg .region { transition: none; } }
