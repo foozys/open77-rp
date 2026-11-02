@@ -1,0 +1,771 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Телефон</title>
+<link rel="stylesheet" href="phone.css"></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="i-phone" viewBox="0 0 22 34"><rect x="3" y="7" width="13" height="24" rx="1.5"/><path d="M6 14h7M6 18h7M6 22h7M14 4c2 0 4 2 4 4M14 1c4 0 7 3 7 7"/></symbol>
+ <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14"/><path d="M3 6l9 7 9-7"/></symbol>
+ <symbol id="i-call" viewBox="0 0 24 24"><path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 5a2 2 0 0 1 2-2z"/></symbol>
+ <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></symbol>
+ <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+ <symbol id="i-person" viewBox="0 0 120 150"><circle cx="60" cy="40" r="34"/><path d="M8 146c4-42 26-62 52-62s48 20 52 62"/></symbol>
+</svg>
+
+<!-- HUD: уведомление о сообщении -->
+<div id="hudNotif" hidden>
+ <div class="holo small" id="notifHolo"></div>
+ <div class="nBody">
+  <div class="service" id="notifService">СООБЩЕНИЕ</div>
+  <div class="nFrom"><svg class="icon"><use href="#i-mail"/></svg><span id="notifFrom"></span></div>
+  <div class="nText" id="notifText"></div>
+  <div class="hint"><span class="key">O</span><span>Прочитать сообщение</span></div>
+ </div>
+</div>
+
+<!-- HUD: звонок -->
+<div id="hudCall" hidden>
+ <div class="cHead">
+  <div class="service" id="callStatus"></div>
+  <svg class="icon"><use href="#i-phone"/></svg>
+  <div class="cName" id="callName"></div>
+ </div>
+ <div class="holo" id="callHolo"></div>
+ <div class="cHints" id="callHints"></div>
+</div>
+
+<!-- Панель телефона -->
+<div id="panel" hidden>
+ <div class="side"><svg class="icon"><use href="#i-phone"/></svg><div class="holo small" id="ownHolo"></div></div>
+ <div class="phone" role="dialog" aria-label="Телефон">
+  <div class="tabs" id="tabs"></div>
+  <div class="view" id="view"></div>
+  <div class="foot" id="foot"></div>
+ </div>
+</div>
+<div id="toast" class="fade" aria-live="polite"></div>
+<div id="capturing" hidden>СНИМОК…</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const icon = name => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("class", "icon");
+  const u = document.createElementNS("http://www.w3.org/2000/svg", "use"); u.setAttribute("href", "#i-" + name); s.append(u); return s; };
+const pad = n => String(n).padStart(2, "0");
+function clock(at) {
+  if (!at) return "";
+  const d = new Date(at * 1000), today = new Date();
+  return d.toDateString() === today.toDateString() ? pad(d.getHours()) + ":" + pad(d.getMinutes()) : pad(d.getDate()) + "." + pad(d.getMonth() + 1);
+}
+const MAX_TEXT = 500, AVATAR_MAX = 15000, ANIM_MAX = 290000;
+
+// photo — фото (вызов, свой телефон), virtual — виртуальный аватар (только в разговоре).
+let S = { number: "", contacts: [], conversations: [], photo: { mode: "none" }, virtual: { mode: "none" } };
+let tab = "messages", thread = null, sel = 0, hideRead = false, panelOpen = false;
+let call = null, talkTarget = 0, talkLevel = 0, callStartedAt = 0;
+// Черновики двух разделов профиля: фото и виртуальный аватар (mode animated | video).
+let profSec = "photo", photoDraft = { image: "" };
+let draft = { mode: "animated", image: "", meta: null }, captureFor = null, rawShot = null, rawFrames = null,
+  flip = false, angle = 35, idleAnim = "idle";
+// HTTP-путь сервера (если включён): адрес, токен, маршруты кадров и загрузки.
+let httpInfo = null;
+const httpUrl = (route, ...rest) => httpInfo.base + route + "/" + rest.join("/");
+async function fetchText(url, init) { const r = await fetch(url, init); if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); }
+
+// ---------- аватары: части с сервера и кэш ----------
+// Сервер присылает картинку частями (строка сетевого события — до 16 КиБ); key = номер:ревизия.
+const avatarCache = {}, avatarParts = {};
+function avatarImage(a) { return a && (a.image || (a.key && avatarCache[a.key])) || ""; }
+// Аватар с адресом (HTTP-путь) окно скачивает само; потом перерисовывает, где он нужен.
+const avatarFetching = {};
+function requestAvatar(a) {
+  if (!a || !a.url || !a.key || avatarCache[a.key] || avatarFetching[a.key]) return;
+  avatarFetching[a.key] = true;
+  fetchText(a.url).then(text => { avatarCache[a.key] = text; avatarReady(a.key); })
+    .catch(() => {}).finally(() => { delete avatarFetching[a.key]; });
+}
+
+// ---------- голограмма ----------
+// Виртуальный аватар — спрайт cols × rows: играют первые meta.idle кадров (поза).
+const animated = new Map();   // face → { meta, layers, top, frame, next, dir }
+// note — пометка поверх голограммы (например, «загрузка аватара…»).
+function holo(box, avatar, small, note) {
+  for (const f of box.querySelectorAll(".face")) animated.delete(f);
+  box.replaceChildren();
+  if (note) box.append(el("div", "holoNote", note));
+  const a = avatar || { mode: "none" };
+  const image = avatarImage(a);
+  if (!image && a.mode !== "none") requestAvatar(a);
+  if (a.mode === "none" || !image) {
+    const p = el("div", "person"); const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("viewBox", "0 0 120 150"); const u = document.createElementNS("http://www.w3.org/2000/svg", "use"); u.setAttribute("href", "#i-person"); s.append(u);
+    p.append(s, el("span", null, a.mode !== "none" && a.key ? "[загрузка…]" : "[аватар контакта]")); box.append(p); return;
+  }
+  if (a.mode === "video") {
+    // Видео (если браузер его показывает): зацикленный ролик позы; у старых записей
+    // «молчание|речь» берётся только первый ролик.
+    const v = document.createElement("video"); v.className = "face sprite vid"; v.muted = true; v.loop = true;
+    v.autoplay = true; v.playsInline = true; v.src = image.split("|")[0]; v.play().catch(() => {});
+    box.append(v);
+    return;
+  }
+  const url = "url(\"" + image.replace(/"/g, "") + "\")";
+  const m = a.mode === "animated" && a.meta;
+  if (!m) { const f = el("div", "face"); f.style.backgroundImage = url; box.append(f); return; }
+  // Виртуальный аватар: два слоя одного спрайта, следующий кадр проявляется поверх
+  // текущего (перекрёстное затухание) — смена кадров без рывков.
+  const layers = [el("div", "face sprite"), el("div", "face sprite")];
+  for (const f of layers) {
+    f.style.backgroundImage = url;
+    f.style.backgroundSize = (m.cols * 100) + "% " + (m.rows * 100) + "%";
+    showFrame(f, m, 0);
+  }
+  layers[1].style.opacity = "0";
+  box.append(...layers);
+  if (!small) animated.set(layers[0], { meta: m, layers, top: 0, frame: 0, next: 0, dir: 1 });
+}
+function showFrame(f, m, i) {
+  const col = i % m.cols, row = Math.floor(i / m.cols);
+  f.style.backgroundPosition = (m.cols > 1 ? col / (m.cols - 1) * 100 : 0) + "% " + (m.rows > 1 ? row / (m.rows - 1) * 100 : 0) + "%";
+}
+// Шаг «туда-обратно» внутри диапазона [first, first + count): без прыжка с последнего кадра на первый.
+function pingPong(st, first, count) {
+  if (count <= 1) return first;
+  if (st.frame < first || st.frame >= first + count) { st.dir = 1; return first; }
+  let n = st.frame + st.dir;
+  if (n >= first + count || n < first) { st.dir = -st.dir; n = st.frame + st.dir; }
+  return n;
+}
+// Виртуальный аватар: кадры позы туда-обратно — дышит, чуть двигается, моргает.
+// Речи и переключения нет; у старых записей с кадрами речи играет только часть молчания.
+function stepAnimated(now) {
+  for (const [key, st] of animated) {
+    if (!key.isConnected) { animated.delete(key); continue; }
+    if (now < st.next) continue;
+    const m = st.meta, prev = st.frame;
+    st.frame = pingPong(st, 0, m.idle);
+    // Плотная запись (60 кадров через 50 мс; прежняя — 30 через 100 мс) — мгновенная смена,
+    // плавность даёт частота. Старый спрайт 4 × 4 (редкие кадры) — с затуханием.
+    const step = m.idle >= 48 ? 50 : m.idle + m.talk > 16 ? 100 : 200;
+    if (step < 200) { st.next = now + step; showFrame(st.layers[st.top], m, st.frame); continue; }
+    const atEnd = st.frame === prev || st.frame === 0 || st.frame === m.idle - 1;
+    st.next = now + step + (atEnd ? 160 : 0);           // мягкая остановка на краях
+    const fade = Math.round(step * 0.9);
+    // Нижний (текущий) кадр остаётся видимым, новый проявляется поверх — без провала яркости.
+    const back = st.layers[st.top], front = st.layers[1 - st.top];
+    front.style.transition = "none";
+    front.style.opacity = "0";
+    showFrame(front, m, st.frame);
+    back.style.zIndex = "1"; front.style.zIndex = "2";
+    void front.offsetWidth;                              // применить opacity 0 до перехода
+    front.style.transition = "opacity " + fade + "ms linear";
+    front.style.opacity = "1";
+    st.top = 1 - st.top;
+  }
+}
+
+// ---------- уведомление ----------
+let notifTimer = 0;
+function nameOf(number, name) { return name || number; }
+function showNotif(from, text, service) {
+  $("notifService").textContent = service;
+  $("notifFrom").textContent = from;
+  $("notifText").textContent = text;
+  holo($("notifHolo"), null, true);
+  const n = $("hudNotif"); n.hidden = false; n.classList.remove("fade");
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => { n.classList.add("fade"); setTimeout(() => { n.hidden = true; }, 260); }, 8000);
+}
+function hideNotif() { clearTimeout(notifTimer); $("hudNotif").hidden = true; }
+
+// ---------- звонок ----------
+let callTick = 0, endTimer = 0;
+function hints(list) {
+  const box = $("callHints"); box.replaceChildren();
+  for (const [key, label, action, cyan] of list) {
+    const b = el("button", "hint" + (cyan ? " cyan" : "")); b.type = "button";
+    b.append(el("span", "key", key), el("span", null, label));
+    b.onclick = () => Open77.emit(action, {});
+    box.append(b);
+  }
+}
+function renderCall() {
+  const box = $("hudCall");
+  if (!call) { box.hidden = true; return; }
+  box.hidden = false; box.classList.toggle("ended", call.state === "ended");
+  $("callName").textContent = nameOf(call.number, call.name) || "Неизвестный";
+  const st = $("callStatus"); st.className = "service";
+  if (call.state === "dialing") { st.textContent = "Соединение…"; st.classList.add("blink"); hints([["O", "Отменить", "phone:hangup"]]); }
+  else if (call.state === "incoming") { st.textContent = "Входящий вызов"; st.classList.add("blink");
+    hints([["O", "Ответить", "phone:answer", true], ["Backspace", "Отклонить", "phone:hangup"]]); }
+  else if (call.state === "active") { st.classList.add("cyan"); hints([["O", "Завершить", "phone:hangup"]]); }
+  else { st.textContent = "Звонок завершён" + (call.text ? " · " + call.text : ""); hints([]); }
+  updateCallTimer();
+}
+function updateCallTimer() {
+  if (!call || call.state !== "active") return;
+  const s = Math.floor((Date.now() - callStartedAt) / 1000);
+  $("callStatus").textContent = "На связи · " + pad(Math.floor(s / 60)) + ":" + pad(s % 60);
+}
+function onCall(p) {
+  clearTimeout(endTimer); clearInterval(callTick);
+  if (p.state === "ended") {
+    call = Object.assign({}, call || {}, { state: "ended", text: p.text });
+    renderCall(); talkTarget = 0;
+    endTimer = setTimeout(() => { call = null; renderCall(); }, 1500);
+    return;
+  }
+  const prev = call && call.id === p.id ? call : {};
+  call = Object.assign({}, prev, p);
+  renderCallHolo();
+  if (p.state === "active") { callStartedAt = Date.now(); callTick = setInterval(updateCallTimer, 500); }
+  if (p.state === "dialing" || p.state === "active") hideNotif();
+  renderCall();
+}
+// На вызове — фото собеседника (нет фото — заглушка). В разговоре — его виртуальный аватар,
+// если он есть; пока тот скачивается, остаётся фото с пометкой загрузки. Нет виртуального — фото.
+function renderCallHolo() {
+  if (!call) return;
+  const photo = call.photo && call.photo.mode !== "none" ? call.photo : null;
+  const virt = call.state === "active" && call.avatar && call.avatar.mode !== "none" ? call.avatar : null;
+  if (virt && avatarImage(virt)) return holo($("callHolo"), virt, false);
+  holo($("callHolo"), photo, false, virt ? "загрузка аватара…" : null);
+}
+// Голос собеседника: рамка голограммы светится.
+function animate(now) {
+  stepAnimated(now || performance.now());
+  const target = call && call.state === "active" ? talkTarget : 0;
+  talkLevel += (target - talkLevel) * 0.35;
+  const h = $("callHolo");
+  h.style.setProperty("--glow", talkLevel.toFixed(2));
+  h.classList.toggle("talking", talkLevel > 0.05);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// ---------- панель ----------
+function contactName(number) { const c = S.contacts.find(x => x.number === number); return c ? c.name : null; }
+function setTab(t) { tab = t; thread = null; sel = 0; render(); }
+function tabButton(id, label, ico, badge) {
+  const b = el("button", "tab" + (tab === id && !thread ? " on" : "")); b.type = "button";
+  b.append(icon(ico), el("span", null, label));
+  if (badge) b.append(el("span", "badge", String(badge)));
+  b.onclick = () => setTab(id); return b;
+}
+function hintButton(key, label, fn, cyan) {
+  const b = el("button", "hint" + (cyan ? " cyan" : "")); b.type = "button";
+  b.append(el("span", "key", key), el("span", null, label)); b.onclick = fn; return b;
+}
+function render() {
+  const tabs = $("tabs"), view = $("view"), foot = $("foot");
+  tabs.replaceChildren(); view.replaceChildren(); foot.replaceChildren();
+  holo($("ownHolo"), S.photo, true);
+  if (thread) return renderThread(tabs, view, foot);
+  const unread = S.conversations.reduce((n, c) => n + (c.unread || 0), 0);
+  tabs.append(tabButton("messages", "Сообщения", "mail", unread), tabButton("contacts", "Контакты", "call"), tabButton("profile", "Профиль", "user"));
+  if (tab === "messages") renderMessages(view, foot);
+  else if (tab === "contacts") renderContacts(view, foot);
+  else renderProfile(view, foot);
+}
+function rowsOf(view) { return [...view.querySelectorAll(".row")]; }
+function markSel(view) {
+  const rows = rowsOf(view); if (!rows.length) return;
+  sel = Math.max(0, Math.min(sel, rows.length - 1));
+  rows.forEach((r, i) => r.classList.toggle("sel", i === sel));
+  rows[sel].scrollIntoView({ block: "nearest" });
+}
+function renderMessages(view, foot) {
+  const list = el("div", "list");
+  const items = S.conversations.filter(c => !hideRead || c.unread > 0);
+  if (!items.length) list.append(el("div", "empty", hideRead ? "Непрочитанных сообщений нет." : "Сообщений пока нет. Напишите кому-нибудь из контактов."));
+  items.forEach((c, i) => {
+    const r = el("button", "row " + (c.unread > 0 ? "unread" : "read")); r.type = "button";
+    const body = el("div"); body.append(el("div", "rName", nameOf(c.number, c.name)), el("div", "rText", (c.mine ? "Вы: " : "") + c.last));
+    const act = el("div", "rAct"); act.append(el("span", "key", "Enter"), icon("mail"));
+    const right = el("div"); right.append(el("div", "rTime", clock(c.at)), act);
+    r.append(body, right);
+    r.onmouseenter = () => { sel = i; markSel(view); };
+    r.onclick = () => openThread(c.number);
+    list.append(r);
+  });
+  view.append(list); markSel(view);
+  foot.append(hintButton("Z", hideRead ? "Показать прочитанные" : "Скрыть прочитанные", () => { hideRead = !hideRead; sel = 0; render(); }),
+              hintButton("Esc", "Закрыть", close));
+}
+function renderContacts(view, foot) {
+  const form = el("div", "form");
+  const num = el("input"); num.placeholder = "Номер 555-0000"; num.maxLength = 8; num.id = "newNumber";
+  const nm = el("input"); nm.placeholder = "Имя контакта"; nm.maxLength = 40; nm.id = "newName";
+  const actions = el("div", "actions");
+  const valid = () => /^\d{3}-\d{4}$/.test(num.value.trim());
+  const save = el("button", "btn", "Сохранить"); save.type = "button";
+  save.onclick = () => { if (!valid() || !nm.value.trim()) return toast("Номер в формате 555-0000 и имя.", true); Open77.emit("phone:contact", { number: num.value.trim(), name: nm.value.trim() }); };
+  const write = el("button", "btn ghost", "Написать"); write.type = "button";
+  write.onclick = () => valid() ? openThread(num.value.trim()) : toast("Номер в формате 555-0000.", true);
+  const dial = el("button", "btn ghost", "Позвонить"); dial.type = "button";
+  dial.onclick = () => valid() ? Open77.emit("phone:call", { number: num.value.trim() }) : toast("Номер в формате 555-0000.", true);
+  actions.append(save, write, dial); form.append(num, nm, actions);
+  const list = el("div", "list");
+  if (!S.contacts.length) list.append(el("div", "empty", "Контактов нет. Номер можно передать через ALT-меню рядом с человеком."));
+  S.contacts.forEach((c, i) => {
+    const r = el("div", "row contact"); r.tabIndex = -1;
+    const who = icon("user"); who.classList.add("who");
+    const act = el("div", "rAct");
+    const m = (ico, title, fn, danger) => { const b = el("button", "mini" + (danger ? " danger" : "")); b.type = "button"; b.title = title; b.append(icon(ico)); b.onclick = e => { e.stopPropagation(); fn(); }; return b; };
+    act.append(el("span", "key", "Enter"), m("call", "Позвонить", () => Open77.emit("phone:call", { number: c.number })),
+      m("mail", "Написать", () => openThread(c.number)),
+      m("edit", "Переименовать", () => { num.value = c.number; nm.value = c.name; nm.focus(); nm.select(); }),
+      m("x", "Удалить", () => Open77.emit("phone:contactDelete", { number: c.number }), true));
+    const body = el("div"); body.append(el("div", "rName", c.name));
+    r.append(who, body, act);
+    r.onmouseenter = () => { sel = i; markSel(list); };
+    r.onclick = () => Open77.emit("phone:call", { number: c.number });
+    list.append(r);
+  });
+  view.append(form, list); markSel(list);
+  foot.append(el("span", "service cyan", "Мой номер · " + S.number), hintButton("Esc", "Закрыть", close));
+}
+function openThread(number) {
+  thread = { number, name: contactName(number), messages: [], loading: true };
+  Open77.emit("phone:thread", { number });
+  render();
+}
+function renderThread(tabs, view, foot) {
+  const back = el("button", "tab"); back.type = "button"; back.append(icon("mail"), el("span", null, "Сообщения"));
+  back.onclick = () => { thread = null; render(); };
+  const crumb = el("div", "tab on"); crumb.append(el("span", "sep", "›"), el("span", "crumb", nameOf(thread.number, thread.name)));
+  tabs.append(back, crumb);
+  const box = el("div", "thread"), bubbles = el("div", "bubbles");
+  if (thread.loading) bubbles.append(el("div", "empty", "Загрузка…"));
+  else if (!thread.known) bubbles.append(el("div", "empty", "Номер " + thread.number + " не обслуживается."));
+  else if (!thread.messages.length) bubbles.append(el("div", "empty", "Переписки ещё нет."));
+  for (const m of thread.messages) {
+    const b = el("div", "bubble " + (m.mine ? "out" : "in"), m.body); b.append(el("time", null, clock(m.at))); bubbles.append(b);
+  }
+  const comp = el("div", "composer");
+  const ta = el("textarea"); ta.id = "composer"; ta.maxLength = MAX_TEXT; ta.placeholder = "Сообщение…"; ta.value = thread.draft || "";
+  const go = el("button", "btn", "Отправить"); go.type = "button";
+  const counter = el("div", "counter");
+  const upd = () => { thread.draft = ta.value; counter.textContent = ta.value.length + " / " + MAX_TEXT; go.disabled = !ta.value.trim(); };
+  const submit = () => { const text = ta.value.trim(); if (!text) return; Open77.emit("phone:send", { number: thread.number, text }); ta.value = ""; upd(); };
+  ta.oninput = upd; go.onclick = submit;
+  ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } };
+  upd(); comp.append(ta, go, counter);
+  box.append(bubbles, comp); view.append(box);
+  requestAnimationFrame(() => { bubbles.scrollTop = bubbles.scrollHeight; if (!thread.loading && thread.known !== false) ta.focus(); });
+  const tools = el("div"); tools.style.display = "flex"; tools.style.gap = "22px";
+  tools.append(hintButton("F", "Позвонить", () => Open77.emit("phone:call", { number: thread.number }), true));
+  if (!thread.name) tools.append(hintButton("+", "В контакты", () => { tab = "contacts"; const n = thread.number; thread = null; render(); $("newNumber").value = n; $("newName").focus(); }, true));
+  foot.append(tools, hintButton("Esc", "Назад", () => { thread = null; render(); }));
+}
+function renderProfile(view, foot) {
+  const p = el("div", "profile");
+  p.append(el("div", "lbl", "Мой номер"), el("div", "num", S.number || "—"), el("div", "lbl", "Аватар в звонке"));
+  // Два независимых раздела: фото (вызов) и виртуальный аватар (разговор).
+  const modes = el("div", "modes");
+  for (const [id, label, saved] of [["photo", "Фото", S.photo], ["virtual", "Виртуальный аватар", S.virtual]]) {
+    const b = el("button", "mode" + (profSec === id ? " on" : "")); b.type = "button";
+    b.append(el("span", null, label), el("span", "modeMark" + (saved.mode !== "none" ? " set" : ""), saved.mode !== "none" ? "●" : "○"));
+    b.title = saved.mode !== "none" ? "Сохранён" : "Не задан";
+    b.onclick = () => { if (profSec !== id) { profSec = id; rawShot = null; rawFrames = null; } render(); };
+    modes.append(b);
+  }
+  p.append(modes);
+  const preview = el("div", "holo");
+  if (profSec === "photo") holo(preview, photoDraft.image ? { mode: "image", image: photoDraft.image } : null, false);
+  else holo(preview, draft.image ? { mode: draft.mode, image: draft.image, meta: draft.meta } : null, false);
+  p.append(preview);
+  const status = el("div", "status"); status.id = "avatarStatus";
+  // Ракурс один — ¾ (angle = 35); в ряду остаётся только «Отразить».
+  const angles = el("div", "modes");
+  if (profSec === "photo") {
+    // Снимок персонажа: манекен с вашей внешностью, как в анкете; ракурс — до снимка.
+    const row = el("div", "row2");
+    const portrait = el("button", "btn ghost", "Снимок персонажа"); portrait.type = "button";
+    portrait.onclick = () => { captureFor = "virtual"; Open77.emit("phone:capture", { kind: "virtual", angle }); };
+    const shot = el("button", "btn ghost", "Кадр с экрана"); shot.type = "button";
+    shot.onclick = () => { captureFor = "image"; Open77.emit("phone:capture", { kind: "screen" }); };
+    const file = el("input"); file.type = "file"; file.accept = "image/*"; file.hidden = true;
+    file.onchange = () => { const f = file.files && file.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => fitImage(r.result, "image"); r.readAsDataURL(f); };
+    const pick = el("button", "btn ghost", "Файл…"); pick.type = "button"; pick.onclick = () => file.click();
+    row.append(portrait, shot, pick, file);
+    if (rawShot) angles.append(flipButton());
+    p.append(row);
+    if (rawShot) p.append(angles);
+    status.textContent = "Фото видят на вызове; в разговоре — если нет виртуального аватара.";
+  } else {
+    // Виртуальный аватар: персонаж ~3 с в выбранной позе.
+    const row = el("div", "row2");
+    const rec = el("button", "btn ghost", draft.image ? "Перезаписать" : "Записать аватар"); rec.type = "button";
+    rec.onclick = () => { captureFor = "animated"; Open77.emit("phone:capture", { kind: "animated", angle, idleAnim }); };
+    row.append(rec);
+    // Проверка позы без камеры: видно, принимает ли её персонаж.
+    const test = (label, name) => { const b = el("button", "btn ghost", label); b.type = "button";
+      b.onclick = () => Open77.emit("phone:testPose", { name }); return b; };
+    row.append(test("Проверить позу", idleAnim));
+    if (rawFrames) angles.append(flipButton());
+    const pick = (list, current, set) => { const box = el("div", "modes");
+      for (const [id, label] of list) { const b = el("button", "mode" + (current === id ? " on" : ""), label); b.type = "button";
+        b.onclick = () => { set(id); render(); }; box.append(b); } return box; };
+    if (rawFrames) p.append(angles);
+    p.append(el("div", "lbl", "Поза"), pick([["idle", "Спокойно"], ["handsfront", "Руки спереди"], ["armscrossed2", "Руки скрещены"], ["handsback", "Руки за спиной"], ["wait", "Ждёт"], ["think", "Думает"]], idleAnim, v => { idleAnim = v; }));
+    // Кнопки записи — справа от портрета, чтобы вкладка помещалась без прокрутки.
+    const wrap = el("div", "previewRow"); preview.replaceWith(wrap); row.classList.add("recCol"); wrap.append(preview, row);
+    row.append(el("div", "status", "Персонаж в выбранной позе: дышит, моргает, чуть двигается.")); status.textContent = "";
+  }
+  const isPhoto = profSec === "photo";
+  const saved = isPhoto ? S.photo : S.virtual;
+  const save = el("button", "btn", isPhoto ? "Сохранить фото" : "Сохранить аватар"); save.type = "button";
+  save.onclick = () => {
+    if (isPhoto) {
+      if (!photoDraft.image) return toast("Сначала сделайте снимок или выберите файл.", true);
+      return sendAvatar("photo", "image", photoDraft.image, null);
+    }
+    if (!draft.image) return toast("Сначала запишите аватар.", true);
+    sendAvatar("virtual", draft.mode, draft.image, draft.mode === "animated" ? draft.meta : null);
+  };
+  const tools = el("div", "footTools"); tools.append(save);
+  if (saved.mode !== "none") {
+    const drop = el("button", "btn ghost", isPhoto ? "Убрать фото" : "Убрать аватар"); drop.type = "button";
+    drop.classList.add("saveAvatar");
+    drop.onclick = () => {
+      if (isPhoto) photoDraft.image = ""; else { draft.image = ""; draft.meta = null; }
+      rawShot = null; rawFrames = null;
+      sendAvatar(profSec, "none", "", null); render();
+    };
+    tools.append(drop);
+  }
+  p.append(status);
+  view.append(p);
+  save.classList.add("saveAvatar");
+  foot.append(tools, hintButton("Esc", "Закрыть", close));
+}
+// ---------- живой портрет: видео ----------
+// Кадры манекена → два коротких WebM-ролика (молчание и речь), каждый «туда-обратно»,
+// чтобы зацикливался без скачка. Видео сжимается намного лучше набора JPEG.
+// Нет MediaRecorder или ролики слишком большие — запасной путь: спрайт 4 × 4.
+const VIDEO_MAX = 590000;
+function drawFrame(g, img, x, y, size) {
+  const side = Math.min(img.width, img.height), sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+  g.save();
+  if (flip) { g.translate(x + size, y); g.scale(-1, 1); g.drawImage(img, sx, sy, side, side, 0, 0, size, size); }
+  else g.drawImage(img, sx, sy, side, side, x, y, size, size);
+  g.restore();
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob); });
+}
+// Встроенный браузер игры может записать ролик, но не показать его: проверяем.
+function videoPlays(src) {
+  return new Promise(resolve => {
+    const v = document.createElement("video"); v.muted = true; v.playsInline = true;
+    let done = false; const finish = ok => { if (!done) { done = true; v.removeAttribute("src"); v.load(); resolve(ok); } };
+    v.onerror = () => finish(false);
+    v.ontimeupdate = () => { if (v.currentTime > 0 && v.videoWidth > 0) finish(true); };
+    setTimeout(() => finish(false), 3000);
+    v.src = src; v.play().catch(() => finish(false));
+  });
+}
+async function recordClip(images, fps, size, bitrate) {
+  const mime = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
+    .find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+  if (!mime) throw new Error("запись видео недоступна");
+  const c = document.createElement("canvas"); c.width = c.height = size;
+  const g = c.getContext("2d");
+  const draw = img => drawFrame(g, img, 0, 0, size);
+  const seq = images.length > 2 ? [...images, ...images.slice(1, -1).reverse()] : images;
+  draw(seq[0]);
+  const stream = c.captureStream(fps);
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(r => { rec.onstop = r; });
+  rec.start();
+  for (const img of seq) { draw(img); await sleep(1000 / fps); }
+  await sleep(1000 / fps);
+  rec.stop(); await stopped;
+  stream.getTracks().forEach(t => t.stop());
+  if (!chunks.length) throw new Error("видео пустое");
+  const url = await blobToDataUrl(new Blob(chunks, { type: "video/webm" }));
+  return url.replace(/^data:video\/webm;[^,]*base64,/, "data:video/webm;base64,");
+}
+// Умеет ли браузер ПОКАЗАТЬ записанный WebM (встроенный браузер игры — нет): проверяется
+// один раз на крошечном ролике, чтобы не тратить ~15 с на сборку ненужного видео.
+let videoSupport = null;
+async function canPlayVideo(sample) {
+  if (videoSupport === null) {
+    try { videoSupport = await videoPlays(await recordClip(sample.slice(0, 3), 10, 64, 100000)); }
+    catch (e) { videoSupport = false; }
+  }
+  return videoSupport;
+}
+async function buildLivePortrait(frames) {
+  rawFrames = frames;
+  let idle;
+  try { idle = await Promise.all((frames.idle || []).map(loadImage)); }
+  catch (e) { return toast("Кадры повреждены.", true); }
+  if (!idle.length) return toast("Кадры не получены.", true);
+  if (await canPlayVideo(idle)) try {
+    // 60 кадров с шагом 50 мс → 20 кадров/с, ролик «туда-обратно» ~6 с.
+    for (const [size, bitrate] of [[256, 300000], [256, 220000], [224, 160000]]) {
+      toast("Собираю видео…");
+      const a = await recordClip(idle, 20, size, bitrate);
+      const joined = a;
+      if (joined.length <= VIDEO_MAX && !(await videoPlays(a))) { toast("Видео не воспроизводится в игре — сохраняю кадрами.", true); break; }
+      if (joined.length <= VIDEO_MAX) {
+        draft.mode = "video"; draft.image = joined; draft.meta = null;
+        render();
+        return toast("Аватар записан. Нажмите «Сохранить аватар».");
+      }
+    }
+  } catch (e) {
+    toast("Видео недоступно (" + e.message + ") — сохраняю кадрами.", true);
+  }
+  // Запасной путь (встроенный браузер игры видео не показывает): спрайт 8 × 8 из всех
+  // 60 кадров (через 50 мс) — движение в реальной скорости.
+  return composeSprite({ idle: (frames.idle || []).slice(0, 64), talk: [] }, true);
+}
+// Кадры живого портрета → один спрайт до 8 × 8 (JPEG), не длиннее ANIM_MAX символов.
+// Аватар уходит частями: большое сообщение из окна в игру отбрасывается.
+const UPLOAD_PART = 15000;
+// slot: "photo" (mode image | none) или "virtual" (mode animated | video | none).
+async function sendAvatar(slot, mode, image, meta) {
+  const parts = [];
+  for (let i = 0; i < image.length; i += UPLOAD_PART) parts.push(image.slice(i, i + UPLOAD_PART));
+  Open77.emit("phone:avatarBegin", { slot, mode, total: parts.length, meta });
+  for (let i = 0; i < parts.length; i++) {
+    await sleep(httpInfo && httpInfo.upload ? 60 : 130);   // по сети игры — не быстрее ~115 КБ/с
+    toast("Сохраняю… " + Math.round((i + 1) / parts.length * 100) + "%");
+    if (httpInfo && httpInfo.upload) {
+      try { await fetchText(httpUrl(httpInfo.upload, httpInfo.token, i + 1), { method: "POST", headers: { "Content-Type": "text/plain" }, body: parts[i] }); }
+      catch (e) { return toast("Сохранение прервалось: " + e.message, true); }
+    } else Open77.emit("phone:avatarChunk", { index: i + 1, data: parts[i] });
+  }
+  if (!parts.length) toast("Сохраняю…");
+}
+function loadImage(src) {
+  return new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = src; });
+}
+async function composeSprite(frames, fallback) {
+  if (!fallback) rawFrames = frames;
+  const list = [...(frames.idle || []), ...(frames.talk || [])];
+  if (!list.length) return toast("Кадры не получены.", true);
+  let images;
+  try { images = await Promise.all(list.map(loadImage)); } catch (e) { return toast("Кадры повреждены.", true); }
+  const cols = images.length > 16 ? 8 : 4, rows = Math.ceil(images.length / cols);
+  if (rows > 8) return toast("Слишком много кадров для аватара.", true);
+  const meta = { cols, rows, idle: (frames.idle || []).length, talk: (frames.talk || []).length };
+  let out = "";
+  search: for (const cell of cols > 4 ? [128, 112, 96] : [112, 96, 80]) {
+    const c = document.createElement("canvas"); c.width = cell * cols; c.height = cell * rows;
+    const g = c.getContext("2d");
+    images.forEach((img, i) => drawFrame(g, img, (i % cols) * cell, Math.floor(i / cols) * cell, cell));
+    for (let q = 0.82; q >= 0.4; q -= 0.08) {
+      out = c.toDataURL("image/jpeg", q);
+      if (out.length <= ANIM_MAX) break search;
+    }
+  }
+  if (out.length > ANIM_MAX) return toast("Аватар получился слишком большим.", true);
+  draft.mode = "animated"; draft.image = out; draft.meta = meta;
+  render();
+  toast("Аватар записан. Нажмите «Сохранить аватар».");
+}
+function flipButton() {
+  const b = el("button", "btn ghost", "⇋ Отразить"); b.type = "button";
+  b.onclick = () => {
+    flip = !flip;
+    if (profSec === "virtual" && rawFrames) buildLivePortrait(rawFrames);
+    else if (rawShot) fitImage(rawShot.src, rawShot.kind);
+  };
+  return b;
+}
+// Картинка → квадратный JPEG не длиннее AVATAR_MAX символов: строка сетевого
+// события OPEN//77 ограничена 16 КиБ (и к серверу, и от него собеседнику).
+function encodeSquare(img, size, q) {
+  const side = Math.min(img.width, img.height);
+  const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+  const c = document.createElement("canvas"); c.width = c.height = size;
+  const g = c.getContext("2d");
+  if (flip) { g.translate(size, 0); g.scale(-1, 1); }
+  g.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+  return c.toDataURL("image/jpeg", q);
+}
+function fitImage(src, kind) {
+  rawShot = { src, kind };
+  const img = new Image();
+  img.onload = () => {
+    let out = "";
+    search: for (const size of [200, 176, 152, 128]) {
+      for (let q = 0.85; q >= 0.35; q -= 0.1) {
+        out = encodeSquare(img, size, q);
+        if (out.length <= AVATAR_MAX) break search;
+      }
+    }
+    if (out.length > AVATAR_MAX) return toast("Картинка слишком большая.", true);
+    photoDraft.image = out; profSec = "photo"; render(); toast("Снимок готов. Нажмите «Сохранить фото».");
+  };
+  img.onerror = () => toast("Не удалось прочитать картинку.", true);
+  img.src = src;
+}
+
+// ---------- клавиатура ----------
+document.addEventListener("keydown", e => {
+  if (!panelOpen) return;
+  const typing = e.target && (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT");
+  if (e.key === "Escape") { e.preventDefault(); if (typing) { e.target.blur(); if (!thread) return; } if (thread) { thread = null; render(); } else close(); return; }
+  if (typing) return;
+  if (e.key === "Tab") { e.preventDefault(); const order = ["messages", "contacts", "profile"]; setTab(order[(order.indexOf(tab) + (e.shiftKey ? 2 : 1)) % 3]); return; }
+  if (thread) { if (e.key.toLowerCase() === "f") Open77.emit("phone:call", { number: thread.number }); return; }
+  const list = document.querySelector("#view .list"); if (!list) return;
+  if (e.key === "ArrowDown") { e.preventDefault(); sel++; markSel(list); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); markSel(list); }
+  else if (e.key === "Enter") { const r = rowsOf(list)[sel]; if (r) r.click(); }
+  else if (e.key.toLowerCase() === "z" && tab === "messages") { hideRead = !hideRead; sel = 0; render(); }
+});
+
+let toastTimer = 0;
+function toast(text, err) {
+  const t = $("toast"); t.textContent = text; t.style.borderLeftColor = err ? "var(--red)" : "var(--cyan)";
+  t.classList.remove("fade"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("fade"), 3500);
+}
+function close() { Open77.emit("phone:close", {}); }
+
+// ---------- события клиента ----------
+Open77.on("phone:hello", p => {
+  if (p.number) S.number = p.number;
+  if (p.hasOs && p.unread > 0) showNotif(p.unread + " непрочит.", "Откройте телефон, чтобы прочитать.", "Сообщения");
+});
+// Пустая Lua-таблица приходит как {} — списки всегда приводим к массивам.
+const list = v => Array.isArray(v) ? v : (v && typeof v === "object" ? Object.values(v) : []);
+function normalize(p) {
+  p = p || {};
+  p.contacts = list(p.contacts); p.conversations = list(p.conversations);
+  p.photo = p.photo && typeof p.photo === "object" ? p.photo : { mode: "none" };
+  p.virtual = p.virtual && typeof p.virtual === "object" ? p.virtual : { mode: "none" };
+  p.number = p.number || "";
+  return p;
+}
+function resetDrafts() {
+  photoDraft = { image: avatarImage(S.photo) };
+  draft = { mode: S.virtual.mode === "video" ? "video" : "animated", image: avatarImage(S.virtual), meta: S.virtual.meta || null };
+}
+Open77.on("phone:open", p => {
+  S = normalize(p); panelOpen = true; $("panel").hidden = false; hideNotif();
+  resetDrafts();
+  rawShot = null; rawFrames = null;
+  thread = null; tab = "messages"; sel = 0;
+  if (p.openThread) openThread(p.openThread); else render();
+});
+Open77.on("phone:state", p => { S = normalize(p); if (!thread) render(); else holo($("ownHolo"), S.photo, true); });
+Open77.on("phone:close", () => { panelOpen = false; $("panel").hidden = true; $("panel").style.visibility = ""; $("capturing").hidden = true; thread = null; });
+Open77.on("phone:thread", p => {
+  if (!thread || thread.number !== p.number) return;
+  Object.assign(thread, { name: p.name || thread.name, messages: list(p.messages), known: p.known, loading: false });
+  const c = S.conversations.find(x => x.number === p.number); if (c) c.unread = 0;
+  render();
+});
+Open77.on("phone:sent", p => {
+  const m = p.message;
+  let c = S.conversations.find(x => x.number === p.number);
+  if (!c) { c = { number: p.number, name: contactName(p.number), unread: 0 }; S.conversations.unshift(c); }
+  Object.assign(c, { last: m.body, at: m.at, mine: true });
+  S.conversations = [c, ...S.conversations.filter(x => x !== c)];
+  if (thread && thread.number === p.number) { thread.messages.push(m); thread.known = true; render(); }
+});
+Open77.on("phone:message", p => {
+  const m = p.message;
+  let c = S.conversations.find(x => x.number === p.number);
+  if (!c) { c = { number: p.number, name: p.name, unread: 0 }; }
+  Object.assign(c, { last: m.body, at: m.at, mine: false, name: p.name || c.name });
+  S.conversations = [c, ...S.conversations.filter(x => x !== c)];
+  if (panelOpen && thread && thread.number === p.number) {
+    thread.messages.push(m); render();
+    Open77.emit("phone:thread", { number: p.number });   // отметить прочитанным
+    Open77.emit("phone:seen", {});
+    return;
+  }
+  c.unread = (c.unread || 0) + 1;
+  if (panelOpen && !thread) render();
+  const d = new Date();
+  showNotif(nameOf(p.number, p.name), m.body, "Сообщение · " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()));
+});
+// Клиент дробит каждую часть аватара на куски: собираем часть, затем отдаём её дальше.
+const avatarPieces = {};
+Open77.on("phone:avatarPiece", p => {
+  if (!p || typeof p.key !== "string" || typeof p.data !== "string") return;
+  const id = p.key + "#" + p.index;
+  const slot = avatarPieces[id] || (avatarPieces[id] = { got: 0, list: [] });
+  if (slot.list[p.piece - 1] === undefined) { slot.list[p.piece - 1] = p.data; slot.got++; }
+  if (slot.got < p.pieces) return;
+  delete avatarPieces[id];
+  onAvatarPart({ key: p.key, index: p.index, total: p.total, data: slot.list.join("") });
+});
+const onAvatarPart = p => {
+  if (!p || typeof p.key !== "string" || typeof p.data !== "string") return;
+  if (avatarCache[p.key]) return;
+  const slot = avatarParts[p.key] || (avatarParts[p.key] = { total: p.total, parts: [], got: 0 });
+  if (!slot.parts[p.index - 1]) { slot.parts[p.index - 1] = p.data; slot.got++; }
+  if (slot.got < slot.total) return;
+  avatarCache[p.key] = slot.parts.join(""); delete avatarParts[p.key];
+  avatarReady(p.key);
+};
+function avatarReady(key) {
+  if (S.photo && S.photo.key === key) {
+    if (!photoDraft.image) photoDraft.image = avatarCache[key];
+    holo($("ownHolo"), S.photo, true);
+    if (panelOpen && !thread && tab === "profile") render();
+  }
+  if (S.virtual && S.virtual.key === key) {
+    if (!draft.image) { draft.image = avatarCache[key]; draft.mode = S.virtual.mode; draft.meta = S.virtual.meta || null; }
+    if (panelOpen && !thread && tab === "profile") render();
+  }
+  if (call && ((call.photo && call.photo.key === key) || (call.avatar && call.avatar.key === key))) renderCallHolo();
+};
+Open77.on("phone:avatarPart", onAvatarPart);
+Open77.on("phone:notice", p => toast(p.text || "", true));
+Open77.on("phone:call", onCall);
+Open77.on("phone:talk", p => { talkTarget = p.talking ? Math.max(0.25, Math.min(1, Number(p.level) || 0.6)) : 0; });
+// Кадры живого портрета приходят по одному; начало записи (без text) сбрасывает сбор.
+let incomingFrames = { idle: [], talk: [] }, incomingPhoto = "";
+const framePieces = {};   // "группа:номер" → { pieces, got, list }
+Open77.on("phone:framePart", p => {
+  if (!p || typeof p.data !== "string" || !(p.group === "idle" || p.group === "talk" || p.group === "photo")) return;
+  const key = p.group + ":" + p.index;
+  const slot = framePieces[key] || (framePieces[key] = { pieces: p.pieces, got: 0, list: [] });
+  if (slot.list[p.piece - 1] === undefined) { slot.list[p.piece - 1] = p.data; slot.got++; }
+  if (slot.got < slot.pieces) return;
+  delete framePieces[key];
+  const data = slot.list.join("");
+  if (p.group === "photo") incomingPhoto = data; else incomingFrames[p.group][p.index - 1] = data;
+});
+Open77.on("phone:frame", p => { if (p && (p.group === "idle" || p.group === "talk") && typeof p.data === "string") incomingFrames[p.group][p.index - 1] = p.data; });
+Open77.on("phone:capturing", p => {
+  if (!p || !p.text) { incomingFrames = { idle: [], talk: [] }; incomingPhoto = ""; for (const k in framePieces) delete framePieces[k]; } $("capturing").textContent = (p && p.text) || "СНИМОК…"; $("capturing").hidden = false; $("panel").style.visibility = "hidden"; });
+Open77.on("phone:http", p => { httpInfo = p; });
+Open77.on("phone:captured", async p => {
+  $("capturing").hidden = true; $("panel").style.visibility = "";
+  if (p.kind === "test") return toast(p.error ? "Проверка: " + p.error : "Проверка закончена.", !!p.error);
+  if (p.error) return toast("Снимок не получился: " + p.error, true);
+  if (p.remote && httpInfo) {
+    try {
+      if (p.kind === "animated") {
+        toast("Загружаю кадры…");
+        const c = p.counts || {};
+        const get = (g, n) => Promise.all([...Array(n || 0)].map((_, i) => fetchText(httpUrl(httpInfo.frames, httpInfo.token, g, i + 1))));
+        const frames = { idle: await get("idle", c.idle), talk: await get("talk", c.talk), talking: c.talking !== false };
+        return frames.idle.length ? buildLivePortrait(frames) : toast("Кадры не получены.", true);
+      }
+      return fitImage(await fetchText(httpUrl(httpInfo.frames, httpInfo.token, "photo", 1)), "image");
+    } catch (e) { return toast("Кадры не загрузились: " + e.message, true); }
+  }
+  if (p.kind === "animated") {
+    const frames = p.frames || { idle: incomingFrames.idle.filter(Boolean), talk: incomingFrames.talk.filter(Boolean), talking: !(p.counts && p.counts.talking === false) };
+    incomingFrames = { idle: [], talk: [] };
+    return frames.idle.length ? buildLivePortrait(frames) : toast("Кадры не получены.", true);
+  }
+  const image = p.pieces ? incomingPhoto : p.image;
+  incomingPhoto = "";
+  if (!image) return toast("Снимок не получился: нет кадра", true);
+  fitImage(image, "image");
+});
+Open77.emit("ui:ready", {});
+</script></body></html>

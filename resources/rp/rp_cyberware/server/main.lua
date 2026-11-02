@@ -79,6 +79,12 @@ local function send(playerId, event, payload)
     if not ok then log("warn", "%s для %s не отправлено: %s", event, tostring(playerId), tostring(why)) end
 end
 
+-- Нейро-ОС в слоте os (кибердека или гражданская ОС, не Сандевистан): телефон, щепки, сканер.
+local function hasNeuralOs(s)
+    local def = s and s.slots.os and CyberConfig.implants[s.slots.os]
+    return def ~= nil and def.neuralOs == true
+end
+
 local function labelOf(implantId)
     local catalog = sync("rp_inventory", "catalog")
     local item = type(catalog) == "table" and catalog[implantId]
@@ -558,6 +564,7 @@ local function remove(patient, slot, price, payTo, destroy)
         s.scripts, s.armed, s.scanning = {}, nil, false
         saveState(patient)
     end
+    if s.scanning and not hasNeuralOs(s) then s.scanning = false end
     applyPassives(patient)
     if not destroy then
         local given, why = await("rp_inventory", "give", patient, implantId, 1)
@@ -1608,6 +1615,11 @@ RegisterNetEvent("rp_cyberware:scan", function(open)
         s.scanning = false
         return send(playerId, "rp_cyberware:scanState", { open = false, text = "Нужна оптика Kiroshi (имплант «Глаза»)." })
     end
+    if not hasNeuralOs(s) then
+        s.scanning = false
+        return send(playerId, "rp_cyberware:scanState", { open = false,
+            text = "Сканеру нужна нейро-ОС: кибердека или гражданская ОС." })
+    end
     if Open77.players.isDead(playerId) or isDowned(playerId) then
         s.scanning = false
         return send(playerId, "rp_cyberware:scanState", { open = false })
@@ -1897,6 +1909,14 @@ CreateThread(defineAll)
 AddEventHandler("onResourceStop", function(name)
     if name ~= GetCurrentResourceName() then return end
     for id in pairs(state) do saveState(id) end
+end)
+
+-- Есть ли у игрока нейро-ОС (rp_inventory: щепки; rp_phone: телефон). Только чтение
+-- памяти: вызывается через callSync. nil — импланты игрока ещё не загружены.
+exports("has_os", function(playerId)
+    local s = state[math.tointeger(tonumber(playerId)) or 0]
+    if not s then return nil end
+    return hasNeuralOs(s)
 end)
 
 -- Для рипердоков (rp_cyberware, заход 2) и админ-панели.
