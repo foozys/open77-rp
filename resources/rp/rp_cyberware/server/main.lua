@@ -46,6 +46,9 @@ end
 
 local function core(name, ...) return sync("rp_core", name, ...) end
 
+-- Быстрые приступы (CyberConfig.testEpisodes) — только в тестовом режиме ядра (rp_core testMode).
+local function testEpisodes() return core("test_mode") == true and CyberConfig.testEpisodes or nil end
+
 local function notify(target, fmt, ...)
     local text = select("#", ...) > 0 and string.format(fmt, ...) or fmt
     if not target or target < 1 then return log("info", "%s", text) end
@@ -399,13 +402,8 @@ local function applyPassives(playerId, healthFraction)
     sync("rp_needs", "set_rate", playerId, hunger)
 end
 
--- Постоянные травмы сохраняются по персонажу, не по текущей сессии.
-Open77.database.ready(function()
-    local ok, err = db("update", [[CREATE TABLE IF NOT EXISTS rp_surgery_injuries (
-        character_id BIGINT UNSIGNED NOT NULL PRIMARY KEY
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
-    if ok == nil then log("error", "таблица травм: %s", tostring(err)) end
-end)
+-- Постоянные травмы сохраняются по персонажу, не по текущей сессии (таблица
+-- rp_surgery_injuries — в миграциях ресурса внизу файла).
 
 -- -- загрузка и сохранение ---------------------------------------------------------------
 
@@ -929,7 +927,7 @@ CreateThread(function()
                     pushPanel(playerId)
                 end
                 local now = Open77.time.unix()
-                if not CyberConfig.testEpisodes and s.psychosis >= CyberConfig.episodeFrom and now >= s.nextEpisode
+                if not testEpisodes() and s.psychosis >= CyberConfig.episodeFrom and now >= s.nextEpisode
                     and not Open77.players.isDead(playerId) then
                     episode(playerId, s.psychosis >= CyberConfig.severeFrom)
                     s.nextEpisode = now + math.floor(CyberConfig.episodeMinutes * 60 * (0.5 + math.random()))
@@ -1109,13 +1107,13 @@ end)
 CreateThread(function()
     while true do
         Wait(1000)
-        local test = CyberConfig.testEpisodes
+        local test = testEpisodes()
         for playerId, s in pairs(state) do
             if s.scanning and opticsDown(playerId) then
                 s.scanning = false
                 send(playerId, "rp_cyberware:scanState", { open = false, text = "Оптика перезагружается." })
             end
-            -- Тестовый режим приступов (CyberConfig.testEpisodes): по секундам, а не по минутам.
+            -- Тестовый режим (rp_core testMode): приступы по секундам (CyberConfig.testEpisodes), а не по минутам.
             if test and s.psychosis >= CyberConfig.episodeFrom and not Open77.players.isDead(playerId) and not isDowned(playerId) then
                 local severe = s.psychosis >= CyberConfig.severeFrom
                 local now = Open77.time.unix()
@@ -1864,6 +1862,15 @@ end)
 
 -- -- старт -------------------------------------------------------------------------------
 
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok, call, why = pcall(Open77.exports.call, "rp_core", "migrate", GetCurrentResourceName(), list)
+    if not ok or not call then return nil, tostring(ok and why or call) end
+    local okAwait, done, result = pcall(call.await, call)
+    if not okAwait then return nil, tostring(done) end
+    return done, result
+end
+
 local queued, queueReason = Open77.database.ready(function()
     local statements = {
         [[CREATE TABLE IF NOT EXISTS rp_implants (
@@ -1889,11 +1896,12 @@ local queued, queueReason = Open77.database.ready(function()
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci]],
+        [[CREATE TABLE IF NOT EXISTS rp_surgery_injuries (
+        character_id BIGINT UNSIGNED NOT NULL PRIMARY KEY
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
     }
-    for _, sql in ipairs(statements) do
-        local ok, err = pcall(Open77.database.query.await, sql, {})
-        if not ok then return log("error", "таблицы не созданы: %s", tostring(err)) end
-    end
+    local migrated, err = migrate({ { version = 1, name = "baseline", statements = statements } })
+    if not migrated then return log("error", "таблицы не созданы: %s", tostring(err)) end
     dbReady = true
     loadClinics()
     for _, key in ipairs(GetPlayers() or {}) do

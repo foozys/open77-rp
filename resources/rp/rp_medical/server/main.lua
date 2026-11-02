@@ -498,15 +498,23 @@ end, false)
 
 -- -- старт ------------------------------------------------------------------------------
 
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok, call, why = pcall(Open77.exports.call, "rp_core", "migrate", GetCurrentResourceName(), list)
+    if not ok or not call then return nil, tostring(ok and why or call) end
+    local okAwait, done, result = pcall(call.await, call)
+    if not okAwait then return nil, tostring(done) end
+    return done, result
+end
+
 local queued, queueReason = Open77.database.ready(function()
-    local okDowned, errDowned = pcall(Open77.database.query.await, [[
+    local migrated, err = migrate({ { version = 1, name = "baseline", statements = { [[
         CREATE TABLE IF NOT EXISTS rp_medical_downed (
             character_id BIGINT UNSIGNED NOT NULL,
             since        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (character_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ]], {})
-    local okPoints, errPoints = pcall(Open77.database.query.await, [[
+    ]], [[
         CREATE TABLE IF NOT EXISTS rp_medical_points (
             id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             x DOUBLE NOT NULL, y DOUBLE NOT NULL, z DOUBLE NOT NULL,
@@ -516,9 +524,9 @@ local queued, queueReason = Open77.database.ready(function()
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ]], {})
-    if not okDowned or not okPoints then
-        return log("error", "таблицы не созданы: %s", tostring(errDowned or errPoints))
+    ]] } } })
+    if not migrated then
+        return log("error", "таблицы не созданы: %s", tostring(err))
     end
     dbReady = true
     loadHospitals()

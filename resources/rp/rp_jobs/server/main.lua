@@ -73,8 +73,16 @@ end
 
 -- -- хранение -----------------------------------------------------------------------
 
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok, call, why = pcall(Open77.exports.call, "rp_core", "migrate", GetCurrentResourceName(), list)
+    if not ok or not call then return nil, tostring(ok and why or call) end
+    local okAwait, done, result = pcall(call.await, call)
+    if not okAwait then return nil, tostring(done) end
+    return done, result
+end
 local queued, queueReason = Open77.database.ready(function()
-    local ok, err = pcall(Open77.database.query.await, [[
+    local ok, err = migrate({ { version = 1, name = "baseline", statements = { [[
         CREATE TABLE IF NOT EXISTS rp_character_jobs (
             character_id BIGINT UNSIGNED NOT NULL,
             job          VARCHAR(32)     NOT NULL,
@@ -84,7 +92,7 @@ local queued, queueReason = Open77.database.ready(function()
             PRIMARY KEY (character_id),
             KEY idx_jobs_job (job, grade)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ]], {})
+    ]] } } })
     if not ok then
         log("error", "таблица rp_character_jobs не создана: %s", tostring(err))
         return

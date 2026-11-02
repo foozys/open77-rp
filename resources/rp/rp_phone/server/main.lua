@@ -508,7 +508,7 @@ local function newToken()
     return table.concat(t)
 end
 local function issueToken(p, characterId)
-    if not httpRoutes.frames then return end
+    if not httpRoutes.frames or type(C.httpBase) ~= "string" or C.httpBase == "" then return end
     local old = tokenOf[p]
     if old then tokens[old], frames[old] = nil, nil end
     local token = newToken()
@@ -790,6 +790,15 @@ exports("number", function(playerId)
     return row and row.number or nil
 end)
 
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok, call, why = pcall(Open77.exports.call, "rp_core", "migrate", GetCurrentResourceName(), list)
+    if not ok or not call then return nil, tostring(ok and why or call) end
+    local okAwait, done, result = pcall(call.await, call)
+    if not okAwait then return nil, tostring(done) end
+    return done, result
+end
+
 Open77.database.ready(function()
     local statements = {
         [[CREATE TABLE IF NOT EXISTS rp_phone_lines (
@@ -843,9 +852,8 @@ Open77.database.ready(function()
         avatar_mode = 'none', avatar = '', avatar_meta = '', avatar_rev = avatar_rev + 1
         WHERE avatar_mode = 'image' AND (photo IS NULL OR photo = '')]]
     statements[#statements + 1] = "UPDATE rp_phone_lines SET avatar_mode = 'none' WHERE avatar_mode = 'image'"
-    for _, q in ipairs(statements) do
-        if sql("update", q) == nil then log("error", "таблица телефона не создана"); return end
-    end
+    local migrated, why = migrate({ { version = 1, name = "baseline", statements = statements } })
+    if not migrated then log("error", "таблица телефона не создана: %s", tostring(why)); return end
     ready = true
     log("info", "готов")
     for _, v in ipairs(GetPlayers() or {}) do local p = id(v); if p then hello(p) end end

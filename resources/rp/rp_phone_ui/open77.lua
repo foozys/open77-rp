@@ -10,10 +10,14 @@ dependency "open77_animations"
 -- input.actions: клавиша телефона (O); voice.client: кто из собеседников говорит (рот аватара);
 -- screen.capture + camera.script + world.transform: снимок аватара (кадр игры);
 -- puppets.present + player.appearance.read + player.cyberware.read: виртуальный аватар —
--- локальный манекен со своим телом, как в анкете rp_charselect.
+-- локальный манекен со своим телом и надетой одеждой, как в анкете rp_charselect.
 permissions { "network.events", "local.events", "input.actions", "voice.client",
               "screen.capture", "camera.script", "world.transform",
               "puppets.present", "player.appearance.read", "player.cyberware.read",
+              -- player.equipment.read: надетая одежда для манекена (иначе он без одежды)
+              "player.equipment.read",
+              -- world.effects: рингтон входящего звонка (Open77.sfx)
+              "world.effects",
               -- screen.upload: снимки уходят на HTTP-маршрут rp_phone движком, без кодирования в Lua
               "screen.upload",
               -- camera.preview + camera.style: живой портрет снимается камерой третьего лица,

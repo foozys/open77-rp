@@ -97,8 +97,19 @@ git diff -- resources/rp/rp_surgery_ui/web/index.html resources/rp/rp_surgery_ui
 - `server.jsonc`: `httpHandlers.enabled = true`, `listenUrl http://0.0.0.0:11781` (включил владелец; нужен телефону). Правила брандмауэра «Open77 …» для 11778–11780 ограничены сетью Tailscale `100.64.0.0/10`; правило «Open77 phone HTTP 11781» так же ограничено — подтверждено 2026-11-02.
 - Логи: `logs/server.log` (запуск через `Start-Logged.cmd`). Строки ресурсов — `[resource:rp_phone]`, клиентская трассировка телефона — `[rp_phone_ui]`.
 
+### Шаг 2: эксплуатация и подготовка к хостингу (2026-11-02, сделан, ждёт приёмки)
+Решения владельца: Планировщик Windows не нужен, готовим перенос на хостинг; ОС хостинга не выбрана (скрипты парами `.sh`/`.ps1`); MariaDB на том же сервере; бэкапы только на сервере.
+- `tools/ops/`: `backup` (дамп `.sql.gz`, ротация 14), `restore` (проверка в `test_open77_restore` или `--replace`), `prestart` (ротация логов + бэкап, вызывается `Start-Logged.cmd` / `start-server.sh`), `check-static.cjs`. Проверены на этом ПК (Windows и Git Bash).
+- Миграции: экспорт `rp_core:migrate`, 15 ресурсов `rp_*` — `v1 baseline` (прежний SQL без изменений). Применены 2026-11-02 15:32 (лог и `rp_schema_version` — 15 записей v1).
+- `testMode` и `corporateKey` — tunables `rp_core` (на этом ПК в `tunables.json`: `testMode = true`, `corporateKey = "123"`); `selfTest`/`testEpisodes` больше не включают тест сами.
+- Адрес телефона — convar `rp_phone_http_base` (`server.jsonc` → `convars`; на хостинге `OP77_CONFIG__CONVARS__RP_PHONE_HTTP_BASE`).
+- `SQL 1062` от `open77_transactions` — самопроверка отката, норма (`docs/SYSTEM-RESOURCES.md`).
+- Devkit MCP: npm `@open2077/mcp` 0.1.2 в `%LOCALAPPDATA%\open77-mcp`, подключён в `~/.claude.json` как `open77-devkit` (индекс 2.50.0+op77.156 — для 177 ещё не опубликован). Имена API и SFX сверять через него.
+- Телефон (2026-11-02): манекен аватара одет в надетые вещи (`equipment.registry`, право `player.equipment.read`); рингтон входящего `ui_phone_incoming_call` / `_stop` (`world.effects`); входящий звонок закрывает окно телефона.
+- Проверено владельцем в игре: бэкап при старте, миграции, тестовый режим, ключ корпората, аватары, рингтон, закрытие окна при звонке.
+
 ### Состояние Git (на 2026-11-02)
-Шаг 1 плана закрыт коммитами по темам и отправлен в `origin/main`: экран Риперов, нейро-ОС и телефон, одежда (с инвентарём, `rp_shops`, `server.jsonc`), документация. Рабочее дерево чистое. Дальнейшие коммиты/пуш — только по просьбе владельца.
+Шаг 1 плана закрыт коммитами по темам и отправлен в `origin/main`: экран Риперов, нейро-ОС и телефон, одежда (с инвентарём, `rp_shops`, `server.jsonc`), документация. Шаг 2 (эксплуатация, хостинг, миграции, исправления телефона) — отдельным коммитом в `origin/main` 2026-11-02. Дальнейшие коммиты/пуш — только по просьбе владельца.
 
 ### Нейро-ОС и телефон (2026-11-01…02)
 - `rp_cyberware`: флаг `neuralOs` (кибердеки + новая `implant_civil_os`; Сандевистан — нет), экспорт `has_os`. Без ОС не работают: сканер Kiroshi, `rp_contracts:verify`, щепки `needsOs` (`credchip`, `target_shard`), `/chip` и показ суммы щепки в `rp_inventory`. Старый предмет `phone` ни на что не влияет.

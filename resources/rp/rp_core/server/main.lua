@@ -13,6 +13,9 @@ local queued, reason = Open77.database.ready(function()
     Core.schemaVersion = result
     Core.dbReady = true
     log.info("ядро готово, схема v%d", result)
+    if Tune.testMode then
+        log.warn("ТЕСТОВЫЙ РЕЖИМ ВКЛЮЧЁН (rp.tune testMode false — выключить): полиция к себе, быстрые приступы")
+    end
     local sent, sendReason = TriggerEvent("rp_core:ready")
     if sent == false then log.warn("rp_core:ready не отправлено: %s", tostring(sendReason)) end
     Accounts.loadOnline()
@@ -23,6 +26,29 @@ if not queued then log.error("база данных недоступна: %s", t
 
 exports("is_ready", function()
     return Core.dbReady
+end)
+
+-- Миграции схемы БД ресурса rp_* (вызывать через Open77.exports.call(...):await() из
+-- Open77.database.ready): migrate("rp_x", { { version = 1, name = "...", statements = { sql, … } }, … }).
+-- Ресурс мигрирует только свой модуль; версии пишутся в rp_schema_version, каждая
+-- применяется один раз. true, текущая версия — или nil, reason.
+exports("migrate", function(module, list)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, #RpConfig.trustedResourcePrefix) ~= RpConfig.trustedResourcePrefix then
+        return nil, "caller_denied"
+    end
+    if module ~= caller then return nil, "module_must_match_resource" end
+    local valid, why = Migrations.validate(list)
+    if not valid then return nil, why end
+    local ok, result = Migrations.run(module, list)
+    if not ok then return nil, result end
+    return true, result
+end)
+
+-- Единый тестовый режим (tunable testMode): rp_police — действия к себе, rp_cyberware —
+-- быстрые приступы. true / false.
+exports("test_mode", function()
+    return Tune.testMode == true
 end)
 
 exports("can_touch", function(playerId)

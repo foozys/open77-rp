@@ -399,16 +399,25 @@ exports("worn", function(playerId)
     return last and full(last.worn) or nil
 end)
 
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok, call, why = pcall(Open77.exports.call, "rp_core", "migrate", GetCurrentResourceName(), list)
+    if not ok or not call then return nil, tostring(ok and why or call) end
+    local okAwait, done, result = pcall(call.await, call)
+    if not okAwait then return nil, tostring(done) end
+    return done, result
+end
+
 Open77.database.ready(function()
-    local okTable = db("update", [[
+    local okTable, why = migrate({ { version = 1, name = "baseline", statements = { [[
         CREATE TABLE IF NOT EXISTS rp_clothing_state (
             character_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
             migrated_items TEXT NOT NULL,
             worn TEXT NULL,
             migrated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
-    if okTable == nil then return log("error", "таблица rp_clothing_state не создана") end
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]] } } })
+    if not okTable then return log("error", "таблица rp_clothing_state не создана: %s", tostring(why)) end
     ready = true
     local count = 0
     for _ in pairs(ClothingCatalog) do count = count + 1 end

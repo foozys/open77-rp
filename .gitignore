@@ -2,6 +2,7 @@
 # Бинарники, платформенные ресурсы и .open77/ (ключи подписи, кэш) не коммитим.
 /*
 !/.gitignore
+!/.gitattributes
 !/README.md
 !/PROJECT_CONTEXT.md
 !/CLAUDE.md

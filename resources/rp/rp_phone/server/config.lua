@@ -5,9 +5,11 @@
 PhoneConfig = {
     numberPrefix = "555",
 
-    -- Адрес HTTP-обработчиков сервера для клиентов (httpHandlers в server.jsonc). Если они
-    -- выключены, снимки и аватары идут прежним путём через игровые события.
-    httpBase = "http://100.65.195.32:11781",
+    -- Адрес HTTP-обработчиков сервера для клиентов (httpHandlers в server.jsonc) — convar
+    -- rp_phone_http_base: блок convars в server.jsonc, на хостинге — переменная окружения
+    -- OP77_CONFIG__CONVARS__RP_PHONE_HTTP_BASE (http://<публичный адрес>:11781). Пусто или
+    -- обработчики выключены — снимки и аватары идут прежним путём через игровые события.
+    httpBase = Open77.convars.get("rp_phone_http_base", ""),
 
     messageMaxChars = 500,     -- длина одного сообщения (символы UTF-8)
     messageCooldownMs = 800,   -- не чаще одного сообщения за столько миллисекунд

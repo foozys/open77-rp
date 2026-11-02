@@ -1,0 +1,6 @@
+# Скрипты для Linux-хостинга — всегда LF, иначе bash не запустит их.
+*.sh text eol=lf
+# Windows PowerShell 5.1 — CRLF.
+*.ps1 text eol=crlf
+# Пакетные файлы Windows — CRLF.
+*.cmd text eol=crlf

@@ -230,8 +230,11 @@
   },
   // Городской трафик (open77_traffic): convar включает генерацию по умолчанию.
   // Плотность и прочее — tunable.set open77_traffic <ключ> <значение> или Warden → Tuning.
+  // rp_phone_http_base — адрес httpHandlers для клиентов телефона (снимки, аватары); на
+  // хостинге — OP77_CONFIG__CONVARS__RP_PHONE_HTTP_BASE (см. docs/HOSTING.md).
   "convars": {
-    "open77_traffic_enabled": "true"
+    "open77_traffic_enabled": "true",
+    "rp_phone_http_base": "http://100.65.195.32:11781"
   },
   "startup": {
     "commands": []

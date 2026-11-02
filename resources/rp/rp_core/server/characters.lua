@@ -604,8 +604,10 @@ RegisterNetEvent("rp_core:charselect:background", function(data)
         if background ~= "civilian" and background ~= "corporate" then
             return fail(playerId, "Выберите предысторию персонажа.")
         end
-        if background == "corporate" and tostring(data.key or "") ~= RpConfig.corporateKey then
-            return fail(playerId, "Неверный ключ корпората.")
+        if background == "corporate" then
+            local key = tostring(Tune.corporateKey or "")
+            if key == "" then return fail(playerId, "Предыстория корпората сейчас недоступна — обратитесь к администрации.") end
+            if tostring(data.key or "") ~= key then return fail(playerId, "Неверный ключ корпората.") end
         end
 
         local row = s.current

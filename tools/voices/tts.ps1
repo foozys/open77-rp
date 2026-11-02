@@ -1,4 +1,4 @@
-param([string]$OutDir, [string]$Voice, [string]$Prefix = "v")
+﻿param([string]$OutDir, [string]$Voice, [string]$Prefix = "v")
 # Синтез фраз голосом OneCore (WinRT Windows.Media.SpeechSynthesis) в WAV.
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $null = [Windows.Media.SpeechSynthesis.SpeechSynthesizer, Windows.Media.SpeechSynthesis, ContentType = WindowsRuntime]

@@ -96,10 +96,10 @@ local function onDuty(playerId, permission)
     return sync("rp_jobs", "can", playerId, permission, true) == true
 end
 
--- Тест в одиночку (PoliceConfig.selfTest): владельцу сервера можно применять к себе
+-- Тест в одиночку (тестовый режим ядра, rp_core testMode): владельцу сервера можно применять к себе
 -- штраф, КПЗ и обыск. Наручники и сопровождение open77_rp_basics на себя не даёт.
 local function selfTester(playerId)
-    return PoliceConfig.selfTest == true and core("can", playerId, "rp.owner") == true
+    return core("test_mode") == true and core("can", playerId, "rp.owner") == true
 end
 
 -- Цель — сам офицер в тестовом режиме.
@@ -716,6 +716,15 @@ end, false)
 
 -- -- старт ------------------------------------------------------------------------------
 
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok, call, why = pcall(Open77.exports.call, "rp_core", "migrate", GetCurrentResourceName(), list)
+    if not ok or not call then return nil, tostring(ok and why or call) end
+    local okAwait, done, result = pcall(call.await, call)
+    if not okAwait then return nil, tostring(done) end
+    return done, result
+end
+
 local queued, queueReason = Open77.database.ready(function()
     local statements = {
         [[CREATE TABLE IF NOT EXISTS rp_police_points (
@@ -756,10 +765,8 @@ local queued, queueReason = Open77.database.ready(function()
             PRIMARY KEY (character_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci]],
     }
-    for _, sql in ipairs(statements) do
-        local ok, err = pcall(Open77.database.query.await, sql, {})
-        if not ok then return log("error", "таблицы не созданы: %s", tostring(err)) end
-    end
+    local migrated, err = migrate({ { version = 1, name = "baseline", statements = statements } })
+    if not migrated then return log("error", "таблицы не созданы: %s", tostring(err)) end
     dbReady = true
     loadPoints()
     -- Перезапуск ресурса: права набора — по сменам, сидящие в КПЗ — снова в КПЗ.

@@ -27,8 +27,8 @@ CyberConfig = {
     episodeFrom = 40,
     severeFrom = 75,
     episodeMinutes = 10,
-    -- ТЕСТ: приступы чаще — лёгкие раз в light секунд, тяжёлые раз в severe секунд (вместо
-    -- episodeMinutes). Перед запуском живого сервера — testEpisodes = nil.
+    -- Тестовый режим (rp_core tunable testMode): приступы чаще — лёгкие раз в light секунд,
+    -- тяжёлые раз в severe секунд (вместо episodeMinutes). Без testMode не действует.
     testEpisodes = { light = 10, severe = 5 },
 
     clinicPriceFactor = 1.5,

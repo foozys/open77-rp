@@ -38,8 +38,16 @@ local function broadcast()
         local p=id(v);if p and faction(p)=="fixer" then postState(p) end
     end
 end
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok,call,why=pcall(Open77.exports.call,"rp_core","migrate",GetCurrentResourceName(),list)
+    if not ok or not call then return nil,tostring(ok and why or call) end
+    local okAwait,done,result=pcall(call.await,call)
+    if not okAwait then return nil,tostring(done) end
+    return done,result
+end
 Open77.database.ready(function()
-    local result,err=sql("update",[[CREATE TABLE IF NOT EXISTS rp_fixer_contracts (
+    local result,err=migrate({{version=1,name="baseline",statements={[[CREATE TABLE IF NOT EXISTS rp_fixer_contracts (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         customer_id BIGINT UNSIGNED NOT NULL,
         target_id BIGINT UNSIGNED NOT NULL,
@@ -55,7 +63,8 @@ Open77.database.ready(function()
         completed_at DATETIME NULL,
         KEY idx_state (status, created_at),
         KEY idx_target (target_id, status)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]}}})
+    if not result then Open77.log.error("[rp_contracts] схема БД: "..tostring(err)) end
     ready=result~=nil
     if ready then
         local rows=sql("query",[[SELECT id,mercenary_id,target_id FROM rp_fixer_contracts

@@ -26,12 +26,22 @@ local function db(method,sql,params)
     Open77.log.error("[rp_surgery] БД: "..tostring(result));return nil
 end
 local ready=false
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok,call,why=pcall(Open77.exports.call,"rp_core","migrate",GetCurrentResourceName(),list)
+    if not ok or not call then return nil,tostring(ok and why or call) end
+    local okAwait,done,result=pcall(call.await,call)
+    if not okAwait then return nil,tostring(done) end
+    return done,result
+end
 Open77.database.ready(function()
-    ready=db("update",[[CREATE TABLE IF NOT EXISTS rp_surgery_skill (
+    local done,why=migrate({{version=1,name="baseline",statements={[[CREATE TABLE IF NOT EXISTS rp_surgery_skill (
         character_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
         operations INT UNSIGNED NOT NULL DEFAULT 0,
         successes INT UNSIGNED NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])~=nil
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]}}})
+    if not done then Open77.log.error("[rp_surgery] схема БД: "..tostring(why)) end
+    ready=done==true
 end)
 local function record(d,success)
     local c=char(d);if not c then return end

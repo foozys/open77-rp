@@ -43,7 +43,7 @@ git status --short --branch
 git pull --ff-only origin main   # только при чистом рабочем дереве и отсутствии конфликтов
 ```
 
-На Windows `Start-Logged.cmd` пишет серверный вывод в `logs/server.log`, прошлый — `logs/server.prev.log`. Они локальны и в Git не входят. Для публикации обновлённых WebUI/клиентских ресурсов и манифестов нужен `refresh` / полный перезапуск сервера и **повторное подключение клиентов**; одного `restart` недостаточно.
+На Windows `Start-Logged.cmd` перед стартом делает бэкап базы в `backups/` и ротацию логов (`tools/ops/prestart.ps1`), пишет серверный вывод в `logs/server.log`, прошлый — `logs/server.prev.log`. Перед коммитом — `node tools/ops/check-static.cjs`. Ничего привязанного к ПК в коде: адреса — convar'ы, ключи и режимы (`testMode`, `corporateKey`) — tunables; схема БД — только миграциями `rp_core:migrate`. Они локальны и в Git не входят. Для публикации обновлённых WebUI/клиентских ресурсов и манифестов нужен `refresh` / полный перезапуск сервера и **повторное подключение клиентов**; одного `restart` недостаточно.
 
 ## Карта документации
 
@@ -52,6 +52,8 @@ git pull --ff-only origin main   # только при чистом рабоче
 - [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) — краткая архитектура и продуктовые решения.
 - [DOCS.md](DOCS.md) — команды, настройки, операторские сценарии и таблицы БД (обновлять при новых функциях).
 - [TESTING-2P.md](TESTING-2P.md) — сценарии проверки двумя игроками.
+- [docs/HOSTING.md](docs/HOSTING.md) — установка на хостинг (Linux / Windows), порты, переменные окружения, перенос с ПК, обновление; [docs/SYSTEM-RESOURCES.md](docs/SYSTEM-RESOURCES.md) — системные ресурсы вне Git и правила выпуска.
+- `tools/ops/` — эксплуатация парами `.sh`/`.ps1`: `backup`, `restore`, `prestart`, `start-server.sh`; `check-static.cjs` — статические проверки одной командой.
 - [RIPPER-UI-REDESIGN.md](RIPPER-UI-REDESIGN.md), [UI-REDESIGN.md](UI-REDESIGN.md) — UI и резервные версии.
 - [docs/PROJECT_HISTORY.md](docs/PROJECT_HISTORY.md) — полный **исторический** технический журнал; читать по мере необходимости.
 - `.claude/rules/` — узкие правила для Lua и WebUI, автоматически подключаемые Claude Code по файлам.

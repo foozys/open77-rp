@@ -15,8 +15,27 @@ function Migrations.add(version, name, statements)
     Migrations.list[#Migrations.list + 1] = { version = version, name = name, statements = statements }
 end
 
+-- Миграции другого rp_*-ресурса (экспорт rp_core:migrate): список { version, name, statements }.
+-- Проверяет форму списка; ошибки — false, reason.
+function Migrations.validate(list)
+    if type(list) ~= "table" or #list == 0 then return false, "пустой список миграций" end
+    local seen = {}
+    for i, m in ipairs(list) do
+        local version = type(m) == "table" and math.tointeger(m.version)
+        if not version or version < 1 or seen[version] then return false, "миграция #" .. i .. ": неверная или повторная версия" end
+        if type(m.name) ~= "string" or m.name == "" or #m.name > 128 then return false, "миграция v" .. version .. ": нет имени" end
+        if type(m.statements) ~= "table" or #m.statements == 0 then return false, "миграция v" .. version .. ": нет утверждений" end
+        for _, sql in ipairs(m.statements) do
+            if type(sql) ~= "string" or sql == "" then return false, "миграция v" .. version .. ": пустое утверждение" end
+        end
+        seen[version] = true
+    end
+    return true
+end
+
 -- Вызывать из корутины (Open77.database.ready, CreateThread). Возвращает true или false, reason.
-function Migrations.run(module)
+-- list — миграции модуля (по умолчанию — объявленные в rp_core через Migrations.add).
+function Migrations.run(module, list)
     local _, err = Db.update([[
         CREATE TABLE IF NOT EXISTS rp_schema_version (
             module     VARCHAR(32)  NOT NULL,
@@ -34,10 +53,11 @@ function Migrations.run(module)
     if err then return false, "read version: " .. err end
     current = math.tointeger(tonumber(current)) or 0
 
-    table.sort(Migrations.list, function(a, b) return a.version < b.version end)
+    list = list or Migrations.list
+    table.sort(list, function(a, b) return a.version < b.version end)
 
     local applied = 0
-    for _, m in ipairs(Migrations.list) do
+    for _, m in ipairs(list) do
         if m.version > current then
             log.info("%s: применяю v%d %s", module, m.version, m.name)
             for i, sql in ipairs(m.statements) do

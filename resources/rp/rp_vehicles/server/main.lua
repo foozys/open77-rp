@@ -355,8 +355,17 @@ local function sweep(leaving)
     end
 end
 
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok, call, why = pcall(Open77.exports.call, "rp_core", "migrate", GetCurrentResourceName(), list)
+    if not ok or not call then return nil, tostring(ok and why or call) end
+    local okAwait, done, result = pcall(call.await, call)
+    if not okAwait then return nil, tostring(done) end
+    return done, result
+end
+
 local queued, queueReason = Open77.database.ready(function()
-    local okVehicles, errVehicles = pcall(Open77.database.query.await, [[
+    local migrated, err = migrate({ { version = 1, name = "baseline", statements = { [[
         CREATE TABLE IF NOT EXISTS rp_vehicles (
             id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             character_id BIGINT UNSIGNED NOT NULL,
@@ -370,9 +379,9 @@ local queued, queueReason = Open77.database.ready(function()
             UNIQUE KEY uq_vehicles_plate (plate),
             KEY idx_vehicles_owner (character_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ]], {})
+    ]],
     -- Место машины «в городе», замок и поколение ключей (добавлены позже, MariaDB).
-    local okColumns, errColumns = pcall(Open77.database.query.await, [[
+    [[
         ALTER TABLE rp_vehicles
             ADD COLUMN IF NOT EXISTS px DOUBLE NULL,
             ADD COLUMN IF NOT EXISTS py DOUBLE NULL,
@@ -384,8 +393,7 @@ local queued, queueReason = Open77.database.ready(function()
             ADD COLUMN IF NOT EXISTS garage_id BIGINT UNSIGNED NULL,
             ADD COLUMN IF NOT EXISTS paint_primary VARCHAR(7) NULL,
             ADD COLUMN IF NOT EXISTS paint_secondary VARCHAR(7) NULL
-    ]], {})
-    local okPoints, errPoints = pcall(Open77.database.query.await, [[
+    ]], [[
         CREATE TABLE IF NOT EXISTS rp_vehicle_points (
             id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             type       ENUM('dealer', 'garage') NOT NULL,
@@ -396,9 +404,9 @@ local queued, queueReason = Open77.database.ready(function()
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ]], {})
-    if not okVehicles or not okColumns or not okPoints then
-        log("error", "таблицы не созданы: %s", tostring(errVehicles or errColumns or errPoints))
+    ]] } } })
+    if not migrated then
+        log("error", "таблицы не созданы: %s", tostring(err))
         return
     end
     -- Машина «в городе» без места (старые записи) — в гараж.

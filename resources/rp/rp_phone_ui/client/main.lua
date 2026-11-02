@@ -104,12 +104,40 @@ local function talkerLevel(peer)
     return false, 0
 end
 
+-- Рингтон входящего — штатный звук телефона игры (Wwise-событие), повторяется, пока звонок
+-- в состоянии incoming; звучит только у получателя. События — из каталога SFX devkit
+-- (игра 2.31): звонок и его штатная остановка.
+local RINGTONE, RINGTONE_STOP, RING_REPEAT_S = "ui_phone_incoming_call", "ui_phone_incoming_call_stop", 4.0
+local ringHandle = nil
+
+local function stopRing()
+    if not ringHandle then return end
+    pcall(Open77.sfx.stop, ringHandle)
+    ringHandle = nil
+    pcall(Open77.sfx.play, RINGTONE_STOP, { duration = 1.0 })
+end
+
+local function startRing(call)
+    CreateThread(function()
+        while callState == call and call.state == "incoming" do
+            stopRing()
+            local okPlay, handle, why = pcall(Open77.sfx.play, RINGTONE, { unique = true, duration = RING_REPEAT_S })
+            if okPlay and handle then ringHandle = handle
+            else trace("рингтон %s не запущен: %s", RINGTONE, tostring(okPlay and why or handle)); return end
+            Wait(math.floor(RING_REPEAT_S * 1000))
+        end
+    end)
+end
+
 RegisterNetEvent("rp_phone:call", function(p)
     if type(p) ~= "table" then return end
+    stopRing()
     callState = { id = p.id, state = p.state, peer = math.tointeger(tonumber(p.peer)) }
-    if p.state == "active" or p.state == "dialing" then
-        if panelOpen then closePanel() end
+    -- Входящий, исходящий и разговор — окно телефона закрывается, остаётся виджет звонка.
+    if p.state == "incoming" or p.state == "active" or p.state == "dialing" then
+        if panelOpen or wantOpen then closePanel() end
     end
+    if p.state == "incoming" then startRing(callState) end
     send("phone:call", p)
     if p.state == "active" and callState.peer then
         local mine = callState
@@ -322,7 +350,17 @@ local function preparePuppet(job, angle, bust)
     f = { x = f.x / length, y = f.y / length }
     local p = me.position
     local spot = { x = p.x + f.x * 3.0, y = p.y + f.y * 3.0, z = p.z }
-    local handle, whyPuppet = Open77.puppets.createLocal({ body = body, position = spot,
+    -- Одежда — то, что сейчас надето на персонаже (реестр слотов); без неё манекен голый.
+    local equipment = {}
+    local okWorn, worn = pcall(Open77.equipment.registry)
+    if okWorn and type(worn) == "table" then
+        for slot, record in pairs(worn) do
+            if type(record) == "string" and record ~= "" then equipment[slot] = record end
+        end
+    else
+        trace("одежда манекена недоступна: %s", tostring(okWorn and worn or "ошибка"))
+    end
+    local handle, whyPuppet = Open77.puppets.createLocal({ body = body, equipment = equipment, position = spot,
         yaw = ((tonumber(me.yaw) or 0) + 180 + angle) % 360 })
     if not handle then return nil, "манекен не создан (" .. tostring(whyPuppet) .. ")" end
     job.puppet = handle

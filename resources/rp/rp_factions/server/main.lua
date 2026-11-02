@@ -198,8 +198,17 @@ AddEventHandler("onPlayerDisconnected", function(playerIdArg)
     members[tonumber(playerIdArg)] = nil
 end)
 
+-- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).
+local function migrate(list)
+    local ok, call, why = pcall(Open77.exports.call, "rp_core", "migrate", GetCurrentResourceName(), list)
+    if not ok or not call then return nil, tostring(ok and why or call) end
+    local okAwait, done, result = pcall(call.await, call)
+    if not okAwait then return nil, tostring(done) end
+    return done, result
+end
+
 local queued, why = Open77.database.ready(function()
-    local _, createErr = db("update", [[
+    local created, createErr = migrate({ { version = 1, name = "baseline", statements = { [[
         CREATE TABLE IF NOT EXISTS rp_character_factions (
             character_id BIGINT UNSIGNED NOT NULL,
             faction      VARCHAR(32) NOT NULL,
@@ -211,8 +220,8 @@ local queued, why = Open77.database.ready(function()
             UNIQUE KEY uq_faction_slot (faction, slot),
             KEY idx_faction_members (faction, grade)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ]])
-    if createErr then return log("error", "таблица не создана: %s", createErr) end
+    ]] } } })
+    if not created then return log("error", "таблица не создана: %s", tostring(createErr)) end
 
     -- Освободить членство удалённых персонажей после остановленного ресурса.
     db("update", [[
