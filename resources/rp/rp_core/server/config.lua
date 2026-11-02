@@ -43,7 +43,7 @@ RpConfig = {
     staffRoles = {
         { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view", "rp.teleport" } },
         { id = "moderator", label = "Модератор",
-          permissions = { "rp.kick", "rp.ban", "rp.whitelist.add", "rp.spectate", "rp.freeze", "rp.warn" },
+          permissions = { "rp.kick", "rp.ban", "rp.whitelist.add", "rp.spectate", "rp.freeze", "rp.warn", "rp.audit.view" },
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
@@ -61,6 +61,11 @@ RpConfig = {
             value = true, type = "boolean",
             apply = "live", group = "Ядро", label = "Аудит в БД",
             description = "Писать значимые действия (выдача денег, баны, админ-команды) в таблицу rp_audit_log.",
+        },
+        auditRetentionDays = {
+            value = 180, type = "integer", min = 0, max = 3650,
+            apply = "live", group = "Ядро", label = "Хранить журнал, дней",
+            description = "Записи rp_audit_log старше этого срока удаляются автоматически (раз в 6 часов). 0 — хранить бессрочно.",
         },
         whitelistEnabled = {
             value = true, type = "boolean",

@@ -596,6 +596,11 @@ local function notifyCorporate(playerId, row)
     log.info("%s Уведомлено администраторов: %d", text, notified)
 end
 
+-- Неверные ключи корпората по аккаунту (license): { count, since }. Сбрасываются верным
+-- ключом, через окно или перезапуском ресурса.
+local CORP_KEY_TRIES, CORP_KEY_WINDOW = 5, 600
+local corporateTries = {}
+
 RegisterNetEvent("rp_core:charselect:background", function(data)
     local playerId, s = sessionOf(source, "background")
     if not s or type(data) ~= "table" then return end
@@ -607,7 +612,21 @@ RegisterNetEvent("rp_core:charselect:background", function(data)
         if background == "corporate" then
             local key = tostring(Tune.corporateKey or "")
             if key == "" then return fail(playerId, "Предыстория корпората сейчас недоступна — обратитесь к администрации.") end
-            if tostring(data.key or "") ~= key then return fail(playerId, "Неверный ключ корпората.") end
+            -- Подбор ключа (аудит И-2): не больше CORP_KEY_TRIES неверных за окно, на аккаунт.
+            local now = Open77.time.unix()
+            local tries = corporateTries[s.license]
+            if tries and now - tries.since > CORP_KEY_WINDOW then tries = nil; corporateTries[s.license] = nil end
+            if tries and tries.count >= CORP_KEY_TRIES then
+                return fail(playerId, "Слишком много неверных попыток. Попробуйте позже или обратитесь к администрации.")
+            end
+            if tostring(data.key or "") ~= key then
+                tries = tries or { count = 0, since = now }
+                tries.count = tries.count + 1
+                corporateTries[s.license] = tries
+                Log.audit("corporate_key_fail", s.license, s.license, { tries = tries.count })
+                return fail(playerId, "Неверный ключ корпората.")
+            end
+            corporateTries[s.license] = nil
         end
 
         local row = s.current

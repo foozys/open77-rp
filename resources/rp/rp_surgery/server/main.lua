@@ -4,6 +4,8 @@ local function sync(r,n,...) local ok,a,b=pcall(Open77.exports.callSync,r,n,...)
 local function await(r,n,...) local promise,why=Open77.exports.call(r,n,...);if not promise then return nil,why end;return promise:await() end
 local function notify(p,t) if p then Open77.chat.send(p,{type="system",author="РИПЕР",text=t,color={200,120,255}}) end end
 local function char(p) return sync("rp_core","character",p) end
+-- Журнал действий (rp_core, шаг 3.4): Рипер — кто, пациент — над кем.
+local function journal(action,d,p,details) sync("rp_core","journal",action,d,p,details) end
 local function ripper(p) local f=sync("rp_factions","faction",p);return type(f)=="table" and f.id=="ripper" end
 local function pos(p) local t=Open77.players.get(p);return t and t.position and {x=t.position.x,y=t.position.y,z=t.position.z,bucket=t.bucket or 0} end
 local function near(a,b)
@@ -106,6 +108,7 @@ local function finish(d,success)
                 return
             end
             record(d,false)
+            journal("remove_fail",d,p,{slot=op.slot,implant=op.expectedOld,os=isOs==true})
             if isOs then await("rp_medical","surgery_downed",p) end
             notify(d,"Снятие провалено: имплант остался на месте, пациент получил травму.")
             notify(p,"Неудачное снятие: имплант сохранён, −10 к максимуму здоровья.")
@@ -119,6 +122,7 @@ local function finish(d,success)
             return
         end
         record(d,true)
+        journal("remove",d,p,{slot=op.slot,implant=op.expectedOld})
         notify(p,"Старый имплант снят и возвращён в инвентарь.")
         if op.implant then
             op.stage="install";op.finished=false
@@ -146,6 +150,7 @@ local function finish(d,success)
             if isOs then await("rp_medical","surgery_downed",p) end
         end
         record(d,success)
+        journal(success and "install" or "install_fail",d,p,{slot=op.slot,implant=op.implant})
         notify(d,success and "Имплант установлен. Опыт учтён." or "Установка провалена: имплант уничтожен.")
         notify(p,success and "Установка завершена." or "Имплант уничтожен; травма снижает максимум HP на 10.")
         TriggerClientEvent("rp_surgery:finish",d,{success=success})
@@ -238,6 +243,7 @@ local function consent(p,accepted,token)
     operations[d]={patient=p,slot=selected.slot,implant=selected.implant,expectedOld=selected.current,
         stage=selected.current and "remove" or "install"}
     occupied[p]=d
+    journal("consent",d,p,{slot=selected.slot,old=selected.current,new=selected.implant})
     notify(p,"Операция началась. Оставайтесь рядом с рипером.")
     startStage(d)
 end

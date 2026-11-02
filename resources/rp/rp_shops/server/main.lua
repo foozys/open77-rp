@@ -27,6 +27,11 @@ end
 
 local function core(name, ...) return sync("rp_core", name, ...) end
 
+-- Журнал действий (rp_core, шаг 3.4): стороны — ID игрока, license или "console"; opId — операция.
+local function journal(action, actor, target, details, opId)
+    core("journal", action, actor, target, details, opId)
+end
+
 local function notify(target, fmt, ...)
     local text = select("#", ...) > 0 and string.format(fmt, ...) or fmt
     if not target or target < 1 then
@@ -299,6 +304,7 @@ RegisterNetEvent("rp_shops:buy", function(itemId, count)
     local catalog = sync("rp_inventory", "catalog") or {}
     local label = catalog[itemId] and catalog[itemId].label or itemId
     log("info", "покупка %d: %s x%d за %d (%s)", playerId, itemId, count, total, opId)
+    journal("buy", playerId, nil, { item = itemId, count = count, total = total, shop = session.shopId }, opId)
     result(playerId, true, string.format("Куплено: %s ×%d за %d €$.", label, count, total))
 end)
 

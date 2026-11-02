@@ -35,6 +35,11 @@ end
 
 local function core(name, ...) return sync("rp_core", name, ...) end
 
+-- Журнал действий (rp_core, шаг 3.4): стороны — ID игрока, license или "console"; opId — операция.
+local function journal(action, actor, target, details, opId)
+    core("journal", action, actor, target, details, opId)
+end
+
 local function notify(target, fmt, ...)
     local text = select("#", ...) > 0 and string.format(fmt, ...) or fmt
     if not target or target < 1 then
@@ -604,10 +609,11 @@ RegisterNetEvent("rp_vehicles:buy", function(model)
         -- Деньги списаны, а строка не записалась: в лог для ручного возврата.
         log("error", "ПОКУПКА БЕЗ МАШИНЫ: игрок %d, персонаж #%d, %s за %d (%s): %s",
             playerId, character.id, model, def.price, tostring(receipt.opId), tostring(err))
+        -- Для возврата администрацией: F3 → «Журнал», действие car_buy_failed → opId списания (аудит И-6).
+        journal("car_buy_failed", playerId, nil, { model = model, price = def.price, error = tostring(err) }, receipt.opId)
         return result(playerId, false, "Ошибка базы. Деньги списаны — обратитесь к администрации (/report).")
     end
-    core("audit", "car_buy", core("account_license", playerId), tostring(character.id),
-        { model = model, price = def.price, plate = plate, id = id })
+    journal("car_buy", playerId, nil, { model = model, price = def.price, plate = plate, id = id }, receipt.opId)
     log("info", "покупка: персонаж #%d, %s (%s) за %d", character.id, model, plate, def.price)
     result(playerId, true, string.format("Куплено: %s, номер %s. Машина ждёт в гараже #%d.", def.label, plate, home.id))
     sendMyGarages(playerId)

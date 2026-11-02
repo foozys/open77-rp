@@ -45,6 +45,11 @@ local function actorOf(source)
     return core("account_license", source) or ("player:" .. source)
 end
 
+-- Журнал действий (rp_core, шаг 3.4): кто — ID администратора (консоль — "console").
+local function journal(action, source, target, details)
+    core("journal", action, source and source > 0 and source or "console", target, details)
+end
+
 local function characterName(playerId)
     local character = core("character", playerId)
     return type(character) == "table" and (character.firstName .. " " .. character.lastName) or nil
@@ -131,6 +136,7 @@ RegisterCommand("rp.tp", function(source, args)
     if not place then return notify(source, "Позиция %s неизвестна.", label(target)) end
     place.x = place.x + 1.0
     local ok, why = teleport(source, place)
+    if ok then journal("tp", source, target, nil) end
     notify(source, ok and "Вы у %s. Вернуться — rp.back." or "Не получилось: %s.", ok and label(target) or explainTeleport(why))
 end, false)
 
@@ -147,6 +153,7 @@ RegisterCommand("rp.bring", function(source, args)
     notify(source, "%s у вас. Вернуть — rp.back %d.", label(target), target)
     notify(target, "Вас переместила администрация.")
     log("info", "bring %d -> %d", target, source)
+    journal("bring", source, target, nil)
 end, false)
 
 -- rp.tpc <x> <y> <z> — по координатам (право rp.teleport)
@@ -156,6 +163,7 @@ RegisterCommand("rp.tpc", function(source, args)
     if not x or not y or not z then return notify(source, "Использование: rp.tpc <x> <y> <z> (координаты — /pos)") end
     local here = placeOf(source)
     local ok, why = teleport(source, { x = x, y = y, z = z, heading = here and here.heading or 0, bucket = 0 })
+    if ok then journal("tpc", source, nil, { x = math.floor(x), y = math.floor(y), z = math.floor(z) }) end
     notify(source, ok and "Готово. Вернуться — rp.back." or "Не получилось: %s.", explainTeleport(why))
 end, false)
 
@@ -199,7 +207,10 @@ RegisterNetEvent("rp_admin:waypoint", function(position, reason)
     local ok, why = teleport(playerId, { x = x, y = y, z = z + 1.0, heading = here and here.heading or 0,
                                          bucket = here and here.bucket or 0 })
     notify(playerId, ok and "Вы у метки. Вернуться — rp.back." or "Не получилось: %s.", explainTeleport(why))
-    if ok then log("info", "tpm %d -> %.1f %.1f %.1f", playerId, x, y, z) end
+    if ok then
+        log("info", "tpm %d -> %.1f %.1f %.1f", playerId, x, y, z)
+        journal("tpm", playerId, nil, { x = math.floor(x), y = math.floor(y), z = math.floor(z) })
+    end
 end)
 
 AddEventHandler("onPlayerDisconnected", function(playerIdStr)
@@ -218,7 +229,10 @@ RegisterCommand("rp.back", function(source, args)
     local place = back[target]
     if not place then return notify(source, "Некуда возвращать.") end
     local ok, why = teleport(target, place)
-    if ok then back[target] = nil end
+    if ok then
+        back[target] = nil
+        journal("back", source, target, nil)
+    end
     notify(source, ok and "Возвращено." or "Не получилось: %s.", explainTeleport(why))
 end, false)
 
@@ -246,6 +260,7 @@ RegisterCommand("rp.spec", function(source, args)
     back[source] = remembered
     notify(source, "Наблюдение за %s. Закончить — rp.spec off.", label(target))
     log("info", "spectate %d -> %d", source, target)
+    journal("spectate", source, target, nil)
 end, false)
 
 -- rp.freeze <ID> — заморозить или разморозить (право rp.freeze)
@@ -422,6 +437,7 @@ RegisterCommand("rp.announce", function(source, args)
     if text == "" then return notify(source, "Использование: rp.announce <текст>") end
     Open77.chat.send(-1, { type = "system", author = "ОБЪЯВЛЕНИЕ", text = text, color = { 255, 200, 0 } })
     log("info", "announce от %s: %s", actorOf(source), text)
+    journal("announce", source, nil, { text = text:sub(1, 200) })
 end, false)
 
 -- /report <текст> — жалоба или вопрос администрации
@@ -480,6 +496,7 @@ local PANEL_PERMS = {
     "rp.staff", "rp.view", "rp.teleport", "rp.spectate", "rp.freeze", "rp.heal", "rp.warn", "rp.unwarn",
     "rp.announce", "rp.kick", "rp.ban", "rp.ban.permanent", "rp.unban", "rp.whitelist.add", "rp.whitelist.remove",
     "rp.staff.manage", "rp.tune", "rp.money", "rp.items", "rp.jobs", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber",
+    "rp.audit.view",
 }
 
 -- Экспорт другого ресурса или пустой список, если ресурс не запущен.
@@ -522,4 +539,35 @@ RegisterNetEvent("rp_admin:panel", function()
         shopTypes = listFrom("rp_shops", "shop_types"), roles = listFrom("rp_core", "staff_roles"),
     })
     if not ok then log("warn", "панель для %d не отправлена: %s", playerId, tostring(why)) end
+end)
+
+-- Вкладка «Журнал» (шаг 3.6): запрос записей rp_audit_log. Право rp.audit.view и фильтры
+-- проверяет rp_core (экспорт audit_query); здесь — один запрос игрока за раз.
+local journalBusy = {}
+
+RegisterNetEvent("rp_admin:journal", function(query)
+    local playerId = tonumber(source)
+    if not playerId or journalBusy[playerId] or type(query) ~= "table" then return end
+    journalBusy[playerId] = true
+    CreateThread(function()
+        local okCall, result, why = pcall(coreAwait, "audit_query", playerId, {
+            who = type(query.who) == "string" and query.who:sub(1, 40) or nil,
+            category = type(query.category) == "string" and query.category:sub(1, 24) or nil,
+            action = type(query.action) == "string" and query.action:sub(1, 64) or nil,
+            op = type(query.op) == "string" and query.op:sub(1, 96) or nil,
+            hours = math.tointeger(tonumber(query.hours)),
+            before = math.tointeger(tonumber(query.before)),
+        })
+        journalBusy[playerId] = nil
+        if not okCall then result, why = nil, tostring(result) end
+        local payload = type(result) == "table" and result or { error = tostring(why or "Журнал недоступен.") }
+        payload.append = query.before ~= nil and result ~= nil
+        local ok, sendWhy = TriggerClientEvent("rp_admin:journal", playerId, payload)
+        if not ok then log("warn", "журнал для %d не отправлен: %s", playerId, tostring(sendWhy)) end
+    end)
+end)
+
+AddEventHandler("onPlayerDisconnected", function(playerIdStr)
+    local playerId = tonumber(playerIdStr)
+    if playerId then journalBusy[playerId] = nil end
 end)

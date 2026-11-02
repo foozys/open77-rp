@@ -19,6 +19,11 @@ local function core(name, ...)
     return a, b
 end
 
+-- Журнал действий (rp_core, шаг 3.4): стороны — ID игрока, license или "console"; opId — операция.
+local function journal(action, actor, target, details, opId)
+    core("journal", action, actor, target, details, opId)
+end
+
 local function notify(playerId, fmt, ...)
     local text = select("#", ...) > 0 and string.format(fmt, ...) or fmt
     if not playerId or playerId < 1 then
@@ -336,6 +341,7 @@ local function useItem(playerId, index, itemId)
             takeFrom(state, at, 1)
             refresh(playerId)
             log("info", "щепка %s: +%d игроку %d (%s)", tostring(stack.u), amount, playerId, opId)
+            journal("chip_read", playerId, nil, { instance = stack.u, amount = amount }, opId)
             return notify(playerId, "Щепка считана: +%d €$ на счёт.", amount)
         end
         if def.use == "event" then
@@ -356,6 +362,7 @@ local function useItem(playerId, index, itemId)
         local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.use", reason = "use",
             lines = { { item = stack.i, count = 1, from = state.account, to = SOURCE } } })
         if not receipt then return notify(playerId, "Не получилось: %s.", explain(why or "busy")) end
+        journal("use", playerId, nil, { item = stack.i }, opId)
         takeFrom(state, at, 1)
         refresh(playerId)
         if def.heal then
@@ -400,6 +407,7 @@ RegisterNetEvent("rp_inventory:give", function(index, itemId, count, targetId)
         notify(playerId, "Вы передали %s: %s ×%d.", nameOf(target), labelOf(itemId), count)
         notify(target, "%s передал вам: %s ×%d.", nameOf(playerId), labelOf(itemId), count)
         log("info", "give %d -> %d: %s x%d (%s)", playerId, target, itemId, count, opId)
+        journal("give", playerId, target, { item = stack.i, count = count, instance = stack.u }, opId)
     end)
 end)
 
@@ -429,6 +437,7 @@ RegisterNetEvent("rp_inventory:drop", function(index, itemId, count)
         takeFrom(state, at, count)
         refresh(playerId)
         log("info", "drop %d: %s x%d -> %s", playerId, itemId, count, pile.id)
+        journal("drop", playerId, nil, { item = stack.i, count = count, instance = stack.u, pile = pile.id }, opId)
     end)
 end)
 
@@ -569,6 +578,7 @@ exports("give_instance", function(playerId, itemId, meta, price)
     end
     state.busy = false
     if not receipt then return nil, why or "busy" end
+    journal("instance", nil, playerId, { item = itemId, instance = lines[1].instance, price = price, by = caller }, opId)
     refresh(playerId)
     return lines[1].instance
 end)
@@ -631,6 +641,7 @@ exports("give_instances", function(playerId, list, price, wear)
     end
     state.busy = false
     if not receipt then return nil, why or "busy" end
+    journal("instances", nil, playerId, { instances = ids, price = price, by = caller }, opId)
     -- Сначала надеваемое — в слоты (сверка иначе положит их в сетку или в «не помещается»).
     for index, slot in pairs(wearTo) do
         state.stacks[#state.stacks + 1] = { i = list[index].item, n = 1, u = ids[index], c = slot }
@@ -668,6 +679,7 @@ exports("take", function(playerId, itemId, count)
         lines = { { item = itemId, count = count, from = state.account, to = SOURCE } } })
     state.busy = false
     if not receipt then return nil, why or "busy" end
+    journal("take", nil, playerId, { item = itemId, count = count, by = caller }, opId)
     refresh(playerId)
     return true
 end)
@@ -691,6 +703,7 @@ exports("give", function(playerId, itemId, count)
         lines = { { item = itemId, count = count, from = SOURCE, to = state.account } } })
     state.busy = false
     if not receipt then return nil, why or "busy" end
+    journal("issue", nil, playerId, { item = itemId, count = count, by = caller }, opId)
     refresh(playerId)
     return true
 end)
@@ -728,6 +741,7 @@ exports("drop_pile", function(position, items, label, labelEn, player)
     local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.pile.mint", reason = caller, lines = minted })
     state.busy = false
     if not receipt then return nil, why or "store_unavailable" end
+    journal("pile", player, nil, { items = items, by = caller }, opId)
 
     local pile
     pile, why = Store.boxes("create", {
@@ -902,6 +916,8 @@ RegisterNetEvent("rp_inventory:lootMove", function(from, index, itemId, x, y, ro
     notify(target, taken and "При обыске у вас забрали: %s ×%d." or "Вам вернули при обыске: %s ×%d.",
         labelOf(stack.i), stack.n)
     log("info", "обыск %d %s %d: %s x%d (%s)", officer, taken and "<-" or "->", target, stack.i, stack.n, opId)
+    journal(taken and "loot_take" or "loot_return", officer, target,
+        { item = stack.i, count = stack.n, instance = stack.u, by = session.caller }, opId)
     TriggerEvent("rp_inventory:looted", officer, target, stack.i, stack.n, taken)
 end)
 
@@ -952,6 +968,7 @@ RegisterCommand("rp.giveitem", function(source, args)
         end
         local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.admin", reason = "admin", lines = lines })
         if not receipt then return notify(source, "Не выполнено: %s.", explain(why or "busy")) end
+        journal("item_give", source and source > 0 and source or "console", target, { item = itemId, count = count }, opId)
         refresh(target)
         notify(source, "%s [%d]: +%d %s.", nameOf(target), target, count, labelOf(itemId))
         return notify(target, "Администрация: +%d %s.", count, labelOf(itemId))
@@ -964,9 +981,8 @@ RegisterCommand("rp.giveitem", function(source, args)
         or { item = itemId, count = -count, from = state.account, to = SOURCE }
     local receipt, why = opId and Store.transfer({ opId = opId, kind = "rp.admin", reason = "admin", lines = { line } })
     if not receipt then return notify(source, "Не выполнено: %s.", explain(why or "busy")) end
-    core("audit", "item_" .. (count > 0 and "give" or "take"),
-        source and source > 0 and core("account_license", source) or "console",
-        core("account_license", target), { item = itemId, count = count, opId = opId })
+    journal("item_" .. (count > 0 and "give" or "take"), source and source > 0 and source or "console", target,
+        { item = itemId, count = count }, opId)
     refresh(target)
     notify(source, "%s [%d]: %s%d %s.", nameOf(target), target, count > 0 and "+" or "", count, labelOf(itemId))
     notify(target, "Администрация: %s%d %s.", count > 0 and "+" or "", count, labelOf(itemId))

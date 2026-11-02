@@ -46,6 +46,11 @@ end
 
 local function core(name, ...) return sync("rp_core", name, ...) end
 
+-- Журнал действий (rp_core, шаг 3.4): стороны — ID игрока, license или "console"; opId — операция.
+local function journal(action, actor, target, details, opId)
+    core("journal", action, actor, target, details, opId)
+end
+
 -- Быстрые приступы (CyberConfig.testEpisodes) — только в тестовом режиме ядра (rp_core testMode).
 local function testEpisodes() return core("test_mode") == true and CyberConfig.testEpisodes or nil end
 
@@ -494,9 +499,11 @@ local function install(patient, implantId, price, payTo)
     if type(counts) ~= "table" or (counts[implantId] or 0) < 1 then return nil, "Импланта нет в карманах." end
     local bank = bankOf(patient)
     if not bank then return nil, "Счёт недоступен." end
+    local payOp
     if price > 0 then
         local paid, why = transfer(bank, payTo, price, "rp.cyber.install")
         if not paid then return nil, why == "insufficient_funds" and "Недостаточно денег на счёте." or ("Оплата не прошла: " .. tostring(why)) end
+        payOp = paid.opId
     end
     local refund = function()
         if price > 0 then transfer(payTo, bank, price, "rp.cyber.refund") end
@@ -526,6 +533,7 @@ local function install(patient, implantId, price, payTo)
     applyPassives(patient)
     pushPanel(patient)
     log("info", "игрок %d (#%d): установлен %s за %d → %s", patient, s.characterId, implantId, price, payTo)
+    journal("implant_install", nil, patient, { implant = implantId, price = price, payTo = payTo }, payOp)
     return true
 end
 
@@ -537,10 +545,12 @@ local function remove(patient, slot, price, payTo, destroy)
     if not def then return nil, "В этом слоте ничего нет." end
     if not destroy and sync("rp_inventory", "fits", patient, implantId, 1) == false then return nil, "Некуда положить снятый имплант: освободите карманы." end
     local bank = price > 0 and bankOf(patient) or nil
+    local payOp
     if price > 0 then
         if not bank then return nil, "Счёт недоступен." end
         local paid, why = transfer(bank, payTo, price, "rp.cyber.remove")
         if not paid then return nil, why == "insufficient_funds" and "Недостаточно денег на счёте." or ("Оплата не прошла: " .. tostring(why)) end
+        payOp = paid.opId
     end
     if def.kind == "cyberware" then
         local ok, why = platformApply(patient, def, false)
@@ -568,6 +578,7 @@ local function remove(patient, slot, price, payTo, destroy)
         local given, why = await("rp_inventory", "give", patient, implantId, 1)
         if not given then log("error", "снятый %s игроку %d не выдан: %s", implantId, patient, tostring(why)) end
     end
+    journal("implant_remove", nil, patient, { implant = implantId, slot = slot, price = price, destroyed = destroy == true }, payOp)
     pushPanel(patient)
     log("info", "игрок %d (#%d): снят %s за %d", patient, s.characterId, implantId, price)
     return true
@@ -1213,6 +1224,7 @@ startPsycho = function(playerId)
     notify(playerId, "Хром берёт верх. Вы больше не контролируете себя: киберпсихоз.")
     psychoNearby(playerId, "Где-то рядом кричат. Хром искрит — киберпсих! Уходите или стреляйте.")
     log("info", "КИБЕРПСИХОЗ у игрока %d (#%d)", playerId, s.characterId)
+    journal("psychosis", nil, playerId, { humanity = humanityOf(s) })
 end
 
 -- Снять внешние следы срыва (свечение, надпись, экран, ускорение, броня).
@@ -1228,6 +1240,7 @@ local function psychoDeath(playerId)
     if not s or not s.psycho then return end
     local cfg = CyberConfig.psycho
     local place = placeOf(playerId)
+    journal("psychosis_death", nil, playerId, { x = place and math.floor(place.x), y = place and math.floor(place.y) })
     stopPsychoPresentation(playerId, s)
     s.psycho = nil
     setOverdrive(playerId, false)

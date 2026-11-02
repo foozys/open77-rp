@@ -5,6 +5,8 @@ local activeTargets={} -- [mercenaryCharacterId][targetCharacterId] = contractId
 local function call(r,name,...) local ok,a,b=pcall(Open77.exports.callSync,r,name,...);if ok then return a,b end end
 local function await(r,name,...) local p,why=Open77.exports.call(r,name,...);if not p then return nil,why end;return p:await() end
 local function person(id) return call("rp_core","character",id) end
+-- Журнал действий (rp_core, шаг 3.4); деньги заказов пишет эскроу rp_money.
+local function journal(action,actor,target,details) call("rp_core","journal",action,actor,target,details) end
 local function faction(id) local f=call("rp_factions","faction",id);return type(f)=="table" and f.id or nil end
 local function note(p,msg) if p then Open77.chat.send(p,{type="system",author="ФИКСЕРЫ",text=msg,color={245,183,67}}) end end
 local function sql(method,q,args)
@@ -115,6 +117,7 @@ local function create(p,data)
     if reserved then
         sql("update","UPDATE rp_fixer_contracts SET status='open' WHERE id=? AND status='funding'",{contractId})
         note(p,"Заказ #"..contractId.." опубликован. Награда зарезервирована.")
+        journal("create",p,{character=target.id},{contract=contractId,reward=reward,title=title})
         broadcast()
     else
         -- Сохраняем funding: не показывать как оплаченный, администратор может сверить журнал.
@@ -138,6 +141,7 @@ local function claim(p,contractId)
         WHERE id=? AND status='open' AND fixer_id IS NULL]],{c.id,contractId})
     if tonumber(changed or 0)<1 then return note(p,"Заказ уже принят другим Фиксером.") end
     note(p,"Вы ведёте заказ #"..contractId..". Назначьте наёмника.")
+    journal("claim",p,nil,{contract=contractId})
     broadcast()
 end
 RegisterNetEvent("rp_contracts:claim",function(raw)
@@ -173,6 +177,7 @@ local function assign(p,contractId,merc)
     activeTargets[hunter.id]=activeTargets[hunter.id] or {}
     activeTargets[hunter.id][tonumber(row.target_id)]=contractId
     note(p,"Наёмник назначен, щепка выдана.")
+    journal("assign",p,merc,{contract=contractId,shard=shard})
     note(merc,"Получена информационная щепка по заказу #"..contractId..". Откройте её в инвентаре.")
     broadcast()
 end
@@ -245,6 +250,7 @@ local function verify(hunter,target)
         activeTargets[a.id][b.id]=nil
     end
     note(hunter,"Контракт #"..row.id.." подтверждён. Награда зачислена.")
+    journal("complete",hunter,target,{contract=tonumber(row.id),reward=reward,fee=fee})
     broadcast()
 end
 RegisterNetEvent("rp_contracts:verify",function(raw)

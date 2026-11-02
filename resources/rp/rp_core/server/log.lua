@@ -37,15 +37,23 @@ local auditLog = Log.scope("audit")
 
 -- Действие всегда попадает в лог сервера; в БД — если включён аудит и схема готова.
 -- actor/target — license или nil; details — простая таблица или nil.
-function Log.audit(action, actor, target, details)
+-- extra (необязательно, шаг 3.4): { actorChar, targetChar, opId } — персонажи сторон и
+-- opId операции open77_transactions; по ним журнал ищется командой rp.audit.
+function Log.audit(action, actor, target, details, extra)
     local detailsJson = details ~= nil and json.encode(details) or ""
-    auditLog.info("%s actor=%s target=%s %s", action, tostring(actor), tostring(target), detailsJson)
+    extra = type(extra) == "table" and extra or {}
+    local actorChar = math.tointeger(tonumber(extra.actorChar)) or 0
+    local targetChar = math.tointeger(tonumber(extra.targetChar)) or 0
+    local opId = type(extra.opId) == "string" and extra.opId:sub(1, 96) or ""
+    auditLog.info("%s actor=%s%s target=%s%s %s%s", action, tostring(actor), actorChar > 0 and ("#" .. actorChar) or "",
+        tostring(target), targetChar > 0 and ("#" .. targetChar) or "", detailsJson, opId ~= "" and (" op=" .. opId) or "")
 
     if not Tune.auditLog or not Core.dbReady then return end
-    -- В параметрах нельзя передавать nil, поэтому пустая строка → NULL на стороне SQL.
+    -- В параметрах нельзя передавать nil, поэтому пустая строка / 0 → NULL на стороне SQL.
     local queued, reason = Open77.database.insert(
-        "INSERT INTO rp_audit_log (action, actor, target, details) VALUES (?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))",
-        { action, actor or "", target or "", detailsJson },
+        [[INSERT INTO rp_audit_log (action, actor, actor_char, target, target_char, details, op_id)
+          VALUES (?, NULLIF(?, ''), NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''))]],
+        { action, actor or "", actorChar, target or "", targetChar, detailsJson, opId },
         function(_, err)
             if err then auditLog.error("не удалось записать %s: %s", action, tostring(err)) end
         end

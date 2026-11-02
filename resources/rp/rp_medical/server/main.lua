@@ -32,6 +32,11 @@ end
 
 local function core(name, ...) return sync("rp_core", name, ...) end
 
+-- Журнал действий (rp_core, шаг 3.4): стороны — ID игрока, license или "console"; opId — операция.
+local function journal(action, actor, target, details, opId)
+    core("journal", action, actor, target, details, opId)
+end
+
 local function notify(target, fmt, ...)
     local text = select("#", ...) > 0 and string.format(fmt, ...) or fmt
     if not target or target < 1 then
@@ -98,7 +103,10 @@ local function charge(playerId, price, kind)
                    lines = { { money = amount, from = bank, to = MONEY_SINK } } }
     for attempt = 1, 5 do
         local receipt, why, info = await("open77_transactions", "transfer", spec)
-        if receipt then return amount end
+        if receipt then
+            journal("charge", nil, playerId, { amount = amount, kind = kind }, spec.opId)
+            return amount
+        end
         if not (type(info) == "table" and info.retryable) then
             log("warn", "оплата %s игроком %d не прошла: %s", kind, playerId, tostring(why))
             return 0
@@ -190,7 +198,12 @@ local function startDowned(playerId)
     local character = characterOf(playerId)
     local place = placeOf(playerId)
     if not character or not place then return end
+    -- Кто и чем (до подъёма для позы — потом состояние жизни уже другое).
+    local life = Open77.players.getLifeState(playerId) or {}
+    local killer = math.tointeger(tonumber(life.killer)) or 0
     downed[playerId] = { at = Open77.time.unix(), characterId = character.id, pos = place, called = false }
+    journal("downed", killer > 0 and killer or nil, playerId, { cause = life.cause, weapon = life.weapon,
+        x = math.floor(place.x), y = math.floor(place.y), z = math.floor(place.z) })
     db("update", "INSERT IGNORE INTO rp_medical_downed (character_id) VALUES (?)", { character.id })
     log("info", "игрок %d (#%d) ранен", playerId, character.id)
     status(playerId)
@@ -242,6 +255,7 @@ AddEventHandler("onPlayerLifeStateChanged", function(playerIdArg)
     local playerId = tonumber(playerIdArg)
     if playerId and flatline[playerId] and Open77.players.isDead(playerId) then
         flatline[playerId] = nil
+        journal("flatline", nil, playerId, { cause = "psychosis" })
         TriggerEvent("rp_medical:flatlined", playerId)
         return
     end
@@ -294,6 +308,7 @@ local function callMedics(playerId)
             local current = downed[playerId]
             if not current or current.npcToken ~= token then return end
             raise(playerId, MedicalConfig.npcHealth)
+            journal("raise", nil, playerId, { by = "npc_team" })
             local paid = charge(playerId, MedicalConfig.npcPrice, "rp.medical.npc")
             notify(playerId, "Бригада Trauma Team подняла вас. %s", paidText(paid, MedicalConfig.npcPrice))
             log("info", "NPC-бригада подняла %d, оплата %d", playerId, paid)
@@ -312,6 +327,7 @@ local function goHospital(playerId)
     if wait > 0 then return notify(playerId, "В больницу можно через %d с. Пока — ждите помощи (G — вызвать медиков).", wait) end
     local hospital = nearestHospital(d.pos)
     raise(playerId, MedicalConfig.hospitalHealth)
+    journal("raise", nil, playerId, { by = "hospital", hospital = hospital and hospital.id })
     if hospital then
         local pending, why = Open77.players.teleport(playerId, { x = hospital.x, y = hospital.y, z = hospital.z },
             { heading = hospital.heading, bucket = hospital.bucket, dismount = true })
@@ -329,6 +345,7 @@ exports("hospitalize", function(playerIdArg, price, text)
     local playerId = math.tointeger(tonumber(playerIdArg))
     price = math.tointeger(tonumber(price)) or MedicalConfig.hospitalPrice
     if not playerId then return false end
+    local by = GetInvokingResource()
     CreateThread(function()
         local place = placeOf(playerId)
         if Open77.players.isDead(playerId) then
@@ -347,6 +364,7 @@ exports("hospitalize", function(playerIdArg, price, text)
         end
         local paid = price > 0 and charge(playerId, price, "rp.medical.hospital") or 0
         notify(playerId, "%s %s", tostring(text or "Вы очнулись в больнице."), price > 0 and paidText(paid, price) or "")
+        journal("hospitalize", nil, playerId, { by = by, paid = paid })
         log("info", "игрок %d в больнице после смерти, оплата %d из %d", playerId, paid, price)
     end)
     return true
@@ -391,7 +409,7 @@ RegisterCommand("revive", function(source)
         raise(target, MedicalConfig.reviveHealth)
         notify(medic, "%s в сознании.", characterName(target))
         notify(target, "Медик %s поднял вас.", characterName(medic))
-        core("audit", "medical_revive", core("account_license", medic), tostring(characterId), {})
+        journal("revive", medic, target, { character = characterId })
         log("info", "медик %d поднял %d", medic, target)
     end)
 end, false)
@@ -432,6 +450,7 @@ AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
         Open77.players.setHealth(playerId, math.max(1, math.floor(max * MedicalConfig.hospitalHealth)))
         local paid = charge(playerId, MedicalConfig.hospitalPrice, "rp.medical.hospital")
         notify(playerId, "Вы вышли из игры раненым и очнулись в больнице. %s", paidText(paid, MedicalConfig.hospitalPrice))
+        journal("raise", nil, playerId, { by = "hospital_on_join" })
         log("info", "игрок %d вошёл после ранения: больница, оплата %d", playerId, paid)
     end)
 end)

@@ -49,13 +49,10 @@ local function allowed(source, permission)
     return false
 end
 
-local function audit(action, actor, target, details)
-    core("audit", action, actor, target, details)
-end
-
-local function actorOf(source)
-    if not source or source < 1 then return "console" end
-    return core("account_license", source) or ("player:" .. source)
+-- Журнал действий (rp_core, шаг 3.4): стороны — ID игрока в сети, license, "console" или
+-- { character = номер } (персонаж не в сети); opId — операция open77_transactions.
+local function journal(action, actor, target, details, opId)
+    core("journal", action, actor, target, details, opId)
 end
 
 -- Отказ координатора → понятный текст; про отсутствующее правило выпуска — подсказка оператору.
@@ -122,7 +119,10 @@ local function grantStart(playerId, characterId)
             log("error", "стартовые деньги #%d не выданы: %s", characterId, explain(why))
             return
         end
-        if not receipt.replay then reply(playerId, "Стартовые деньги: %s на счёте.", formatMoney(MoneyTune.startBank)) end
+        if not receipt.replay then
+            reply(playerId, "Стартовые деньги: %s на счёте.", formatMoney(MoneyTune.startBank))
+            journal("start_money", nil, playerId, { amount = MoneyTune.startBank }, "rpstart:" .. characterId)
+        end
     end
     local inserted, err = pcall(Open77.database.insert.await,
         "INSERT IGNORE INTO rp_money_start (character_id) VALUES (?)", { characterId })
@@ -197,7 +197,11 @@ local function payday(playerId, characterId, period, worked)
         end
         return
     end
-    if not receipt.replay then reply(playerId, "Зарплата (%s): +%s на счёт.", label, formatMoney(amount)) end
+    if not receipt.replay then
+        reply(playerId, "Зарплата (%s): +%s на счёт.", label, formatMoney(amount))
+        journal("payday", nil, playerId, { amount = amount, from = from, label = label },
+            "rppay:" .. characterId .. ":" .. period)
+    end
 end
 
 CreateThread(function()
@@ -312,6 +316,7 @@ RegisterCommand("pay", function(source, args)
         return
     end
     log("info", "pay %d -> %d: %d (%s)", playerId, target, amount, opId)
+    journal("pay", playerId, target, { amount = amount }, opId)
     reply(playerId, "Перевод %s [%d]: %s.", nameOf(target), target, formatMoney(amount))
     reply(target, "Перевод от %s [%d]: +%s на счёт.", nameOf(playerId), playerId, formatMoney(amount))
 end, false)
@@ -358,8 +363,8 @@ RegisterCommand("rp.givemoney", function(source, args)
         reply(source, "Не выполнено: %s.", explain(why))
         return
     end
-    audit("money_bank", actorOf(source), core("account_license", target),
-        { amount = amount, account = account, reason = reason, opId = opId })
+    journal("money_bank", source and source > 0 and source or "console", target,
+        { amount = amount, account = account, reason = reason }, opId)
     reply(source, "%s [%d]: %s%s на счёт.", nameOf(target), target, amount > 0 and "+" or "", formatMoney(amount))
     reply(target, "Администрация: %s%s на счёт.", amount > 0 and "+" or "", formatMoney(amount))
 end, false)
@@ -385,8 +390,8 @@ RegisterCommand("rp.society", function(source, args)
             reply(source, "Не выполнено: %s.", explain(why or "busy"))
             return
         end
-        audit("money_society", actorOf(source), account,
-            { amount = amount, reason = table.concat(args, " ", 3), opId = opId })
+        journal("money_society", source and source > 0 and source or "console", account,
+            { amount = amount, reason = table.concat(args, " ", 3) }, opId)
     end
     local balance, why = Ledger.balance(account)
     if not balance then
@@ -502,6 +507,12 @@ exports("contract_escrow", function(action, contractId, playerId, amount, recipi
         op = "rpcontract:refund:" .. id
     else return nil, "invalid_action" end
     if not from then return nil, "bank_unavailable" end
-    return Ledger.transfer({opId=op,kind="rp.contract."..action,reason="contract",
+    local receipt, why = Ledger.transfer({opId=op,kind="rp.contract."..action,reason="contract",
         lines={{money=n,from=from,to=to}}})
+    if receipt and not receipt.replay then
+        journal("contract_"..action, action=="reserve" and playerId or nil,
+            action~="reserve" and {character=recipientCharacterId} or nil,
+            {contract=id, amount=n, role=action=="release" and (payoutRole=="fixer" and "fixer" or "hunter") or nil}, op)
+    end
+    return receipt, why
 end)

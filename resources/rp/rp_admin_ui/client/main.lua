@@ -30,6 +30,11 @@ RegisterNetEvent("rp_admin:panel", function(payload)
     page:setFocus(true, true)
 end)
 
+-- Вкладка «Журнал»: записи от сервера (права и фильтры проверяет сервер).
+RegisterNetEvent("rp_admin:journal", function(payload)
+    if type(payload) == "table" and isOpen then send("adm:journal", payload) end
+end)
+
 -- Ответы команд приходят в чат; пока панель открыта, показываем их и в ней.
 -- Реплики игроков (RP-чат, type = "player") в журнал панели не попадают.
 RegisterNetEvent("chat:addMessage", function(message)
@@ -63,6 +68,13 @@ AddEventHandler("onClientResourceStart", function(name)
     page:on("ui:ready", function() pageReady = true end)
     page:on("adm:close", close)
     page:on("adm:refresh", function() TriggerServerEvent("rp_admin:panel") end)
+    page:on("adm:journal", function(q)
+        if type(q) ~= "table" then return end
+        local ok, why = TriggerServerEvent("rp_admin:journal", {
+            who = q.who, category = q.category, action = q.action, op = q.op, hours = q.hours, before = q.before,
+        })
+        if not ok then send("adm:journal", { error = "Не отправлено: " .. tostring(why) }) end
+    end)
     -- Команда как из чата: { tokens = { "rp.kick", "3", "причина" } }.
     page:on("adm:run", function(p)
         if type(p) ~= "table" or type(p.tokens) ~= "table" or #p.tokens == 0 or #p.tokens > 32 then return end

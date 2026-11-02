@@ -83,6 +83,47 @@
   #modal .buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
   #modalError { color: var(--accent); font-size: 13px; min-height: 18px; }
   #preview { font-family: Consolas, monospace; font-size: 12px; color: var(--cyan); margin-top: 6px; word-break: break-all; }
+
+  /* Явные места в сетке: «Журнал» делит ячейку с карточками действий */
+  #tabs { grid-column: 1; grid-row: 2; }
+  #actions { grid-column: 2; grid-row: 2; }
+  #players { grid-column: 3; grid-row: 2; }
+  #log { grid-row: 3; }
+
+  /* Вкладка «Журнал»: занимает место карточек действий */
+  #journal { grid-column: 2; grid-row: 2; display: none; flex-direction: column; min-height: 0; padding: 12px 16px; gap: 8px; }
+  #journal.open { display: flex; }
+  #actions.hidden { display: none; }
+  .jfilters { display: grid; grid-template-columns: 1.3fr 1.1fr 1fr 0.9fr; gap: 6px 8px; align-items: end; }
+  .jfilters label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+  .jfilters input, .jfilters select { width: 100%; padding: 6px 8px; background: rgba(255, 255, 255, 0.05); color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; font-size: 13px; outline: none; user-select: text; }
+  .jfilters input:focus, .jfilters select:focus { border-color: var(--cyan); }
+  .jfilters select option { background: #0d1017; }
+  .jbuttons { grid-column: 1 / 5; display: flex; gap: 8px; align-items: center; }
+  .jbuttons .btn { padding: 5px 12px; font-size: 12px; }
+  #jStatus { color: var(--muted); font-size: 12px; flex: 1; text-align: right; }
+  #jStatus.err { color: var(--accent); }
+  #jTx { display: none; padding: 8px 10px; border: 1px solid rgba(94, 246, 255, 0.35); background: rgba(94, 246, 255, 0.05);
+    font-size: 12px; user-select: text; }
+  #jTx.open { display: block; }
+  #jTx b { color: var(--cyan); }
+  #jTable { flex: 1; overflow-y: auto; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+  .jrow { display: grid; grid-template-columns: 92px 150px 1fr 1fr; gap: 2px 10px; padding: 6px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 12px; user-select: text; }
+  .jrow:hover { background: var(--panel); }
+  .jrow .time { color: var(--muted); }
+  .jrow .act b { display: block; font-weight: 600; font-size: 12px; }
+  .jrow .act code { color: var(--muted); font-size: 10px; }
+  .jrow .warn b { color: var(--accent); }
+  .jrow .who { cursor: pointer; color: var(--text); }
+  .jrow .who:hover { color: var(--cyan); text-decoration: underline; }
+  .jrow .who .online { color: var(--cyan); }
+  .jrow .none { color: var(--muted); }
+  .jrow .det { grid-column: 2 / 5; color: var(--muted); word-break: break-word; }
+  .jrow .op { color: var(--cyan); cursor: pointer; margin-left: 6px; }
+  .jrow .op:hover { text-decoration: underline; }
+  #jMore { align-self: center; }
 </style>
 </head>
 <body>
@@ -96,6 +137,34 @@
     </header>
     <div id="tabs"></div>
     <div id="actions"></div>
+    <div id="journal">
+      <div class="jfilters">
+        <div><label>Игрок / персонаж</label><input id="jWho" placeholder="ID, #персонаж или license"></div>
+        <div><label>Категория</label><select id="jCategory">
+          <option value="">Все</option><option value="money">Деньги</option><option value="items">Предметы</option>
+          <option value="admin">Администрация</option><option value="medical">Ранения и смерти</option>
+          <option value="surgery">Операции и импланты</option><option value="contracts">Заказы Фиксеров</option>
+          <option value="psychosis">Киберпсихоз</option><option value="police">Полиция и обыск</option>
+          <option value="characters">Персонажи</option>
+        </select></div>
+        <div><label>Действие (часть)</label><input id="jAction" placeholder="pay, give, downed…"></div>
+        <div><label>Период</label><select id="jHours">
+          <option value="1">1 час</option><option value="6">6 часов</option><option value="24" selected>Сутки</option>
+          <option value="72">3 дня</option><option value="168">Неделя</option><option value="720">30 дней</option>
+          <option value="4320">180 дней</option>
+        </select></div>
+        <div style="grid-column: 1 / 3"><label>Операция (opId)</label><input id="jOp" placeholder="ищется без ограничения по периоду"></div>
+        <div class="jbuttons" style="grid-column: 3 / 5">
+          <button class="btn cyan" id="jSearch">Показать</button>
+          <button class="btn ghost" id="jSelected" title="Игрок, выбранный в списке справа">Выбранный</button>
+          <button class="btn ghost" id="jReset">Сбросить</button>
+        </div>
+      </div>
+      <div class="jbuttons"><span id="jStatus">Задайте фильтр и нажмите «Показать».</span></div>
+      <div id="jTx"></div>
+      <div id="jTable"></div>
+      <button class="btn ghost" id="jMore" style="display:none">Ещё (старше)</button>
+    </div>
     <div id="players">
       <h2>В сети</h2>
       <div id="playerList"></div>
@@ -269,6 +338,8 @@
       { title: "Список магазинов", desc: "", perm: "rp.shops", cmd: () => ["rp.shop", "list"] },
       { title: "Убрать все магазины", desc: "Все точки сразу", perm: "rp.shops", cmd: () => ["rp.shop", "purge"], danger: true },
     ]},
+    // Не карточки, а свой вид (view): журнал действий rp_audit_log, право rp.audit.view.
+    { id: "journal", label: "Журнал", perm: "rp.audit.view", view: "journal", actions: [] },
   ];
 
   function options(source) {
@@ -284,7 +355,8 @@
 
   // -- отрисовка --------------------------------------------------------------------------
   function visibleTabs() {
-    return TABS.map(t => ({ ...t, actions: t.actions.filter(a => data.perms[a.perm]) })).filter(t => t.actions.length);
+    return TABS.map(t => ({ ...t, actions: t.actions.filter(a => data.perms[a.perm]) }))
+      .filter(t => t.view ? data.perms[t.perm] : t.actions.length);
   }
 
   function renderTabs() {
@@ -298,6 +370,10 @@
       return el;
     }));
     const current = tabs.find(t => t.id === tab);
+    const journalView = !!(current && current.view === "journal");
+    $("actions").classList.toggle("hidden", journalView);
+    $("journal").classList.toggle("open", journalView);
+    if (journalView) { if (!J.loaded) journalQuery(false); return; }
     $("actions").replaceChildren(...(current ? current.actions : []).map(a => {
       const el = document.createElement("div");
       el.className = "action";
@@ -329,7 +405,7 @@
       el.className = "player" + (selected === p.id ? " selected" : "");
       el.innerHTML = `<span class="id"></span><div><span></span><small></small></div>`;
       el.querySelector(".id").textContent = p.id;
-      el.querySelector("div span").textContent = p.character || "без персонажа";
+      el.querySelector(":scope > div > span").textContent = p.character || "без персонажа";
       el.querySelector("small").textContent = p.name + (p.id === data.self ? " · вы" : "");
       el.addEventListener("click", () => {
         selected = selected === p.id ? null : p.id;
@@ -481,6 +557,197 @@
     closeModal();
     run(tokens);
   }
+
+  // -- журнал действий -------------------------------------------------------------------
+  // Данные — только с сервера (rp_admin → rp_core audit_query); здесь лишь фильтры и вывод.
+  const J = { loaded: false, busy: false, rows: [], lastId: null, more: false, timer: null };
+
+  // Понятные названия действий; неизвестное — как есть.
+  const ACTION_LABELS = {
+    "rp_money:pay": "Перевод /pay", "rp_money:payday": "Зарплата / пособие", "rp_money:start_money": "Стартовые деньги",
+    "rp_money:money_bank": "Деньги (администрация)", "rp_money:money_society": "Касса организации (адм.)",
+    "rp_money:contract_reserve": "Заказ: резерв денег", "rp_money:contract_release": "Заказ: выплата",
+    "rp_money:contract_refund": "Заказ: возврат денег",
+    "rp_inventory:give": "Передал предмет", "rp_inventory:drop": "Выбросил предмет", "rp_inventory:use": "Использовал предмет",
+    "rp_inventory:chip_read": "Считал денежную щепку", "rp_inventory:loot_take": "Изъято при обыске",
+    "rp_inventory:loot_return": "Возвращено при обыске", "rp_inventory:item_give": "Предмет выдан (адм.)",
+    "rp_inventory:item_take": "Предмет изъят (адм.)", "rp_inventory:instance": "Получил вещь",
+    "rp_inventory:instances": "Получил вещи", "rp_inventory:take": "Предмет забран системой",
+    "rp_inventory:issue": "Предмет выдан системой", "rp_inventory:pile": "Куча добычи",
+    "rp_shops:buy": "Покупка в магазине", "rp_shops:shop_add": "Магазин поставлен", "rp_shops:shop_remove": "Магазин убран",
+    "rp_vehicles:car_buy": "Покупка машины", "rp_vehicles:car_buy_failed": "СБОЙ: деньги списаны, машины нет",
+    "rp_vehicles:car_tow": "Эвакуация машины", "rp_vehicles:car_give": "Машина выдана (адм.)",
+    "rp_medical:downed": "Ранен", "rp_medical:revive": "Поднят медиком", "rp_medical:raise": "Поднят",
+    "rp_medical:hospitalize": "Очнулся в больнице", "rp_medical:flatline": "Смерть без ранения",
+    "rp_medical:charge": "Оплата медпомощи",
+    "rp_surgery:consent": "Согласие на операцию", "rp_surgery:remove": "Операция: имплант снят",
+    "rp_surgery:remove_fail": "Операция: провал снятия", "rp_surgery:install": "Операция: имплант установлен",
+    "rp_surgery:install_fail": "Операция: провал установки",
+    "rp_cyberware:implant_install": "Имплант установлен", "rp_cyberware:implant_remove": "Имплант снят",
+    "rp_cyberware:psychosis": "Срыв киберпсихоза", "rp_cyberware:psychosis_death": "Киберпсих убит",
+    "rp_contracts:create": "Заказ создан", "rp_contracts:claim": "Заказ взят Фиксером",
+    "rp_contracts:assign": "Наёмник назначен", "rp_contracts:complete": "Заказ выполнен",
+    "rp_admin:tp": "Телепорт к игроку", "rp_admin:bring": "Игрок перенесён к себе", "rp_admin:tpc": "Телепорт по координатам",
+    "rp_admin:tpm": "Телепорт к метке", "rp_admin:back": "Возврат на место", "rp_admin:spectate": "Наблюдение",
+    "rp_admin:announce": "Объявление", "rp_admin:freeze": "Заморозка", "rp_admin:unfreeze": "Разморозка",
+    "rp_admin:heal": "Лечение (адм.)", "rp_admin:revive": "Воскрешение (адм.)", "rp_admin:warn": "Предупреждение",
+    "rp_admin:unwarn": "Предупреждение снято",
+    "rp_police:police_seize": "Изъятие (полиция)", "rp_police:police_return": "Возврат (полиция)",
+    "rp_police:police_fine": "Штраф", "rp_police:police_jail": "КПЗ", "rp_police:police_wanted": "Объявлен в розыск",
+    "rp_police:police_unwanted": "Снят с розыска",
+    "ban": "Бан", "unban": "Разбан", "kick": "Кик", "whitelist_add": "Whitelist: одобрен",
+    "whitelist_remove": "Whitelist: убран", "staff_set": "Роль назначена", "staff_remove": "Роль снята",
+    "tune": "Настройка изменена", "character_create": "Персонаж создан", "character_delete": "Персонаж удалён",
+    "character_slot": "Слот персонажа", "corporate_key_fail": "Неверный ключ корпората", "audit_view": "Просмотр журнала",
+  };
+  const WARN_ACTIONS = new Set(["rp_vehicles:car_buy_failed", "corporate_key_fail", "rp_cyberware:psychosis",
+    "rp_medical:downed", "ban", "kick"]);
+
+  function jFilters() {
+    return { who: $("jWho").value.trim(), category: $("jCategory").value, action: $("jAction").value.trim(),
+             op: $("jOp").value.trim(), hours: Number($("jHours").value) || 24 };
+  }
+
+  function journalQuery(append) {
+    if (J.busy) return;
+    J.busy = true;
+    J.loaded = true;
+    const q = jFilters();
+    if (append && J.lastId) q.before = J.lastId;
+    jStatus("Загрузка…");
+    Open77.emit("adm:journal", q);
+    clearTimeout(J.timer);
+    J.timer = setTimeout(() => {
+      if (J.busy) { J.busy = false; jStatus("Сервер не ответил — нажмите «Показать» ещё раз.", true); }
+    }, 10000);
+  }
+
+  function jStatus(text, err) {
+    $("jStatus").textContent = text;
+    $("jStatus").className = err ? "err" : "";
+  }
+
+  // Сторона записи: имя персонажа, номер, ID в сети; иначе license (коротко) или «консоль».
+  function partyNode(p) {
+    const el = document.createElement("span");
+    if (!p || (!p.license && !p.char)) { el.className = "none"; el.textContent = "—"; return el; }
+    el.className = "who";
+    const filter = p.char ? "#" + p.char : (p.license.length === 32 ? p.license : "");
+    if (p.license === "console") { el.className = "none"; el.textContent = "консоль"; return el; }
+    let text = p.name || (p.license.length === 32 ? "lic:" + p.license.slice(0, 8) : p.license);
+    if (p.char) text += " #" + p.char;
+    el.textContent = text;
+    if (p.online) {
+      const on = document.createElement("span");
+      on.className = "online";
+      on.textContent = ` [${p.online}]`;
+      el.append(on);
+    }
+    el.title = (p.license || "") + (filter ? "\nНажмите — показать всё по " + (p.char ? "персонажу" : "аккаунту") : "");
+    if (filter) el.addEventListener("click", () => { $("jWho").value = filter; $("jOp").value = ""; journalQuery(false); });
+    return el;
+  }
+
+  // Подробности: JSON записи → «ключ: значение».
+  function detailsText(raw) {
+    if (!raw) return "";
+    try {
+      const d = JSON.parse(raw);
+      if (d && typeof d === "object" && !Array.isArray(d)) {
+        return Object.entries(d).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
+      }
+    } catch (e) { /* не JSON или обрезан — как есть */ }
+    return raw;
+  }
+
+  function rowNode(r) {
+    const el = document.createElement("div");
+    el.className = "jrow";
+    const time = document.createElement("div");
+    time.className = "time";
+    time.textContent = r.at;
+    const act = document.createElement("div");
+    act.className = "act" + (WARN_ACTIONS.has(r.action) ? " warn" : "");
+    const b = document.createElement("b");
+    b.textContent = ACTION_LABELS[r.action] || r.action;
+    const code = document.createElement("code");
+    code.textContent = r.action;
+    act.append(b, code);
+    const actor = document.createElement("div");
+    actor.append(partyNode(r.actor));
+    const target = document.createElement("div");
+    const arrow = document.createElement("span");
+    arrow.className = "none";
+    arrow.textContent = "→ ";
+    target.append(arrow, partyNode(r.target));
+    const det = document.createElement("div");
+    det.className = "det";
+    det.textContent = detailsText(r.details);
+    if (r.op) {
+      const op = document.createElement("span");
+      op.className = "op";
+      op.textContent = "операция";
+      op.title = r.op;
+      op.addEventListener("click", () => { $("jOp").value = r.op; journalQuery(false); });
+      det.append(op);
+    }
+    el.append(time, act, actor, target, det);
+    return el;
+  }
+
+  function showTransaction(tx) {
+    const box = $("jTx");
+    box.replaceChildren();
+    if (!tx) { box.classList.remove("open"); return; }
+    const head = document.createElement("div");
+    const b = document.createElement("b");
+    b.textContent = "Операция " + tx.opId + ": ";
+    head.append(b, document.createTextNode(tx.error ? "не найдена (" + tx.error + ")"
+      : `${tx.state}${tx.reason ? " (" + tx.reason + ")" : ""}${tx.kind ? ", " + tx.kind : ""}`));
+    box.append(head);
+    for (const line of tx.lines || []) {
+      const l = document.createElement("div");
+      l.textContent = "• " + line;
+      box.append(l);
+    }
+    box.classList.add("open");
+  }
+
+  Open77.on("adm:journal", p => {
+    J.busy = false;
+    clearTimeout(J.timer);
+    if (!p || p.error) { jStatus(p && p.error ? p.error : "Журнал недоступен.", true); return; }
+    const rows = p.rows || [];
+    J.rows = p.append ? J.rows.concat(rows) : rows;
+    J.lastId = J.rows.length ? J.rows[J.rows.length - 1].id : null;
+    J.more = !!p.more;
+    if (!p.append) {
+      $("jTable").replaceChildren(...rows.map(rowNode));
+      $("jTable").scrollTop = 0;
+      showTransaction(p.transaction);
+    } else {
+      $("jTable").append(...rows.map(rowNode));
+    }
+    $("jMore").style.display = J.more ? "" : "none";
+    jStatus(J.rows.length ? `Записей: ${J.rows.length}${J.more ? " (есть ещё)" : ""}. Новые сверху.` : "Записей нет.");
+  });
+
+  $("jSearch").addEventListener("click", () => journalQuery(false));
+  $("jMore").addEventListener("click", () => journalQuery(true));
+  $("jSelected").addEventListener("click", () => {
+    if (selected === null) return jStatus("Сначала выберите игрока в списке справа.", true);
+    $("jWho").value = String(selected);
+    journalQuery(false);
+  });
+  $("jReset").addEventListener("click", () => {
+    $("jWho").value = ""; $("jCategory").value = ""; $("jAction").value = ""; $("jOp").value = ""; $("jHours").value = "24";
+    journalQuery(false);
+  });
+  for (const id of ["jWho", "jAction", "jOp"]) {
+    $(id).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); journalQuery(false); } });
+  }
+  $("jCategory").addEventListener("change", () => journalQuery(false));
+  $("jHours").addEventListener("change", () => journalQuery(false));
 
   // -- события ----------------------------------------------------------------------------
   $("submit").addEventListener("click", submit);

@@ -134,3 +134,18 @@ Migrations.add(7, "character_profile_and_background", {
             ADD COLUMN IF NOT EXISTS background VARCHAR(16) NULL AFTER origin_country
     ]],
 })
+
+-- Журнал действий (шаг 3.4–3.5): персонажи сторон и opId операции open77_transactions.
+-- actor/target остаются license (или "console"); старые записи — без персонажей.
+Migrations.add(8, "audit_characters_and_ops", {
+    [[
+        ALTER TABLE rp_audit_log
+            ADD COLUMN IF NOT EXISTS actor_char  BIGINT UNSIGNED NULL AFTER actor,
+            ADD COLUMN IF NOT EXISTS target_char BIGINT UNSIGNED NULL AFTER target,
+            ADD COLUMN IF NOT EXISTS op_id       VARCHAR(96)     NULL AFTER details
+    ]],
+    [[CREATE INDEX IF NOT EXISTS idx_audit_actor_char ON rp_audit_log (actor_char, created_at)]],
+    [[CREATE INDEX IF NOT EXISTS idx_audit_target_char ON rp_audit_log (target_char, created_at)]],
+    [[CREATE INDEX IF NOT EXISTS idx_audit_op ON rp_audit_log (op_id)]],
+    [[CREATE INDEX IF NOT EXISTS idx_audit_created ON rp_audit_log (created_at)]],
+})
