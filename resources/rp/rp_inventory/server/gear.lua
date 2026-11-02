@@ -285,7 +285,7 @@ end
 -- первое свободное место). Занятая ячейка — предметы меняются местами (или занявший уходит в сетку).
 RegisterNetEvent("rp_inventory:gear", function(index, itemId, target, x, y, rotated)
     local playerId = tonumber(source)
-    C.withStack(playerId, index, itemId, function(state, stack, at)
+    C.actStack(playerId, index, itemId, function(state, stack, at)
         local def = InvConfig.items[stack.i]
         if target == "grid" then
             x, y = math.tointeger(tonumber(x)), math.tointeger(tonumber(y))
@@ -360,7 +360,7 @@ end)
 -- Разрядить: оружие или старый магазин — патроны из него в рюкзак.
 RegisterNetEvent("rp_inventory:unload", function(index, itemId)
     local playerId = tonumber(source)
-    C.withStack(playerId, index, itemId, function(state, stack)
+    C.actStack(playerId, index, itemId, function(state, stack)
         local def = InvConfig.items[stack.i]
         if not stack.u then return end
         local caliber = (def.weapon and def.weapon.ammo) or (def.mag and def.mag.ammo)

@@ -55,6 +55,42 @@ exports("can_touch", function(playerId)
     return Util.canTouch(playerId)
 end)
 
+-- Может ли персонаж сам сейчас сделать действие action (решения владельца, шаг 3.3):
+-- в наручниках (open77_rp_basics) или раненым (rp_medical) — без инвентаря и денег;
+-- в наручниках — без телефона и Сандевистана; в психозе (rp_cyberware) — без инвентаря.
+-- true, или false, причина (dead | downed | held | psycho | no_character), текст для игрока.
+local ACT_RULES = {
+    inventory = { downed = true, held = true, psycho = true },
+    money = { downed = true, held = true },
+    phone = { held = true },
+    overdrive = { held = true },
+}
+local ACT_TEXT = {
+    no_character = "Сначала выберите персонажа.",
+    dead = "Сейчас нельзя.",
+    downed = "Вы ранены и не можете этого сделать.",
+    held = "В наручниках этого не сделать.",
+    psycho = "Вы не в себе.",
+}
+
+local function stateFrom(resource, name, playerId)
+    local ok, value = pcall(Open77.exports.callSync, resource, name, playerId)
+    return ok and value or nil
+end
+
+exports("can_act", function(playerId, action)
+    local id = Util.toPlayerId(playerId)
+    local rules = ACT_RULES[action]
+    if not rules then return false, "unknown_action", "Сейчас нельзя." end
+    local s = id and Characters.sessions[id]
+    if not s or s.phase ~= "playing" or not s.current then return false, "no_character", ACT_TEXT.no_character end
+    if not Util.isAlive(id) then return false, "dead", ACT_TEXT.dead end
+    if rules.downed and stateFrom("rp_medical", "is_downed", id) == true then return false, "downed", ACT_TEXT.downed end
+    if rules.held and type(stateFrom("open77_rp_basics", "state", id)) == "table" then return false, "held", ACT_TEXT.held end
+    if rules.psycho and stateFrom("rp_cyberware", "psycho", id) == true then return false, "psycho", ACT_TEXT.psycho end
+    return true
+end)
+
 exports("license", function(playerId)
     return Util.license(playerId)
 end)

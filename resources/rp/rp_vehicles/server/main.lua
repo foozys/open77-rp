@@ -573,6 +573,9 @@ RegisterNetEvent("rp_vehicles:buy", function(model)
     if not def or not character or not bank then return result(playerId, false, "Неверная покупка.") end
     local session = sessions[playerId]
     if session.busy then return end
+    -- Раненым и в наручниках не покупают (rp_core can_act, шаг 3.3).
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
+    if not okAct or allowed ~= true then return result(playerId, false, text or "Сейчас нельзя.") end
     session.busy = true
     -- Купленная машина ждёт в ближайшем к автосалону гараже.
     local home, homeDistance

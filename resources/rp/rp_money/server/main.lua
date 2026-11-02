@@ -266,6 +266,12 @@ end, false)
 RegisterCommand("pay", function(source, args)
     local playerId = tonumber(source)
     if not playerId or playerId < 1 then return end
+    -- Раненым и в наручниках деньги не переводят (rp_core can_act, шаг 3.3).
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
+    if not okAct or allowed ~= true then
+        reply(playerId, "%s", text or "Сейчас нельзя.")
+        return
+    end
     local target = math.tointeger(tonumber(args[1]))
     local amount = math.tointeger(tonumber(args[2]))
     if not target or not amount or amount < 1 or amount > 10000000 then

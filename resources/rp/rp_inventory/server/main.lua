@@ -209,6 +209,18 @@ local function withStack(playerId, index, itemId, fn)
     if not ok then log("error", "%s", tostring(err)) end
 end
 
+-- Перекладывать, передавать и выбрасывать нельзя раненым, в наручниках и в психозе
+-- (rp_core can_act, решение владельца 3.3); окно возвращается в прежний вид.
+local function actStack(playerId, index, itemId, fn)
+    if not playerId then return end
+    local ok, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "inventory")
+    if not ok or allowed ~= true then
+        notify(playerId, text or "Сейчас нельзя.")
+        return push(playerId)
+    end
+    withStack(playerId, index, itemId, fn)
+end
+
 -- После успешного списания из конкретной стопки: убрать из неё, остальное сверит refresh.
 local function takeFrom(state, index, count)
     local stack = state.stacks[index]
@@ -260,7 +272,7 @@ end)
 -- Переместить (и повернуть) стопку; target — индекс стопки того же предмета для объединения.
 RegisterNetEvent("rp_inventory:move", function(index, itemId, x, y, rotated, target)
     local playerId = tonumber(source)
-    withStack(playerId, index, itemId, function(state, stack)
+    actStack(playerId, index, itemId, function(state, stack)
         if stack.c then return push(playerId) end -- из слота/пояса — через rp_inventory:gear
         local def = InvConfig.items[stack.i]
         target = math.tointeger(tonumber(target))
@@ -289,7 +301,7 @@ end)
 -- Разделить стопку: count штук в новую клетку.
 RegisterNetEvent("rp_inventory:split", function(index, itemId, count)
     local playerId = tonumber(source)
-    withStack(playerId, index, itemId, function(state, stack)
+    actStack(playerId, index, itemId, function(state, stack)
         count = math.tointeger(tonumber(count))
         if stack.u or not count or count < 1 or count >= stack.n or not stack.x then return push(playerId) end
         local x, y, r = Grid.findSpot(state.stacks, stack.i)
@@ -362,7 +374,7 @@ RegisterNetEvent("rp_inventory:use", function(index, itemId) useItem(tonumber(so
 
 RegisterNetEvent("rp_inventory:give", function(index, itemId, count, targetId)
     local playerId = tonumber(source)
-    withStack(playerId, index, itemId, function(state, stack, at)
+    actStack(playerId, index, itemId, function(state, stack, at)
         count = clampCount(count, stack)
         local target = math.tointeger(tonumber(targetId))
         local me, them = positionOf(playerId), target and positionOf(target)
@@ -371,6 +383,8 @@ RegisterNetEvent("rp_inventory:give", function(index, itemId, count, targetId)
         end
         local other, problem = ensure(target)
         if not other then return notify(playerId, "Не получилось: у игрока не выбран персонаж.") end
+        -- Получатель сам что-то делает со своими вещами — не вмешиваемся (флаг busy его).
+        if other.busy then return notify(playerId, "Не получилось: игрок занят, попробуйте ещё раз.") end
         if not Grid.fits(other.stacks, stack.i, count) then
             return notify(playerId, "У %s нет места для: %s.", nameOf(target), labelOf(stack.i))
         end
@@ -391,7 +405,7 @@ end)
 
 RegisterNetEvent("rp_inventory:drop", function(index, itemId, count)
     local playerId = tonumber(source)
-    withStack(playerId, index, itemId, function(state, stack, at)
+    actStack(playerId, index, itemId, function(state, stack, at)
         count = clampCount(count, stack)
         local def = InvConfig.items[stack.i]
         local pos = positionOf(playerId)
@@ -1008,6 +1022,6 @@ RegisterCommand("rp.inventory", function(source, args)
 end, false)
 
 -- Для server/gear.lua (снаряжение): общее состояние и помощники.
-InvCore = { inv = inv, ensure = ensure, refresh = refresh, push = push, notify = notify, log = log,
+InvCore = { inv = inv, ensure = ensure, refresh = refresh, push = push, notify = notify, log = log, actStack = actStack,
             withStack = withStack, takeFrom = takeFrom, explain = explain, labelOf = labelOf,
             useItem = useItem, positionOf = positionOf, SOURCE = SOURCE }

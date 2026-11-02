@@ -709,6 +709,11 @@ local function clinicAction(playerId, fn)
         return send(playerId, "rp_cyberware:result", { ok = false, text = "Клиника закрыта — откройте её снова." })
     end
     if session.busy then return end
+    -- Платные установка и снятие: раненым и в наручниках нельзя (rp_core can_act, шаг 3.3).
+    local okAct, allowed, _, why = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
+    if not okAct or allowed ~= true then
+        return send(playerId, "rp_cyberware:result", { ok = false, text = why or "Сейчас нельзя." })
+    end
     session.busy = true
     local ok, text = pcall(fn)
     session.busy = false
@@ -1099,6 +1104,9 @@ RegisterNetEvent("rp_cyberware:overdrive", function(on)
     if not overdriveDef(s) then return setOverdrive(playerId, false, "Сандевистан не установлен.") end
     if Open77.players.isDead(playerId) or isDowned(playerId) then return setOverdrive(playerId, false) end
     if implantsSuspended(playerId) then return setOverdrive(playerId, false, "Импланты выведены из строя.") end
+    -- В наручниках Сандевистан не включить (rp_core can_act, шаг 3.3).
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "overdrive")
+    if not okAct or allowed ~= true then return setOverdrive(playerId, false, text or "Сейчас нельзя.") end
     setOverdrive(playerId, true)
 end)
 

@@ -191,9 +191,17 @@ RegisterNetEvent("rp_taxi:waypoint", function(position, reason)
         calls[playerId] = nil
         return notify(playerId, "Метка слишком близко — дойдите пешком.")
     end
+    -- Метку присылает клиент: везём только к полосе дороги рядом с ней (серверная выгрузка
+    -- дорог), и запасной переезд тоже туда — не в произвольную точку (аудит И-5).
+    local mark, radius = { x = x, y = y, z = z }, TaxiConfig.cab.dropRoadMeters
+    local road = Lanes.nearest(mark, radius, 15) or Lanes.nearest(mark, radius, math.huge)
+    if not road then
+        calls[playerId] = nil
+        return notify(playerId, "Туда такси не едет: рядом с меткой нет дороги.")
+    end
     call.stage, call.at, call.price = "offer", Open77.time.unix(), price
     call.from = here
-    call.to = { x = x, y = y, z = z + 0.5 }
+    call.to = { x = road.x, y = road.y, z = road.z + 0.5 }
     state(playerId, { stage = "offer", km = math.floor(km * 10) / 10, price = price })
 end)
 

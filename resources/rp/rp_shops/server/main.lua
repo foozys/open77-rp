@@ -252,6 +252,9 @@ RegisterNetEvent("rp_shops:buy", function(itemId, count)
     local session = validSession(playerId)
     if not session then return result(playerId, false, "Магазин закрыт — откройте его снова у кассы.") end
     if session.busy then return end
+    -- Раненым и в наручниках не покупают (rp_core can_act, шаг 3.3).
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
+    if not okAct or allowed ~= true then return result(playerId, false, text or "Сейчас нельзя.") end
     local def = catalogFor(session)
     local price = def and def.items[itemId]
     count = math.tointeger(tonumber(count))

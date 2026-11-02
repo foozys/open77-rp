@@ -178,6 +178,13 @@ end
 local function session(p, needOs)
     local c = person(p)
     if not c then return nil end
+    -- В наручниках телефоном не пользуются (rp_core can_act, шаг 3.3).
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", p, "phone")
+    if not okAct or allowed ~= true then
+        notice(p, text or "Сейчас нельзя.")
+        send(p, "rp_phone:denied", {})
+        return nil
+    end
     if needOs ~= false and not hasOs(p) then
         notice(p, "Телефону нужна нейро-ОС: кибердека или гражданская ОС.")
         send(p, "rp_phone:denied", {})
@@ -634,6 +641,7 @@ local function stillValid(p, characterId)
     local c = person(p)
     if not c or c.id ~= characterId then return false end
     if Open77.players.isDead(p) or call("rp_medical", "is_downed", p) == true then return false end
+    if call("rp_core", "can_act", p, "phone") ~= true then return false end -- надели наручники
     return hasOs(p)
 end
 
@@ -658,7 +666,8 @@ RegisterNetEvent("rp_phone:call", function(number)
         -- Фото вызываемого звонящий видит сразу — и когда абонент вне сети (как определитель номера).
         local calleeLine = lineOf(peer)
         local calleePhoto = photoOf(calleeLine)
-        if not target or not hasOs(target) or Open77.players.isDead(target) or call("rp_medical", "is_downed", target) == true then
+        if not target or not hasOs(target) or Open77.players.isDead(target) or call("rp_medical", "is_downed", target) == true
+            or call("rp_core", "can_act", target, "phone") ~= true then
             -- Абонент вне сети: звонок «уходит» и через пару секунд обрывается.
             if inCall[p] then return end
             calls[callId] = x; inCall[p] = callId

@@ -338,6 +338,9 @@ RegisterNetEvent("rp_clothing:buy", function()
     local p = playerOf(source)
     local session = p and sessions[p]
     if not session or session.busy then return end
+    -- Раненым и в наручниках не покупают (rp_core can_act, шаг 3.3).
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", p, "money")
+    if not okAct or allowed ~= true then return sendTrial(p, session, text or "Сейчас нельзя.", true) end
     session.busy = true
     CreateThread(function()
         local cart, total = cartOf(session)

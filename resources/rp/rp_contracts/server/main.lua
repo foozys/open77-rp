@@ -28,10 +28,17 @@ local function near(a,b,radius)
 end
 local function postState(p)
     local c=person(p);if not c then return end
+    -- Кто что видит (решение владельца 3.3): Фиксер — все заказы; заказчик — свои;
+    -- Наёмник — назначенные ему; остальные — ничего (только форма создания).
+    local role=faction(p)
+    local where,args="",{}
+    if role~="fixer" then
+        where="WHERE customer_id=? OR mercenary_id=?";args={c.id,c.id}
+    end
     local orders=sql("query",[[SELECT id,title,type,description,status,reward,target_name,
-        customer_id,fixer_id,mercenary_id FROM rp_fixer_contracts ORDER BY id DESC LIMIT 80]]) or {}
-    TriggerClientEvent("rp_contracts:journal",p,{orders=orders,fixer=faction(p)=="fixer",
-        mercenary=faction(p)=="mercenary",ownId=c.id})
+        customer_id,fixer_id,mercenary_id FROM rp_fixer_contracts ]]..where..[[ ORDER BY id DESC LIMIT 80]],args) or {}
+    TriggerClientEvent("rp_contracts:journal",p,{orders=orders,fixer=role=="fixer",
+        mercenary=role=="mercenary",ownId=c.id})
 end
 local function broadcast()
     for _,v in ipairs(GetPlayers() or {}) do
@@ -84,6 +91,9 @@ local function create(p,data)
     local actor=person(p);if not actor then return end
     if not ready then return note(p,"Журнал заказов ещё не загружен.") end
     if type(data)~="table" then return end
+    -- Заказ резервирует деньги: раненым и в наручниках нельзя (rp_core can_act, шаг 3.3).
+    local okAct,allowed,_,text=pcall(Open77.exports.callSync,"rp_core","can_act",p,"money")
+    if not okAct or allowed~=true then return note(p,text or "Сейчас нельзя.") end
     local title=type(data.title)=="string" and data.title:sub(1,100) or ""
     local desc=type(data.description)=="string" and data.description:sub(1,1500) or ""
     local reward=id(data.reward)
