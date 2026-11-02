@@ -12,7 +12,7 @@
    git log -5 --oneline
    git remote -v
    ```
-4. **Если есть незакоммиченные изменения**, не делай `git pull` или `git checkout` вслепую. Особое внимание `resources/rp/rp_surgery_ui/web/assets/patient-hologram.svg`: локальный детализированный арт может отличаться от того, что в GitHub.
+4. **Если есть незакоммиченные изменения**, не делай `git pull` или `git checkout` вслепую. Прежняя графика Рипера (SVG-голограмма владельца) сохранена в `design-backups/rp-surgery-ui-20261101-before-implants-style/`.
 5. Если дерево чистое и текущая ветка `main`, можно обновить:
    ```powershell
    git pull --ff-only origin main
