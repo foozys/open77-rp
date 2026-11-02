@@ -661,6 +661,19 @@
         <div class="storageHeading"><div class="mineTitle">Карманы</div><span id="gridSize"></span></div>
         <div class="inventoryFrame"><div id="grid"></div></div>
         <div id="overflow"><div class="title">Не помещается — переложите или выбросьте</div><div id="overflowList"></div></div>
+        <!-- Одежда (rp_clothing): что лежит в этих слотах — то и надето на персонаже. -->
+        <div id="clothBox">
+          <div class="storageHeading"><div class="mineTitle">Одежда</div><span class="clothNote">надето на персонаже</span></div>
+          <div class="clothRow">
+            <div class="cslot" data-target="cl_Head"><div class="slotHint">Голова</div></div>
+            <div class="cslot" data-target="cl_Face"><div class="slotHint">Лицо</div></div>
+            <div class="cslot" data-target="cl_OuterChest"><div class="slotHint">Верх</div></div>
+            <div class="cslot" data-target="cl_InnerChest"><div class="slotHint">Под низ</div></div>
+            <div class="cslot" data-target="cl_Legs"><div class="slotHint">Низ</div></div>
+            <div class="cslot" data-target="cl_Feet"><div class="slotHint">Обувь</div></div>
+            <div class="cslot" data-target="cl_Outfit"><div class="slotHint">Костюм</div></div>
+          </div>
+        </div>
       </div>
       <div id="gearBox">
         <div class="gearTitle">Оружие <span class="gearCaption">WEAPON SYSTEMS</span></div>
@@ -740,7 +753,11 @@
 
   const emit = (event, payload) => Open77.emit(event, payload || {});
 
-  function def(stack) { return catalog[stack.i] || { label: stack.i, w: 1, h: 1, weightG: 0, stack: 1, color: "#555" }; }
+  function def(stack) {
+    const d = catalog[stack.i] || { label: stack.i, w: 1, h: 1, weightG: 0, stack: 1, color: "#555" };
+    // Одежда: у каждой вещи своё название (stack.l), общий тип — в подсказке.
+    return stack.l ? { ...d, kind: d.label, label: stack.l } : d;
+  }
   function size(stack, rotated) {
     const d = def(stack);
     return rotated ? [d.h, d.w] : [d.w, d.h];
@@ -781,14 +798,32 @@
     icon.innerHTML = '<svg viewBox="0 0 122 84" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><filter id="iglow"><feGaussianBlur stdDeviation="2"/></filter></defs><ellipse cx="62" cy="73" rx="45" ry="5" fill="#02070b" opacity=".5"/>' + drawing + '</svg>';
     return icon;
   }
+  // Одежда: силуэт по слоту (конкретную вещь игра не отдаёт картинкой).
+  function clothingIllustration(wear) {
+    const S = 'fill="#2b2140" stroke="#c9a3ff" stroke-width="3" stroke-linejoin="round"';
+    const drawing = {
+      Head: `<path d="M30 52 Q32 22 61 20 Q90 22 92 52 Z" ${S}/><path d="M22 52 H100 V58 H22 Z" ${S}/>`,
+      Face: `<circle cx="42" cy="42" r="15" ${S}/><circle cx="80" cy="42" r="15" ${S}/><path d="M57 40 H65 M27 40 L14 34 M95 40 L108 34" stroke="#c9a3ff" stroke-width="3" fill="none"/>`,
+      InnerChest: `<path d="M40 14 L52 10 Q61 18 70 10 L82 14 L100 28 L90 40 L82 34 V74 H40 V34 L32 40 L22 28 Z" ${S}/>`,
+      OuterChest: `<path d="M38 10 L50 8 L61 30 L72 8 L84 10 L104 26 L100 74 H84 V36 L80 76 H42 L38 36 V74 H22 L18 26 Z" ${S}/><path d="M61 30 V76" stroke="#c9a3ff" stroke-width="2"/>`,
+      Legs: `<path d="M38 8 H84 L90 78 H68 L61 32 L54 78 H32 Z" ${S}/>`,
+      Feet: `<path d="M18 46 Q22 34 36 36 L48 42 Q56 54 60 56 V64 H18 Z" ${S}/><path d="M62 46 Q66 34 80 36 L92 42 Q100 54 104 56 V64 H62 Z" ${S}/>`,
+      Outfit: `<circle cx="61" cy="14" r="8" ${S}/><path d="M44 24 H78 L94 44 L86 50 L78 42 L82 80 H66 L61 54 L56 80 H40 L44 42 L36 50 L28 44 Z" ${S}/>`,
+    }[wear] || "";
+    const art = document.createElement("div");
+    art.className = "itemArt";
+    art.innerHTML = '<svg viewBox="0 0 122 84" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + drawing + '</svg>';
+    return art;
+  }
   // Только изображение предмета: размеры и свойства остаются серверными.
   function inventoryIllustration(key, d) {
     const implantSlot = {
-      implant_kiroshi: "eyes", implant_deck: "os", implant_deck_pro: "os", implant_sandevistan: "os",
+      implant_kiroshi: "eyes", implant_deck: "os", implant_deck_pro: "os", implant_sandevistan: "os", implant_civil_os: "os",
       implant_gorilla: "arms", implant_slam: "skeleton", implant_dash: "tendons",
       implant_subdermal: "skin", implant_heart: "heart", implant_biomonitor: "blood",
       implant_metabolic: "metabolism", implant_ice: "ice", implant_purge: "purge", implant_legs: "legs"
     }[key];
+    if (d.wear) return clothingIllustration(d.wear);
     if (!implantSlot) return itemIllustration(String(key).startsWith("qh_") ? "quickhack" : key, d);
     const index = CY_ART.indexOf(implantSlot);
     const art = document.createElement("div");
@@ -874,16 +909,18 @@
     });
   }
 
-  // Снаряжение: стопки с c = "w1".."w3" / "b1".."b5" — в свои ячейки.
+  // Ячейки снаряжения: оружие и пояс (#gearBox), одежда (#clothBox).
+  const GEAR_SLOTS = "#gearBox [data-target], #clothBox [data-target]";
+  // Снаряжение: стопки с c = "w1".."w3" / "b1".."b5" / "cl_<слот>" — в свои ячейки.
   function renderGear() {
-    document.querySelectorAll("#gearBox [data-target]").forEach(slot => {
+    document.querySelectorAll(GEAR_SLOTS).forEach(slot => {
       slot.querySelectorAll(".item").forEach(el => el.remove());
       const hint = slot.querySelector(".slotHint");
       if (hint) hint.style.display = "";
     });
     state.stacks.forEach((stack, i) => {
       if (!stack.c) return;
-      const slot = document.querySelector(`#gearBox [data-target="${stack.c}"]`);
+      const slot = document.querySelector(`[data-target="${stack.c}"]`);
       if (!slot) return;
       const el = tile(stack, i + 1, 1, 1, "mine");
       el.style.width = el.style.height = "";
@@ -930,7 +967,8 @@
     tip.querySelector(".label").textContent = d.label +
       (stack.a != null ? ` — ${stack.a} €$` : stack.t ? ` — ${stack.t}` : stack.n > 1 ? ` ×${stack.n}` : "");
     let extra = "";
-    if (d.mag) extra = ` · старый магазин, патронов: ${stack.m || 0} (разрядите)`;
+    if (d.wear) extra = ` · ${d.kind || "одежда"}${stack.c ? " · надето" : " · наденьте в слот «Одежда»"}`;
+    else if (d.mag) extra = ` · старый магазин, патронов: ${stack.m || 0} (разрядите)`;
     else if (d.weapon && !d.melee) extra = ` · в оружии ${stack.wr || 0} патр. · запас — патроны на поясе`;
     tip.querySelector(".muted").textContent =
       `${kg(d.weightG * stack.n)} кг · ${d.w}×${d.h}${d.stack > 1 ? ` · до ${d.stack} в клетке` : ""}${extra}`;
@@ -1013,14 +1051,15 @@
   // Ячейка снаряжения под курсором (призрак не ловит мышь).
   function gearSlotAt(e) {
     const el = document.elementFromPoint(e.clientX, e.clientY);
-    return el && el.closest ? el.closest("#gearBox [data-target]") : null;
+    return el && el.closest ? el.closest(GEAR_SLOTS) : null;
   }
   function gearAllows(stack, target) {
     const d = def(stack);
+    if (target.startsWith("cl_")) return d.wear === target.slice(3);
     return target[0] === "w" ? !!d.weapon : !!d.belt;
   }
   function markGear(e) {
-    document.querySelectorAll("#gearBox [data-target]").forEach(el => el.classList.remove("hover", "deny"));
+    document.querySelectorAll(GEAR_SLOTS).forEach(el => el.classList.remove("hover", "deny"));
     const slot = drag && drag.side === "mine" ? gearSlotAt(e) : null;
     if (slot) slot.classList.add(gearAllows(drag.stack, slot.dataset.target) ? "hover" : "deny");
     return slot;
@@ -1141,7 +1180,10 @@
     if (d.usable) addButton(menu, d.useLabel || "Использовать", () => emit("inv:use", base));
     if ((d.mag && stack.m > 0) || (d.weapon && !d.melee && stack.wr > 0)) addButton(menu, "Разрядить", () => emit("inv:unload", base));
     if (stack.c) {
-      addButton(menu, "Снять в рюкзак", () => emit("inv:gear", { ...base, target: "grid" }));
+      addButton(menu, d.wear ? "Снять" : "Снять в рюкзак", () => emit("inv:gear", { ...base, target: "grid" }));
+    } else if (d.wear) {
+      // Одежда: в свой слот (занят — прежняя вещь уходит в рюкзак).
+      if (document.querySelector(`[data-target="cl_${d.wear}"]`)) addButton(menu, "Надеть", () => emit("inv:gear", { ...base, target: "cl_" + d.wear }));
     } else {
       // Быстро: в первый свободный слот оружия / ячейку пояса.
       const taken = new Set(state.stacks.filter(s => s.c).map(s => s.c));

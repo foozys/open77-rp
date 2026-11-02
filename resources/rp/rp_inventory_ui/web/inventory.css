@@ -192,3 +192,29 @@
   #grids.looting #lootBox { grid-column:1; grid-row:2; }
   #grids.looting #gearBox { grid-row:3; }
 }
+
+/* Одежда (rp_clothing): 7 слотов cl_<слот> под карманами, стиль ячеек пояса. */
+#clothBox { margin-top:18px; width:max-content; max-width:100%; }
+#clothBox .storageHeading { margin-bottom:10px; }
+#clothBox .clothNote { color:var(--muted); font:11px Consolas,monospace; letter-spacing:1px; }
+#clothBox .clothRow { display:grid; grid-template-columns:repeat(7,104px); gap:8px; }
+#clothBox .cslot { position:relative; height:84px; border:1px solid #a94b51; background:#27111a66; }
+#clothBox .cslot:has(.item) { border-color:#697b73; }
+#clothBox .cslot .slotHint { position:absolute; left:0; right:0; bottom:8px; text-align:center; color:#85646c; font-size:11px; letter-spacing:1px; text-transform:uppercase; }
+#clothBox .cslot .item { position:absolute; left:0; top:0; width:100%; height:100%; border:0 !important; border-left:3px solid #b48cff !important; }
+#clothBox .cslot .item .name { top:5px; font-size:9px; max-height:24px; overflow:hidden; }
+#clothBox .cslot .itemArt { inset:26px 8px 6px; }
+#clothBox .hover { border-color:#78dc8c !important; background:#15332eaa !important; }
+#clothBox .deny { border-color:#ff625c !important; background:#51202aaa !important; }
+#grids.looting #clothBox { display:none; } /* при обыске место занимает чужая сетка */
+@media(max-height:800px),(max-width:1200px) {
+  /* Низкий экран: подпись слева от ряда, ячейки ниже — блок помещается над нижней строкой. */
+  #clothBox { margin-top:8px; display:flex; align-items:center; gap:10px; }
+  #clothBox .storageHeading { margin:0; flex:0 0 auto; display:block; }
+  #clothBox .clothNote { display:none; }
+  #clothBox .clothRow { grid-template-columns:repeat(7,86px); gap:6px; }
+  #clothBox .cslot { height:52px; }
+  #clothBox .cslot .slotHint { bottom:4px; font-size:9px; }
+  #clothBox .cslot .item .name { top:3px; font-size:8px; max-height:20px; }
+  #clothBox .cslot .itemArt { inset:20px 18px 2px; }
+}

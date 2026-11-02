@@ -47,11 +47,15 @@ ShopsConfig = {
                 implant_biomonitor = 2500, implant_metabolic = 1500, implant_ice = 2000, implant_purge = 2000,
                 implant_heart = 6000, implant_subdermal = 4000, implant_legs = 5000, implant_dash = 4500,
                 implant_deck = 9000, implant_gorilla = 8000, implant_slam = 7000, implant_sandevistan = 15000,
-                implant_deck_pro = 18000, implant_kiroshi = 3000,
+                implant_deck_pro = 18000, implant_kiroshi = 3000, implant_civil_os = 1500,
                 qh_short_circuit = 1500, qh_overheat = 2500, qh_malfunction = 3000, qh_cripple = 2000,
                 qh_optics = 2000, qh_weapon = 2500, qh_data_breach = 5000,
                 neuroblocker = 150,
             },
+        },
+        -- Магазин одежды: точка открывает примерочную rp_clothing (каталог и цены — там).
+        clothes = {
+            label = "Магазин одежды", labelEn = "Clothing Store", clothing = true, items = {},
         },
         -- Ставится у автомата игры: сами автоматы движок различить не даёт
         -- (у всех устройств класс gameDeviceBase).

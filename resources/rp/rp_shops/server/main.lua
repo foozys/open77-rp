@@ -218,6 +218,12 @@ RegisterNetEvent("rp_shops:open", function(shopId)
     local shop = shops[math.tointeger(tonumber(shopId)) or 0]
     if not playerId or not shop or not playing(playerId) then return end
     if not near(playerId, shop) then return notify(playerId, "Подойдите ближе.") end
+    if ShopsConfig.types[shop.type].clothing then
+        -- Примерочная — отдельный ресурс rp_clothing (локальное серверное событие).
+        if GetResourceState("rp_clothing") ~= "running" then return notify(playerId, "Примерочная временно закрыта.") end
+        return TriggerEvent("rp_clothing:openShop", playerId,
+            { id = shop.id, x = shop.x, y = shop.y, z = shop.z, bucket = shop.bucket, label = ShopsConfig.types[shop.type].label })
+    end
     show(playerId, { shopId = shop.id, at = Open77.time.unix() })
 end)
 
@@ -358,6 +364,14 @@ RegisterCommand("rp.shop", function(source, args)
         notify(source, "Использование: rp.shop add <тип> | rp.shop remove | rp.shop list | rp.shop purge")
     end
 end, false)
+
+-- Точка магазина одежды по id (для rp_clothing): { id, x, y, z, bucket, label } или nil.
+exports("clothing_point", function(shopId)
+    local shop = shops[math.tointeger(tonumber(shopId)) or 0]
+    local def = shop and ShopsConfig.types[shop.type]
+    if not def or not def.clothing then return nil end
+    return { id = shop.id, x = shop.x, y = shop.y, z = shop.z, bucket = shop.bucket, label = def.label }
+end)
 
 -- Типы точек для админ-панели: { { id, label } }.
 exports("shop_types", function()

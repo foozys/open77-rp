@@ -17,6 +17,10 @@ local pending = {} -- [requestId] = { player, slot, u, kind } — ждём от�
 
 local function slotOf(c) return type(c) == "string" and c:match("^w(%d)$") and tonumber(c:sub(2)) or nil end
 local function beltOf(c) return type(c) == "string" and c:match("^b(%d)$") and tonumber(c:sub(2)) or nil end
+-- Слот одежды "cl_<слот платформы>" (cl_Head, cl_OuterChest…) → имя слота, если он есть в конфиге.
+local CLOTHING = {}
+for _, name in ipairs(G.clothingSlots or {}) do CLOTHING[name] = true end
+local function wearOf(c) local name = type(c) == "string" and c:match("^cl_(%a+)$"); return name and CLOTHING[name] and name or nil end
 
 local function metaOf(state, stack)
     local record = stack.u and state.instances and state.instances[stack.u]
@@ -161,8 +165,38 @@ function Gear.flush(playerId, state)
     for slot = 1, G.weaponSlots do flushSlot(playerId, state, slot) end
 end
 
+-- -- одежда --------------------------------------------------------------------------------
+-- Что надето = вещи в слотах cl_<слот>: { Head = "Items.…" | false, … } по всем слотам конфига.
+-- Показывает её на персонаже rp_clothing (временный наряд open77_appearance): ему уходит
+-- локальное событие rp_inventory:worn при каждом изменении набора (и при первой загрузке).
+function Gear.worn(state)
+    local worn = {}
+    for name in pairs(CLOTHING) do worn[name] = false end
+    for _, stack in ipairs(state.stacks) do
+        local name = wearOf(stack.c)
+        local record = name and stack.u and state.instances and state.instances[stack.u]
+        local value = record and record.meta and record.meta.record
+        if type(value) == "string" then worn[name] = value end
+    end
+    return worn
+end
+
+local function syncClothing(playerId, state)
+    local worn = Gear.worn(state)
+    local keys = {}
+    for name in pairs(worn) do keys[#keys + 1] = name end
+    table.sort(keys)
+    local parts = {}
+    for i, name in ipairs(keys) do parts[i] = name .. "=" .. tostring(worn[name]) end
+    local key = table.concat(parts, ";")
+    if state.wornKey == key then return end
+    state.wornKey = key
+    TriggerEvent("rp_inventory:worn", playerId, state.characterId, worn)
+end
+
 -- Привести слоты оружия игры к слотам снаряжения. Вызывается после каждой сверки.
 function Gear.sync(playerId, state)
+    syncClothing(playerId, state)
     state.gear = state.gear or {}
     if not state.gearCleared then
         state.gearCleared = true
@@ -241,6 +275,7 @@ end)
 -- -- перенос в слоты и на пояс ---------------------------------------------------------
 
 local function fitsTarget(def, target)
+    if wearOf(target) then return def.wear == wearOf(target) end
     if slotOf(target) then return def.weapon ~= nil end
     if beltOf(target) then return def.weapon == nil and def.w * def.h <= G.beltMaxCells end
     return false
@@ -268,27 +303,53 @@ RegisterNetEvent("rp_inventory:gear", function(index, itemId, target, x, y, rota
             stack.c, stack.x, stack.y, stack.r = nil, x, y, r or nil
         else
             if type(target) ~= "string" or not fitsTarget(def, target)
-                or (slotOf(target) or beltOf(target) or 99) > (slotOf(target) and G.weaponSlots or G.beltSlots) then
+                or (not wearOf(target) and (slotOf(target) or beltOf(target) or 99) > (slotOf(target) and G.weaponSlots or G.beltSlots)) then
                 C.notify(playerId, "%s сюда не помещается.", def.label)
                 return C.push(playerId)
             end
             if stack.c == target then return C.push(playerId) end
+            -- Перемещения запоминаются: не нашлось места — всё возвращается как было.
+            local undo = {}
+            local function move(s, c, mx, my, mr)
+                undo[#undo + 1] = { s, s.c, s.x, s.y, s.r }
+                s.c, s.x, s.y, s.r = c, mx, my, mr
+            end
+            local function refuse(label)
+                for k = #undo, 1, -1 do
+                    local u = undo[k]
+                    u[1].c, u[1].x, u[1].y, u[1].r = u[2], u[3], u[4], u[5]
+                end
+                C.notify(playerId, "Некуда убрать: %s.", label)
+                return C.push(playerId)
+            end
             local occupant
             for i, other in ipairs(state.stacks) do if i ~= at and other.c == target then occupant = other break end end
             if occupant then
                 local odef = InvConfig.items[occupant.i]
                 if stack.c and fitsTarget(odef, stack.c) then
-                    occupant.c = stack.c
+                    move(occupant, stack.c, occupant.x, occupant.y, occupant.r)
                 else
                     local ox, oy, orot = Grid.findSpot(state.stacks, occupant.i)
-                    if not ox then
-                        C.notify(playerId, "Некуда убрать: %s.", odef.label)
-                        return C.push(playerId)
-                    end
-                    occupant.c, occupant.x, occupant.y, occupant.r = nil, ox, oy, orot or nil
+                    if not ox then return refuse(odef.label) end
+                    move(occupant, nil, ox, oy, orot or nil)
                 end
             end
-            stack.c, stack.x, stack.y, stack.r = target, nil, nil, nil
+            move(stack, target, nil, nil, nil)
+            -- Костюм или отдельные вещи: надели одно — другое уходит в рюкзак.
+            local wear, removed = wearOf(target), nil
+            if wear then
+                for _, other in ipairs(state.stacks) do
+                    local ow = other ~= stack and wearOf(other.c)
+                    if ow and (wear == "Outfit") ~= (ow == "Outfit") then
+                        local odef = InvConfig.items[other.i]
+                        local ox, oy, orot = Grid.findSpot(state.stacks, other.i)
+                        if not ox then return refuse(odef.label) end
+                        move(other, nil, ox, oy, orot or nil)
+                        removed = (removed and removed .. ", " or "") .. odef.label
+                    end
+                end
+            end
+            if removed then C.notify(playerId, "Снято в рюкзак: %s.", removed) end
         end
         Store.saveLayout(state.characterId, state.stacks)
         Gear.sync(playerId, state)
@@ -441,3 +502,11 @@ RegisterCommand("rp.weapondebug", function(source, args)
         end
     end
 end, false)
+
+-- Что надето на персонаже игрока (по слотам одежды): { Head = "Items.…" | false, … }, id персонажа.
+-- nil — инвентарь ещё не загружен (rp_clothing подождёт события rp_inventory:worn).
+exports("worn", function(playerId)
+    local state = C.inv[math.tointeger(tonumber(playerId)) or 0]
+    if not state or not state.instances then return nil end
+    return Gear.worn(state), state.characterId
+end)

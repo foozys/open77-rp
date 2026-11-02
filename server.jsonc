@@ -102,7 +102,6 @@
       "open77_effects",
       "open77_equipment",
       "open77_wardrobe",
-      "open77_wardrobe_ui",
       "open77_perspective",
       "open77_animations",
       "open77_prevention",
@@ -140,6 +139,8 @@
       "rp/rp_needs",
       "rp/rp_shops",
       "rp/rp_shops_ui",
+      "rp/rp_clothing",
+      "rp/rp_clothing_ui",
       "rp/rp_vehicles",
       "rp/rp_vehicles_ui",
       "rp/rp_medical",
@@ -152,6 +153,8 @@
       "rp/rp_surgery_ui",
       "rp/rp_contracts",
       "rp/rp_contracts_ui",
+      "rp/rp_phone",
+      "rp/rp_phone_ui",
       "rp/rp_taxi",
       "rp/rp_taxi_ui"
     ],
@@ -190,8 +193,8 @@
     "maxResponseBytes": 1048576
   },
   "httpHandlers": {
-    "enabled": false,
-    "listenUrl": "http://127.0.0.1:11781",
+    "enabled": true,
+    "listenUrl": "http://0.0.0.0:11781",
     "timeoutSeconds": 5
   },
   "warden": {

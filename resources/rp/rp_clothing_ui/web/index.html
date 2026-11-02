@@ -1,0 +1,184 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Магазин одежды</title>
+<link rel="stylesheet" href="clothing.css">
+<script src="catalog.js"></script></head><body>
+<div id="root" hidden>
+ <!-- Каталог: категории (слоты), типы, поиск, уровень -->
+ <section id="shop" aria-label="Каталог одежды">
+  <header><div class="eyebrow">NIGHT CITY // APPAREL</div><h1 id="title">Магазин одежды</h1>
+   <div class="hint">Нажмите на вещь — примерить на манекен с вашей фигурой, ещё раз — снять.</div></header>
+  <nav id="cats"></nav>
+  <div id="filters">
+   <input id="search" type="search" placeholder="Поиск: куртка, №12…" maxlength="40" autocomplete="off">
+   <div id="tiers"></div>
+  </div>
+  <div id="types"></div>
+  <div id="list" role="listbox"></div>
+  <div id="count"></div>
+ </section>
+
+ <!-- Примерка и оплата -->
+ <aside id="cart" aria-label="Примерка">
+  <div class="eyebrow">FITTING ROOM</div><h2>Примерка</h2>
+  <div id="cartSlots"></div>
+  <div id="sum"><span>Итого</span><b id="total">0 €$</b></div>
+  <div id="bank"></div>
+  <div id="msg" aria-live="polite"></div>
+  <button id="buy" class="btn" type="button" disabled>Купить</button>
+  <button id="leave" class="btn ghost" type="button">Уйти <span class="key">Esc</span></button>
+  <div class="note">Купленное ляжет в инвентарь, на персонаже — снова ваша одежда. Надеть — в слоты «Одежда» инвентаря.</div>
+ </aside>
+
+ <!-- Поворот камеры -->
+ <div id="turn">
+  <button class="btn ghost" type="button" data-turn="-30"><span class="key">Q</span> ◀</button>
+  <span>Поворот манекена · или тяните мышью</span>
+  <button class="btn ghost" type="button" data-turn="30">▶ <span class="key">E</span></button>
+ </div>
+ <div id="drag" aria-hidden="true"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const SLOT_RU = { Head: "Голова", Face: "Лицо", OuterChest: "Верх", InnerChest: "Под низ", Legs: "Низ", Feet: "Обувь", Outfit: "Костюм" };
+const TIER_RU = { old: "Б/у", basic: "Стандарт", rich: "Премиум" };
+const money = n => (Number(n) || 0).toLocaleString("ru-RU") + " €$";
+// Пустая Lua-таблица приходит как {} — списки приводим к массивам.
+const arr = v => Array.isArray(v) ? v : (v && typeof v === "object" ? Object.values(v) : []);
+
+let S = null;              // { title, bank, slots, tierPrice, slotFactor, prices, exclude }
+let cat = "OuterChest", type = "", tier = "", query = "", yaw = 0;
+let cart = [], busy = false;
+const ALL = (window.CLOTHING || []).map(([record, slot, label, tierId, kind]) => ({ record, slot, label, tier: tierId, kind }));
+
+// Цена — та же формула, что на сервере (rp_clothing/server/main.lua priceOf); сервер решает.
+function priceOf(it) {
+  const manual = S.prices && S.prices[it.record];
+  if (manual) return manual;
+  const base = S.tierPrice[it.tier] || 0, factor = S.slotFactor[it.slot] || 1;
+  return Math.max(5, Math.round(base * factor / 5) * 5);
+}
+const forSale = () => { const ex = new Set(arr(S.exclude)); return ALL.filter(it => !ex.has(it.record)); };
+const trying = slot => (cart.find(c => c.slot === slot) || {}).record;
+
+function renderCats() {
+  const nav = $("cats"); nav.replaceChildren();
+  const items = forSale();
+  for (const slot of arr(S.slots)) {
+    const n = items.filter(it => it.slot === slot).length;
+    if (!n) continue;
+    const b = el("button", "cat" + (slot === cat ? " on" : "")); b.type = "button";
+    b.append(el("span", null, SLOT_RU[slot] || slot), el("small", null, String(n)));
+    if (trying(slot)) b.append(el("i", "dot"));
+    b.onclick = () => { cat = slot; type = ""; renderAll(); $("list").scrollTop = 0; };
+    nav.append(b);
+  }
+}
+function renderTiers() {
+  const box = $("tiers"); box.replaceChildren();
+  for (const [id, label] of [["", "Все"], ["old", TIER_RU.old], ["basic", TIER_RU.basic], ["rich", TIER_RU.rich]]) {
+    const b = el("button", "chip t-" + (id || "all") + (tier === id ? " on" : ""), label); b.type = "button";
+    b.onclick = () => { tier = id; renderAll(); }; box.append(b);
+  }
+}
+function renderTypes() {
+  const box = $("types"); box.replaceChildren();
+  const counts = {};
+  for (const it of forSale()) if (it.slot === cat) counts[it.kind] = (counts[it.kind] || 0) + 1;
+  const kinds = Object.keys(counts).sort((a, b) => a.localeCompare(b, "ru"));
+  if (kinds.length < 2) return;
+  for (const kind of ["", ...kinds]) {
+    const b = el("button", "chip" + (type === kind ? " on" : ""), kind ? kind + " · " + counts[kind] : "Все типы"); b.type = "button";
+    b.onclick = () => { type = kind; renderAll(); $("list").scrollTop = 0; }; box.append(b);
+  }
+}
+function visible() {
+  const q = query.trim().toLowerCase();
+  return forSale().filter(it => it.slot === cat && (!type || it.kind === type) && (!tier || it.tier === tier)
+    && (!q || it.label.toLowerCase().includes(q)));
+}
+function renderList() {
+  const list = $("list"); list.replaceChildren();
+  const items = visible(), current = trying(cat);
+  for (const it of items) {
+    const r = el("button", "row" + (it.record === current ? " on" : "")); r.type = "button";
+    r.setAttribute("role", "option");
+    r.append(el("span", "name", it.label), el("span", "tier t-" + it.tier, TIER_RU[it.tier] || it.tier), el("b", "price", money(priceOf(it))));
+    r.onclick = () => tryOn(it.slot, it.record === current ? false : it.record);
+    list.append(r);
+  }
+  if (!items.length) list.append(el("div", "empty", "Ничего не найдено."));
+  $("count").textContent = "Показано: " + items.length;
+}
+function renderCart() {
+  const box = $("cartSlots"); box.replaceChildren();
+  let total = 0;
+  for (const slot of arr(S.slots)) {
+    const c = cart.find(x => x.slot === slot);
+    const row = el("div", "cslot" + (c ? " on" : ""));
+    row.append(el("span", "slot", SLOT_RU[slot] || slot));
+    if (c) {
+      total += Number(c.price) || 0;
+      row.append(el("span", "item", c.label), el("b", "price", money(c.price)));
+      const x = el("button", "drop", "×"); x.type = "button"; x.title = "Снять";
+      x.onclick = () => tryOn(slot, false); row.append(x);
+    } else row.append(el("span", "item none", "—"));
+    row.onclick = e => { if (e.target.classList.contains("drop")) return; cat = slot; type = ""; renderAll(); };
+    box.append(row);
+  }
+  $("total").textContent = money(total);
+  $("bank").textContent = "На счёте: " + money(S.bank);
+  $("bank").classList.toggle("short", total > S.bank);
+  const buy = $("buy");
+  buy.disabled = busy || !cart.length;
+  buy.textContent = cart.length ? "Купить за " + money(total) : "Купить";
+}
+function renderAll() { renderCats(); renderTiers(); renderTypes(); renderList(); renderCart(); }
+
+function message(text, bad) { const m = $("msg"); m.textContent = text || ""; m.classList.toggle("bad", !!bad); }
+function tryOn(slot, record) { message(""); Open77.emit("cl:try", { slot, record: record || false }); }
+
+$("search").addEventListener("input", e => { query = e.target.value; renderList(); });
+$("buy").onclick = () => { if (!cart.length || busy) return; busy = true; message("Оплата…"); renderCart(); Open77.emit("cl:buy", {}); };
+$("leave").onclick = () => Open77.emit("cl:close", {});
+for (const b of document.querySelectorAll("[data-turn]")) b.onclick = () => turn(Number(b.dataset.turn));
+
+// Поворот камеры: Q/E, кнопки или перетаскивание по свободному месту (не чаще раза в 60 мс).
+let lastTurn = 0, pendingTurn = null;
+function turn(delta) { yaw = ((yaw + delta) % 360 + 360) % 360; sendTurn(); }
+function sendTurn() {
+  const now = performance.now();
+  if (now - lastTurn < 60) { if (!pendingTurn) pendingTurn = setTimeout(() => { pendingTurn = null; sendTurn(); }, 60); return; }
+  lastTurn = now; Open77.emit("cl:rotate", { yaw });
+}
+let dragX = null;
+$("drag").addEventListener("pointerdown", e => { dragX = e.clientX; $("drag").setPointerCapture(e.pointerId); });
+$("drag").addEventListener("pointermove", e => { if (dragX === null) return; const d = e.clientX - dragX; if (Math.abs(d) >= 4) { dragX = e.clientX; turn(-d * 0.4); } });
+$("drag").addEventListener("pointerup", () => { dragX = null; });
+document.addEventListener("keydown", e => {
+  if ($("root").hidden) return;
+  if (e.target && e.target.tagName === "INPUT") { if (e.key === "Escape") e.target.blur(); return; }
+  const k = e.key.toLowerCase();
+  if (k === "q" || k === "й") turn(-30);
+  else if (k === "e" || k === "у") turn(30);
+  else if (e.key === "Escape") Open77.emit("cl:close", {});
+});
+
+Open77.on("cl:open", p => {
+  S = Object.assign({ slots: ["Head", "Face", "OuterChest", "InnerChest", "Legs", "Feet", "Outfit"], tierPrice: {}, slotFactor: {}, prices: {}, exclude: [] }, p || {});
+  S.slots = arr(S.slots);
+  $("title").textContent = S.title || "Магазин одежды";
+  cart = []; busy = false; yaw = 0; query = ""; type = ""; tier = ""; cat = S.slots.includes("OuterChest") ? "OuterChest" : S.slots[0];
+  $("search").value = ""; message("");
+  $("root").hidden = false;
+  renderAll();
+});
+Open77.on("cl:trial", p => {
+  if (!S) return;
+  cart = arr(p && p.cart); busy = false;
+  message(p && p.text, p && p.failed);
+  renderAll();
+});
+Open77.on("cl:close", () => { $("root").hidden = true; S = null; cart = []; busy = false; });
+Open77.emit("ui:ready", {});
+</script></body></html>

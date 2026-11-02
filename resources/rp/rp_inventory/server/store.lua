@@ -28,6 +28,12 @@ function Store.bank(playerId)
     return sync("open77_transactions", "account", playerId, "bank")
 end
 
+-- Нейро-ОС игрока (rp_cyberware): нужна для щепок с needsOs и для /chip.
+-- Нет ответа (ресурс не запущен, импланты не загружены) — считаем, что ОС нет.
+function Store.hasOs(playerId)
+    return sync("rp_cyberware", "has_os", playerId) == true
+end
+
 function Store.newOpId(prefix)
     local id = sync("open77_transactions", "newOpId")
     return type(id) == "string" and (prefix .. ":" .. id) or nil

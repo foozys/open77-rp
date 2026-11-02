@@ -778,13 +778,23 @@ RegisterNetEvent("rp_core:charselect:requestLook", function(id)
     ]], { s.userId or "", Characters.key(row.id), row.id, s.license })
     if Characters.sessions[playerId] ~= s then return end
     if err then log.error("look #%d: %s", row.id, err) end
+    -- С магазином одежды (rp_clothing) одежда — вещи в слотах инвентаря: rp_clothing хранит
+    -- последний надетый набор. Нет таблицы или строки — как раньше, по экипировке платформы.
+    local clothes = Db.single("SELECT worn FROM rp_clothing_state WHERE character_id = ? AND worn IS NOT NULL", { row.id })
+    if Characters.sessions[playerId] ~= s then return end
+    local okClothes, inventoryWorn = pcall(json.decode, type(clothes) == "table" and clothes.worn or "")
+    if not okClothes or type(inventoryWorn) ~= "table" then inventoryWorn = nil end
     local text = look and look.look
-    if type(text) == "string" and type(look.equipment_json) == "string" then
+    if type(text) == "string" and (type(look.equipment_json) == "string" or inventoryWorn) then
         local okLook, decoded = pcall(json.decode, text)
-        local okEquipment, worn = pcall(json.decode, look.equipment_json)
+        local okEquipment, worn = pcall(json.decode, look.equipment_json or "{}")
         if okLook and type(decoded) == "table" and okEquipment and type(worn) == "table" then
             local equipment = {}
             for slot, record in pairs(worn) do
+                -- из экипировки платформы при наборе из инвентаря остаётся только бельё
+                if type(record) == "string" and (not inventoryWorn or slot:match("^Underwear")) then equipment[slot] = record end
+            end
+            for slot, record in pairs(inventoryWorn or {}) do
                 if type(record) == "string" then equipment[slot] = record end
             end
             decoded.equipment = equipment

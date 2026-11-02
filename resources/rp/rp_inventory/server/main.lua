@@ -91,7 +91,8 @@ local function catalog()
                       weapon = def.weapon ~= nil, melee = def.weapon ~= nil and def.weapon.ammo == nil,
                       caliber = def.weapon and def.weapon.ammo or nil,
                       mag = def.mag and def.mag.capacity or nil, ammo = def.ammo,
-                      belt = def.weapon == nil and def.w * def.h <= InvConfig.gear.beltMaxCells }
+                      wear = def.wear, -- одежда: слот cl_<wear>
+                      belt = def.weapon == nil and def.wear == nil and def.w * def.h <= InvConfig.gear.beltMaxCells }
     end
     return items
 end
@@ -100,7 +101,8 @@ end
 -- не хранит, они в open77_transactions.
 -- revealed — для чужой сетки при обыске: { [stack] = true } открытых; закрытая стопка уходит
 -- без содержимого — только место и размер (hidden, w, h): что в ней, клиент не знает.
-local function windowStacks(state, revealed)
+-- readsShards — у смотрящего есть нейро-ОС: без неё сумма на денежной щепке не видна.
+local function windowStacks(state, revealed, readsShards)
     local stacks = {}
     for index, stack in ipairs(state.stacks) do
         if revealed and not revealed[stack] then
@@ -110,8 +112,11 @@ local function windowStacks(state, revealed)
             local record = stack.u and state.instances and state.instances[stack.u]
             local meta = record and record.meta or {}
             stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r, c = stack.c,
-                              a = tonumber(meta.amount),
+                              a = readsShards and tonumber(meta.amount) or nil,
                               t = type(meta.plate) == "string" and meta.plate or nil,
+                              -- одежда: название конкретной вещи вместо общего «Верхняя одежда»
+                              l = InvConfig.items[stack.i] and InvConfig.items[stack.i].wear
+                                  and type(meta.label) == "string" and meta.label or nil,
                               -- патроны в (устаревшем) магазине; в огнестрельном оружии — патроны в нём
                               m = tonumber(meta.rounds),
                               wr = Gear and Gear.isFirearm(stack) and Gear.liveRounds(state, stack) or nil }
@@ -126,13 +131,14 @@ local function push(playerId, withCatalog)
     local session = loot[playerId]
     local other = session and inv[session.target]
     local current = session and session.current
+    local readsShards = Store.hasOs(playerId)
     local ok, reason = TriggerClientEvent("rp_inventory:state", playerId, {
         cols = InvConfig.grid.cols, rows = InvConfig.grid.rows,
         capacityG = InvConfig.capacityG, weightG = state.weightG,
-        stacks = windowStacks(state), nearby = nearbyPlayers(playerId),
+        stacks = windowStacks(state, nil, readsShards), nearby = nearbyPlayers(playerId),
         catalog = withCatalog and catalog() or nil,
         loot = other and { target = session.target, name = nameOf(session.target), weightG = other.weightG,
-                           stacks = windowStacks(other, session.revealed),
+                           stacks = windowStacks(other, session.revealed, readsShards),
                            started = session.started == true, done = session.done == true,
                            -- что обыскивается сейчас: клетка и сколько осталось (для полоски)
                            searching = current and { x = current.stack.x, y = current.stack.y,
@@ -301,6 +307,9 @@ end)
 local function useItem(playerId, index, itemId)
     withStack(playerId, index, itemId, function(state, stack, at)
         local def = InvConfig.items[stack.i]
+        if def.needsOs and not Store.hasOs(playerId) then
+            return notify(playerId, "Щепку нечем прочитать: нужна нейро-ОС (кибердека или гражданская ОС).")
+        end
         if def.use == "chip" then
             -- Вставить щепку в нейропорт: щепка тратится, сумма — из хранилища на счёт.
             local record = stack.u and state.instances and state.instances[stack.u]
@@ -550,11 +559,79 @@ exports("give_instance", function(playerId, itemId, meta, price)
     return lines[1].instance
 end)
 
+-- Несколько уникальных предметов одной операцией, только для rp_*-ресурсов (магазин одежды).
+-- list = { { item = id, meta = {…} }, … } (до 12), price > 0 — списать со счёта в той же
+-- операции. wear = true — одежду сразу в свой слот cl_<wear>, если он свободен (тогда место в
+-- сетке не нужно); иначе — в сетку. Всё или ничего: не влезло — "no_space", денег не хватило —
+-- "insufficient_funds". Ждёт: вызывать через Open77.exports.call.
+-- Список id экземпляров, или nil, reason.
+exports("give_instances", function(playerId, list, price, wear)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    playerId = math.tointeger(tonumber(playerId))
+    price = math.tointeger(tonumber(price)) or 0
+    if not playerId or type(list) ~= "table" or #list < 1 or #list > 12 or price < 0 then return nil, "invalid_argument" end
+    for _, entry in ipairs(list) do
+        local def = type(entry) == "table" and InvConfig.items[entry.item]
+        if not def or not def.unique or type(entry.meta) ~= "table" then return nil, "invalid_argument" end
+    end
+    local state, problem = ensure(playerId)
+    if not state then return nil, problem end
+    if state.busy then return nil, "busy" end
+    -- Место: на копии раскладки; надеваемое в свободный слот сетки не требует.
+    local copy, slotsTaken = {}, {}
+    for i, s in ipairs(state.stacks) do
+        copy[i] = { i = s.i, n = s.n, x = s.x, y = s.y, r = s.r, u = s.u }
+        if s.c then slotsTaken[s.c] = true end
+    end
+    local wearTo = {}
+    for index, entry in ipairs(list) do
+        local slot = wear and InvConfig.items[entry.item].wear and ("cl_" .. InvConfig.items[entry.item].wear)
+        if slot and not slotsTaken[slot] then
+            slotsTaken[slot], wearTo[index] = true, slot
+        else
+            local x, y, r = Grid.findSpot(copy, entry.item)
+            if not x then return nil, "no_space" end
+            copy[#copy + 1] = { i = entry.item, n = 1, x = x, y = y, r = r, u = "probe" }
+        end
+    end
+    local opId = Store.newOpId("rpinst")
+    if not opId then return nil, "store_unavailable" end
+    local suffix = opId:gsub("^rpinst:", "")
+    local lines, ids = {}, {}
+    for index, entry in ipairs(list) do
+        ids[index] = entry.item .. "." .. suffix .. "." .. index
+        lines[index] = { instance = ids[index], item = entry.item, from = SOURCE, to = state.account, meta = entry.meta }
+    end
+    if price > 0 then
+        local bank = Store.bank(playerId)
+        if not bank then return nil, "no_bank" end
+        lines[#lines + 1] = { money = price, from = bank, to = "sys:rp.money" }
+    end
+    state.busy = true
+    local spec = { opId = opId, kind = "rp.instances", reason = caller, lines = lines }
+    local receipt, why = Store.transfer(spec)
+    if not receipt and why == "unknown_account" then
+        local opened, openWhy = Store.openPockets(state.account)
+        if opened then receipt, why = Store.transfer(spec) else why = openWhy or why end
+    end
+    state.busy = false
+    if not receipt then return nil, why or "busy" end
+    -- Сначала надеваемое — в слоты (сверка иначе положит их в сетку или в «не помещается»).
+    for index, slot in pairs(wearTo) do
+        state.stacks[#state.stacks + 1] = { i = list[index].item, n = 1, u = ids[index], c = slot }
+    end
+    refresh(playerId)
+    return ids
+end)
+
 -- Сколько каких предметов в карманах игрока: { [itemId] = количество }, или nil, reason.
+-- Не ждёт (вызывают через callSync): инвентарь ещё не загружен — nil, "not_loaded".
 exports("counts", function(playerId)
     playerId = math.tointeger(tonumber(playerId))
-    local state, problem = playerId and ensure(playerId)
-    if not state then return nil, problem or "invalid_argument" end
+    if not playerId then return nil, "invalid_argument" end
+    local character, state = characterOf(playerId), inv[playerId]
+    if not character or not state or state.characterId ~= character.id then return nil, "not_loaded" end
     local counts = {}
     for _, stack in ipairs(state.stacks) do counts[stack.i] = (counts[stack.i] or 0) + stack.n end
     return counts
@@ -893,6 +970,9 @@ RegisterCommand("chip", function(source, args)
     local state, problem = ensure(playerId)
     if not state then return notify(playerId, problem) end
     if state.busy then return end
+    if not Store.hasOs(playerId) then
+        return notify(playerId, "Записать щепку нечем: нужна нейро-ОС (кибердека или гражданская ОС).")
+    end
     if not Grid.fits(state.stacks, "credchip", 1) then return notify(playerId, "Нет места в инвентаре.") end
     local bank = Store.bank(playerId)
     if not bank then return notify(playerId, "Счёт недоступен.") end

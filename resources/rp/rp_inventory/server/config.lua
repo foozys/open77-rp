@@ -8,6 +8,7 @@
 -- heal — доля здоровья, которую восстанавливает (1 — полностью); раненым быть обязательно;
 -- unique = true — каждая штука отдельная, со своими данными (денежная щепка хранит сумму);
 -- use = "chip" — вставить щепку: сумма зачисляется на счёт;
+-- needsOs = true — использовать можно только с нейро-ОС (rp_cyberware has_os: кибердека или гражданская ОС);
 -- use = "event" — не тратится, другой ресурс ловит событие rp_inventory:used
 -- (ключ от машины — rp_vehicles); useLabel — надпись кнопки вместо «Использовать».
 -- id предмета: a-z, 0-9 и _, до 64 символов. Удалять предмет из каталога, пока он
@@ -31,10 +32,10 @@ InvConfig = {
     chipMax = 10000000,
 
     items = {
-        credchip   = { label = "Денежная щепка",    labelEn = "Cred chip",    w = 1, h = 1, weightG = 10,   stack = 1,  color = "#f3e600", use = "chip", unique = true },
+        credchip   = { label = "Денежная щепка",    labelEn = "Cred chip",    w = 1, h = 1, weightG = 10,   stack = 1,  color = "#f3e600", use = "chip", unique = true, needsOs = true },
         target_shard = { label = "Досье цели", labelEn = "Target dossier shard", w = 1, h = 1,
                          weightG = 10, stack = 1, color = "#f1ae48", use = "event",
-                         unique = true, useLabel = "Прочитать досье" },
+                         unique = true, needsOs = true, useLabel = "Прочитать досье" },
         carkey     = { label = "Ключ от машины",    labelEn = "Car key",      w = 1, h = 1, weightG = 20,   stack = 1,  color = "#5ef6ff", use = "event", unique = true, useLabel = "Запереть / открыть" },
         water     ={ label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
         sandwich   = { label = "Сэндвич",           labelEn = "Sandwich",     w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
@@ -55,6 +56,7 @@ InvConfig = {
         implant_sandevistan= { label = "Имплант: Сандевистан",          labelEn = "Sandevistan",         w = 2, h = 1, weightG = 700,  stack = 1, color = "#e74c3c" },
         implant_deck       = { label = "Имплант: кибердека",            labelEn = "Cyberdeck",           w = 2, h = 1, weightG = 700,  stack = 1, color = "#16a085" },
         implant_deck_pro   = { label = "Имплант: кибердека Netwatch",   labelEn = "Netwatch Cyberdeck",  w = 2, h = 1, weightG = 800,  stack = 1, color = "#16a085" },
+        implant_civil_os   = { label = "Имплант: гражданская ОС",      labelEn = "Civilian OS",         w = 1, h = 1, weightG = 120,  stack = 1, color = "#5ef6ff" },
         implant_kiroshi    = { label = "Имплант: оптика Kiroshi",       labelEn = "Kiroshi Optics",      w = 1, h = 1, weightG = 100,  stack = 1, color = "#5ef6ff" },
         -- Скрипты взлома: вставляются в кибердеку (вкладка «Импланты»), шлются в режиме Kiroshi (TAB).
         qh_short_circuit   = { label = "Скрипт: короткое замыкание",    labelEn = "Short Circuit",       w = 1, h = 1, weightG = 10,   stack = 5, color = "#1abc9c" },
@@ -116,10 +118,23 @@ InvConfig = {
                            weapon = { record = "Items.Preset_Katana_Default" }, meta = {} },
         wpn_bat        = { label = "Бейсбольная бита",     labelEn = "Baseball bat", w = 1, h = 4, weightG = 1100, stack = 1, color = "#3d4652", unique = true,
                            weapon = { record = "Items.Preset_Baseball_Bat_Default" }, meta = {} },
+
+        -- Одежда (rp_clothing): уникальный предмет, meta.record — запись одежды игры, meta.label —
+        -- её название. wear — слот одежды платформы: на персонаже видно только то, что лежит
+        -- в слотах «Одежда» окна снаряжения (cl_<слот>). Продаёт магазин одежды rp_clothing.
+        cloth_head   = { label = "Головной убор",      labelEn = "Headwear",  w = 2, h = 1, weightG = 300,  stack = 1, color = "#8e6bbf", unique = true, wear = "Head",       meta = {} },
+        cloth_face   = { label = "Аксессуар для лица", labelEn = "Face wear", w = 1, h = 1, weightG = 100,  stack = 1, color = "#8e6bbf", unique = true, wear = "Face",       meta = {} },
+        cloth_inner  = { label = "Одежда под низ",     labelEn = "Shirt",     w = 2, h = 2, weightG = 300,  stack = 1, color = "#8e6bbf", unique = true, wear = "InnerChest", meta = {} },
+        cloth_outer  = { label = "Верхняя одежда",     labelEn = "Jacket",    w = 2, h = 3, weightG = 1200, stack = 1, color = "#8e6bbf", unique = true, wear = "OuterChest", meta = {} },
+        cloth_legs   = { label = "Низ",                labelEn = "Pants",     w = 2, h = 2, weightG = 600,  stack = 1, color = "#8e6bbf", unique = true, wear = "Legs",       meta = {} },
+        cloth_feet   = { label = "Обувь",              labelEn = "Shoes",     w = 2, h = 1, weightG = 900,  stack = 1, color = "#8e6bbf", unique = true, wear = "Feet",       meta = {} },
+        cloth_outfit = { label = "Костюм",             labelEn = "Outfit",    w = 2, h = 3, weightG = 1800, stack = 1, color = "#8e6bbf", unique = true, wear = "Outfit",     meta = {} },
     },
 
     -- Снаряжение (окно «Снаряжение» рядом с сеткой): слоты оружия w1..w3 (слоты платформы
     -- 1..3) и пояс b1..b5 — клавиши 4–8. На пояс — предметы не больше beltMaxCells клеток.
     -- Перезарядка — R самой игры: запас оружия = патроны его калибра на поясе.
-    gear = { weaponSlots = 3, beltSlots = 5, beltMaxCells = 2 },
+    gear = { weaponSlots = 3, beltSlots = 5, beltMaxCells = 2,
+             -- Слоты одежды (cl_<слот>): вещь с wear = слот. Порядок — как в окне.
+             clothingSlots = { "Head", "Face", "OuterChest", "InnerChest", "Legs", "Feet", "Outfit" } },
 }
