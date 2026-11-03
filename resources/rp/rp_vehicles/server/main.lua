@@ -1058,6 +1058,28 @@ AddEventHandler("onResourceStart", function(name)
     if name == GetCurrentResourceName() then Open77.chat.addSuggestions(-1, SUGGESTIONS) end
 end)
 
+-- Машина стартового набора роли (rp_factions, шаг 5.3): в гараж, как rp.givecar.
+-- Ждёт БД: вызывать через Open77.exports.call. Номер, или nil, reason.
+exports("kit_vehicle", function(playerIdArg, model)
+    if GetInvokingResource() ~= "rp_factions" then return nil, "caller_denied" end
+    local playerId = math.tointeger(tonumber(playerIdArg))
+    local def = type(model) == "string" and VehiclesConfig.catalog[model]
+    local character = playerId and characterOf(playerId)
+    if not def then return nil, "invalid_argument" end
+    if not character then return nil, "no_character" end
+    local plate = newPlate()
+    if not plate then return nil, "no_plate" end
+    local primary, secondary = pickPaint()
+    local id, err = db("insert", [[INSERT INTO rp_vehicles (character_id, model, record, plate,
+        paint_primary, paint_secondary) VALUES (?, ?, ?, ?, ?, ?)]],
+        { character.id, model, def.record, plate, primary, secondary })
+    if not id then return nil, "database_error: " .. tostring(err) end
+    journal("car_kit", nil, playerId, { model = model, plate = plate, id = id })
+    log("info", "набор роли: персонаж #%d, %s (%s)", character.id, model, plate)
+    sendMyGarages(playerId)
+    return plate
+end)
+
 -- Модели для админ-панели (rp.givecar): { { id, label, price } } по цене.
 exports("models", function()
     local list = {}

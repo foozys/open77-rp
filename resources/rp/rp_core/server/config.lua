@@ -9,8 +9,9 @@ RpConfig = {
     -- и корпораты после завершения создания. Координаты можно заменить по /pos.
     characterSpawn = { x = -701.99, y = 2226.70, z = 53.09, heading = 67.3 },
 
-    -- Ключ корпората — tunable corporateKey (ниже): задаётся в Warden / rp.tune, хранится в
-    -- tunables.json сервера, не в коде. Проверяется только сервером.
+    -- Точка ожидания заявки (шаг 5.2): здесь появляется персонаж, пока заявку не рассмотрели.
+    -- Временно — та же, что и общая; потом — админ-зона (5.2.6).
+    applicationSpawn = { x = -701.99, y = 2226.70, z = 53.09, heading = 67.3 },
 
     -- Админ-роли, от младшей к старшей: старшая получает все права младших.
     -- maxBanSeconds — предел срока бана без права rp.ban.permanent.
@@ -27,6 +28,7 @@ RpConfig = {
     --   rp.jobs              — назначать работу и ранг (rp.setjob в rp_jobs), смотреть кассы организаций
     --   rp.staff.manage      — назначать роли ниже своей
     --   rp.tune              — менять настройки ядра
+    --   rp.applications      — рассматривать заявки новых персонажей (F3 → «Заявки»)
     -- rp_admin:
     --   rp.teleport          — телепорт к игроку, игрока к себе, по координатам
     --   rp.spectate          — наблюдение за игроком
@@ -43,7 +45,8 @@ RpConfig = {
     staffRoles = {
         { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view", "rp.teleport" } },
         { id = "moderator", label = "Модератор",
-          permissions = { "rp.kick", "rp.ban", "rp.whitelist.add", "rp.spectate", "rp.freeze", "rp.warn", "rp.audit.view" },
+          permissions = { "rp.kick", "rp.ban", "rp.whitelist.add", "rp.spectate", "rp.freeze", "rp.warn", "rp.audit.view",
+                          "rp.applications" },
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
@@ -98,10 +101,15 @@ RpConfig = {
             apply = "live", group = "Ядро", label = "Тестовый режим",
             description = "Для проверок в одиночку: владелец может применять к себе действия полиции, приступы киберпсихоза идут по секундам (CyberConfig.testEpisodes). На живом сервере — выключено.",
         },
-        corporateKey = {
-            value = "", type = "string",
-            apply = "live", group = "Персонажи", label = "Ключ корпората",
-            description = "Ключ, который вводит игрок при выборе предыстории «Корпорат». Пусто — эту предысторию выбрать нельзя.",
+        backstoryMin = {
+            value = 300, type = "integer", min = 0, max = 4000,
+            apply = "live", group = "Персонажи", label = "Заявка: минимум символов",
+            description = "Сколько символов должна быть история персонажа в заявке (экран фракции при создании).",
+        },
+        backstoryMax = {
+            value = 4000, type = "integer", min = 200, max = 8000,
+            apply = "live", group = "Персонажи", label = "Заявка: максимум символов",
+            description = "Предел длины истории персонажа в заявке.",
         },
     },
 }

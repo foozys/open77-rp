@@ -1,5 +1,5 @@
 resource "rp_factions"
-version "0.1.1"
+version "0.2.0"
 auto_start true
 
 dependency "rp_core >=0.2.0"
@@ -9,4 +9,5 @@ dependency "rp_core >=0.2.0"
 permissions { "database.access", "network.events" }
 
 server_script "server/config.lua"
+server_script "server/kits.lua"
 server_script "server/main.lua"

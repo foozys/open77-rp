@@ -26,6 +26,9 @@ local function db(method, sql, params)
     return result
 end
 
+-- Для server/kits.lua (стартовые наборы ролей).
+Factions = { log = log, db = db, core = core, characterOf = characterOf }
+
 local function refreshCount(factionId)
     local value, err = db("scalar", "SELECT COUNT(*) FROM rp_character_factions WHERE faction = ?", { factionId })
     if value == nil then
@@ -220,6 +223,16 @@ local queued, why = Open77.database.ready(function()
             UNIQUE KEY uq_faction_slot (faction, slot),
             KEY idx_faction_members (faction, grade)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ]] } }, { version = 2, name = "start_kits", statements = { [[
+        CREATE TABLE IF NOT EXISTS rp_faction_kits (
+            character_id BIGINT UNSIGNED NOT NULL,
+            faction      VARCHAR(32) NOT NULL,
+            step         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            done         TINYINT(1) NOT NULL DEFAULT 0,
+            started_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            done_at      DATETIME NULL,
+            PRIMARY KEY (character_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ]] } } })
     if not created then return log("error", "таблица не создана: %s", tostring(createErr)) end
 
@@ -236,5 +249,6 @@ local queued, why = Open77.database.ready(function()
         if playerId and characterOf(playerId) then CreateThread(function() loadMember(playerId) end) end
     end
     log("info", "готово: фракций %d", #publicCatalog("civilian") + #publicCatalog("corporate"))
+    Kits.ready()
 end)
 if not queued then log("error", "база данных недоступна: %s", tostring(why)) end

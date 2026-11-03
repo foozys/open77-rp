@@ -41,6 +41,36 @@ FactionsConfig = {
     },
 }
 
+-- Стартовые наборы ролей (шаг 5.3, решение владельца 2026-11-03: набор — после одобрения
+-- заявки). Числа и состав — ЧЕРНОВИК, баланс — шаг 13. Выдаётся один раз (отметка
+-- rp_faction_kits), сверх общего стартового счёта rp_money startBank и базовой одежды.
+--   money    — €$ на счёт (rp_money kit_money);
+--   items    — { предмет rp_inventory, количество } (оружие и одежда — уникальные, по 1);
+--   implants — сразу ставятся в тело бесплатно (rp_cyberware kit_implant); слот занят — пропуск;
+--   vehicle  — модель rp_vehicles catalog, в гараж.
+-- Доступы (двери, склады) — когда появятся дома ролей (5.4, шаг 11).
+-- У фракции без своего kit — набор её группы (kitsByGroup).
+local civilOs = { "implant_civil_os" } -- нейро-ОС: телефон, щепки, сканер
+FactionsConfig.kitsByGroup = {
+    gangs = { money = 500, items = { { "wpn_knife", 1 }, { "bandage", 2 }, { "water", 1 } }, implants = civilOs },
+    nomads = { money = 800, items = { { "wpn_overture", 1 }, { "ammo_44", 18 }, { "toolbox", 1 }, { "water", 1 } },
+               implants = civilOs, vehicle = "pickup" },
+    corporations = { money = 5000, items = { { "wpn_lexington", 1 }, { "ammo_9mm", 30 }, { "medkit", 1 } },
+                     implants = { "implant_civil_os", "implant_kiroshi" } },
+}
+FactionsConfig.kits = {
+    maelstrom = { money = 500, items = { { "wpn_lexington", 1 }, { "ammo_9mm", 30 }, { "bandage", 2 } }, implants = civilOs },
+    tyger_claws = { money = 500, items = { { "wpn_katana", 1 }, { "bandage", 2 }, { "water", 1 } }, implants = civilOs },
+    valentinos = { money = 500, items = { { "wpn_unity", 1 }, { "ammo_9mm", 30 }, { "bandage", 2 } }, implants = civilOs },
+    fixer = { money = 3000, items = { { "notebook", 1 }, { "wpn_unity", 1 }, { "ammo_9mm", 30 } }, implants = civilOs },
+    ripper = { money = 2000, items = { { "medkit", 2 }, { "bandage", 5 }, { "toolbox", 1 } },
+               implants = { "implant_civil_os", "implant_biomonitor" } },
+    mercenary = { money = 1500, items = { { "wpn_unity", 1 }, { "ammo_9mm", 45 }, { "medkit", 1 } }, implants = civilOs,
+                  vehicle = "maimai" },
+    netwatch = { money = 5000, items = { { "wpn_lexington", 1 }, { "ammo_9mm", 30 } },
+                 implants = { "implant_deck_pro", "implant_kiroshi" } },
+}
+
 local defaultRanks = {
     { label = "Участник", permissions = { "faction.basic" } },
     { label = "Ветеран", permissions = {} },
@@ -51,6 +81,7 @@ for id, faction in pairs(FactionsConfig.factions) do
     faction.id = id
     faction.society = "rp.faction." .. id
     faction.ranks = faction.ranks or defaultRanks
+    faction.kit = FactionsConfig.kits[id] or FactionsConfig.kitsByGroup[faction.group]
     faction.allowed = {}
     for _, background in ipairs(faction.backgrounds) do faction.allowed[background] = true end
 

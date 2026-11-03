@@ -24,6 +24,7 @@ local function id(v) local n = math.tointeger(tonumber(v)); return n and n > 0 a
 -- Open77.time.monotonic() — СЕКУНДЫ; все паузы в конфиге — миллисекунды.
 local function now() return Open77.time.monotonic() * 1000 end
 local function person(p) return call("rp_core", "character", p) end
+-- Любая ОС в слоте os: гражданская, кибердека или Сандевистан (с 2026-11-03).
 local function hasOs(p) return call("rp_cyberware", "has_os", p) == true end
 local function send(p, event, payload)
     local ok, why = TriggerClientEvent(event, p, payload or {})
@@ -186,7 +187,7 @@ local function session(p, needOs)
         return nil
     end
     if needOs ~= false and not hasOs(p) then
-        notice(p, "Телефону нужна нейро-ОС: кибердека или гражданская ОС.")
+        notice(p, "Телефону нужна ОС: гражданская ОС, кибердека или Сандевистан.")
         send(p, "rp_phone:denied", {})
         return nil
     end

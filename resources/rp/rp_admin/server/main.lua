@@ -498,7 +498,7 @@ local PANEL_PERMS = {
     "rp.staff", "rp.view", "rp.teleport", "rp.spectate", "rp.freeze", "rp.heal", "rp.warn", "rp.unwarn",
     "rp.announce", "rp.kick", "rp.ban", "rp.ban.permanent", "rp.unban", "rp.whitelist.add", "rp.whitelist.remove",
     "rp.staff.manage", "rp.tune", "rp.money", "rp.items", "rp.jobs", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber",
-    "rp.audit.view", "rp.frozen",
+    "rp.audit.view", "rp.frozen", "rp.applications",
 }
 
 -- Экспорт другого ресурса или пустой список, если ресурс не запущен.
@@ -618,4 +618,50 @@ end)
 AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     local playerId = tonumber(playerIdStr)
     if playerId then frozenBusy[playerId] = nil end
+end)
+
+-- Вкладка «Заявки» (шаг 5.2): заявки новых персонажей — одобрить / отклонить с причиной.
+-- Право rp.applications и всё остальное проверяет rp_core (applications_list / application_review).
+local applicationsBusy = {}
+
+local function sendApplications(playerId, message)
+    local list, why = coreAwait("applications_list", playerId)
+    local payload = type(list) == "table" and { list = list, message = message } or { error = tostring(why or "Список недоступен.") }
+    -- Истории персонажей длинные (до backstoryMax символов): частями, до 4 МиБ.
+    local id, sendWhy = TriggerLatentClientEvent("rp_admin:applications", playerId, 512 * 1024, payload)
+    if not id then log("warn", "заявки для %d не отправлены: %s", playerId, tostring(sendWhy)) end
+end
+
+local function applicationsRequest(playerId, fn)
+    if not playerId or applicationsBusy[playerId] then return end
+    applicationsBusy[playerId] = true
+    CreateThread(function()
+        local ok, err = pcall(fn)
+        applicationsBusy[playerId] = nil
+        if not ok then
+            log("error", "заявки для %d: %s", playerId, tostring(err))
+            TriggerClientEvent("rp_admin:applications", playerId, { error = "Ошибка, см. лог сервера." })
+        end
+    end)
+end
+
+RegisterNetEvent("rp_admin:applications", function()
+    local playerId = tonumber(source)
+    applicationsRequest(playerId, function() sendApplications(playerId) end)
+end)
+
+RegisterNetEvent("rp_admin:applicationReview", function(characterId, decision, note)
+    local playerId = tonumber(source)
+    characterId = math.tointeger(tonumber(characterId))
+    if not characterId or (decision ~= "approve" and decision ~= "reject") then return end
+    note = type(note) == "string" and note:sub(1, 1024) or ""
+    applicationsRequest(playerId, function()
+        local ok, text = coreAwait("application_review", playerId, characterId, decision, note)
+        sendApplications(playerId, ok and text or ("Не выполнено: " .. tostring(text)))
+    end)
+end)
+
+AddEventHandler("onPlayerDisconnected", function(playerIdStr)
+    local playerId = tonumber(playerIdStr)
+    if playerId then applicationsBusy[playerId] = nil end
 end)

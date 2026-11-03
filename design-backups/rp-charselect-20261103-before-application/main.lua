@@ -1,0 +1,319 @@
+-- Экран выбора персонажа и анкета нового. Решает всё сервер (rp_core):
+-- клиент сообщает, с каким персонажем загрузился мир, показывает то, что
+-- прислал сервер, и передаёт выбор игрока.
+
+local page, pageReady = nil, false
+local state = nil      -- { mode = "profile"|"background"|"faction"|"select", ... }
+local closed = false   -- сервер завершил выбор: не держим readiness gate
+local scene = nil      -- { position, forward, yaw }
+local camera = nil
+local preview, previewId = nil, nil
+local looks = {}       -- [id] = { body, equipment } | false
+local wanted = nil     -- id персонажа, которого просили показать
+
+local function emit(event, ...)
+    local ok, reason = TriggerServerEvent(event, ...)
+    if not ok then print(("[rp_charselect] %s не отправлено: %s"):format(event, tostring(reason))) end
+end
+
+local function toPage(event, payload)
+    if page and pageReady then page:send(event, payload) end
+end
+
+-- -- сообщить серверу, кем загружен мир -------------------------------------------
+
+-- Персонаж в мире: тело выбрано (phase) и уже стоит в загруженном мире
+-- (playerReset). worldReady приходит раньше, на старте стриминга, когда тела
+-- ещё нет и строить сцену не от чего.
+local function playerInWorld()
+    local ok, bootstrap = pcall(Open77.session.characterBootstrap)
+    return ok and type(bootstrap) == "table" and bootstrap.phase == "ready"
+        and bootstrap.playerReset == "complete"
+end
+
+local function report()
+    if not playerInWorld() then return end
+    local ok, key = pcall(Open77.exports.callSync, "open77_appearance", "characterKey")
+    if not ok or type(key) ~= "string" then
+        print("[rp_charselect] ключ персонажа недоступен: " .. tostring(key))
+        return
+    end
+    emit("rp_core:charselect:ready", key)
+end
+
+AddEventHandler("open77:worldReady", report)
+AddEventHandler("onClientResourceStart", function(name)
+    if name == GetCurrentResourceName() then report() end
+end)
+RegisterNetEvent("rp_charselect:query", report)
+
+-- Пока выбор не закончен, сервер держит игрока у readiness gate; держим его живым.
+CreateThread(function()
+    while true do
+        if not closed then TriggerServerEvent("rp_core:charselect:heartbeat") end
+        Wait(10000)
+    end
+end)
+
+-- -- сцена: камера и манекен ------------------------------------------------------
+
+local function removePreview()
+    if preview then Open77.puppets.removeLocal(preview) end
+    preview, previewId = nil, nil
+end
+
+local function spot()
+    local p, f = scene.position, scene.forward
+    return { x = p.x + f.x * 3.0, y = p.y + f.y * 3.0, z = p.z }
+end
+
+-- Камера перед игроком, смотрит на манекен; сам игрок за кадром. На своё
+-- тело смотреть нельзя: от первого лица игра рисует его без головы.
+local function shot()
+    local p, f = scene.position, scene.forward
+    local s = spot()
+    return {
+        position = { x = p.x + f.x * 0.6, y = p.y + f.y * 0.6, z = p.z + 1.45 },
+        lookAt = { x = s.x, y = s.y, z = s.z + 1.0 },
+        fov = 40,
+    }
+end
+
+local showLook, showSelf -- ниже; сцена вызывает их, когда наконец построилась
+
+local function startScene(mode)
+    if not scene then
+        local me = Open77.character.state()
+        if not me or not me.position then
+            -- тело ещё не появилось: повторим, пока экран открыт
+            CreateThread(function()
+                Wait(500)
+                if state and state.mode == mode and not scene then startScene(mode) end
+            end)
+            return
+        end
+        local f = me.forward or { x = 0, y = 1 }
+        local length = math.sqrt(f.x * f.x + f.y * f.y)
+        if length < 0.01 then f, length = { x = 0, y = 1 }, 1 end
+        scene = {
+            position = { x = me.position.x, y = me.position.y, z = me.position.z },
+            forward = { x = f.x / length, y = f.y / length },
+            yaw = tonumber(me.yaw) or 0,
+        }
+    end
+    if camera then Open77.camera.destroy(camera); camera = nil end
+    local created, reason = Open77.camera.create(shot())
+    if not created then
+        print("[rp_charselect] камера: " .. tostring(reason))
+        return
+    end
+    camera = created
+    if mode == "profile" or mode == "background" or mode == "faction" then
+        showSelf()
+    elseif wanted and looks[wanted] and previewId ~= wanted then
+        showLook(wanted) -- снимок могли получить раньше, чем появилась сцена
+    end
+    CreateThread(function()
+        -- Во время смены перспективы activate отвечает camera_unavailable: повторяем.
+        for _ = 1, 20 do
+            if camera ~= created then return end
+            local ok, why = Open77.camera.activate(created, { blendMs = 600 })
+            if ok then return end
+            if why ~= "camera_unavailable" then
+                print("[rp_charselect] камера не активирована: " .. tostring(why))
+                return
+            end
+            Wait(250)
+        end
+    end)
+end
+
+local function stopScene()
+    removePreview()
+    if camera then
+        Open77.camera.deactivate({ blendMs = 400 })
+        Open77.camera.destroy(camera)
+        camera = nil
+    end
+    scene = nil
+    wanted = nil
+end
+
+showLook = function(id)
+    removePreview()
+    local look = looks[id]
+    if not scene or not look then return end
+    local created, reason = Open77.puppets.createLocal({
+        body = look.body,
+        equipment = look.equipment,
+        position = spot(),
+        yaw = (scene.yaw + 180) % 360,
+    })
+    if not created then
+        print("[rp_charselect] манекен: " .. tostring(reason))
+        return
+    end
+    preview, previewId = created, id
+end
+
+-- Анкета: манекен с телом, которое игрок только что создал в редакторе.
+-- Тело присылает сервер ("self"), когда open77_appearance опубликует его
+-- уже с надетой внешностью; до этого манекена нет.
+showSelf = function()
+    if previewId == "self" then return end
+    -- На экране выбора тот же загруженный персонаж мог называться числовым ID.
+    -- Для анкеты это всё ещё тот же манекен: меняем только логическую метку.
+    if state and previewId == state.currentId then
+        previewId = "self"
+        return
+    end
+    if looks.self then showLook("self") end
+end
+
+local function showCharacter(id)
+    wanted = id
+    if id == nil then return removePreview() end
+    if previewId == id then return end
+    -- После страниц создания self и currentId обозначают одну внешность. Не
+    -- пересоздаём puppet при возврате на экран выбора персонажа.
+    if state and previewId == "self" and id == state.currentId then return end
+    local look = looks[id]
+    if look == nil then
+        removePreview()
+        emit("rp_core:charselect:requestLook", id)
+        return
+    end
+    showLook(id)
+end
+
+-- id — номер персонажа или "self" (тело игрока для анкеты).
+RegisterNetEvent("rp_charselect:look", function(id, text)
+    id = tonumber(id) or (id == "self" and "self") or nil
+    if not id then return end
+    local look = false
+    if type(text) == "string" then
+        local ok, decoded = pcall(json.decode, text)
+        if ok and type(decoded) == "table" and type(decoded.body) == "table" then look = decoded end
+    end
+    looks[id] = look
+    if not state then return end
+    if id == "self" and (state.mode == "profile" or state.mode == "background" or state.mode == "faction") and look then
+        showSelf()
+    elseif wanted == id and state.mode == "select" then
+        showLook(id)
+    end
+end)
+
+-- -- страница ---------------------------------------------------------------------
+
+local function pushState()
+    if state then toPage("state", state) end
+end
+
+local function ensurePage()
+    if page then
+        page:setFocus(true, true)
+        return
+    end
+    local created, reason = Open77.webui.create({
+        entry = "web/index.html", layer = "menu",
+        width = 1920, height = 1080, transparent = true, visible = true,
+    })
+    if not created then
+        print("[rp_charselect] WebUI: " .. tostring(reason))
+        return
+    end
+    page = created
+    page:on("ui:ready", function()
+        pageReady = true
+        pushState()
+    end)
+    page:on("select", function(payload)
+        showCharacter(type(payload) == "table" and tonumber(payload.id) or nil)
+    end)
+    page:on("play", function(payload)
+        if type(payload) == "table" then emit("rp_core:charselect:play", tonumber(payload.id)) end
+    end)
+    page:on("create", function()
+        emit("rp_core:charselect:create")
+    end)
+    page:on("delete", function(payload)
+        if type(payload) ~= "table" then return end
+        emit("rp_core:charselect:delete", tonumber(payload.id), tostring(payload.confirm or ""))
+    end)
+    page:on("profile", function(payload)
+        if type(payload) ~= "table" then return end
+        emit("rp_core:charselect:profile", {
+            firstName = tostring(payload.firstName or ""),
+            lastName = tostring(payload.lastName or ""),
+            birthDate = tostring(payload.birthDate or ""),
+            race = tostring(payload.race or ""),
+            gender = tostring(payload.gender or ""),
+            country = tostring(payload.country or ""),
+        })
+    end)
+    page:on("background", function(payload)
+        if type(payload) ~= "table" then return end
+        emit("rp_core:charselect:background", {
+            background = tostring(payload.background or ""),
+            key = tostring(payload.key or ""),
+        })
+    end)
+    page:on("faction", function(payload)
+        if type(payload) == "table" then
+            emit("rp_core:charselect:faction", { faction = tostring(payload.faction or "") })
+        end
+    end)
+    page:on("back", function()
+        emit("rp_core:charselect:back")
+    end)
+    page:setFocus(true, true)
+end
+
+local function closeAll()
+    stopScene()
+    if page then
+        page:destroy()
+        page, pageReady = nil, false
+    end
+    Open77.character.setFrozen(false)
+end
+
+RegisterNetEvent("rp_charselect:open", function(data)
+    if type(data) ~= "table" or (data.mode ~= "profile" and data.mode ~= "background"
+        and data.mode ~= "faction" and data.mode ~= "select") then return end
+    state = data
+    closed = false
+    Open77.character.setFrozen(true)
+    ensurePage()
+    if not camera then
+        startScene(data.mode)
+    elseif data.mode ~= "select" then
+        -- profile/background/faction — одна непрерывная сцена. Между страницами
+        -- меняется только WebUI, камера и манекен остаются прежними.
+        showSelf()
+    end
+    pushState()
+end)
+
+RegisterNetEvent("rp_charselect:error", function(text)
+    toPage("error", { text = tostring(text or "") })
+end)
+
+RegisterNetEvent("rp_charselect:close", function()
+    closed = true
+    state = nil
+    closeAll()
+end)
+
+AddEventHandler("onClientResourceStop", function(name)
+    if name == GetCurrentResourceName() then closeAll() end
+end)
+
+-- Тело (пере)появилось в мире: старые камера и манекен ушли вместе с прежним
+-- миром, строим заново по свежей позиции.
+AddEventHandler("open77:playerReset:complete", function()
+    scene, camera, preview, previewId = nil, nil, nil, nil
+    report()
+end)
+

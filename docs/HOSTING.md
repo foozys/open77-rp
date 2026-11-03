@@ -145,7 +145,7 @@ tail -f /opt/open77/logs/server.log
 2. Скопировать на хостинг (по SSH / SFTP):
    - дамп `backups\open77-<дата>.sql.gz`;
    - `.open77\` — идентичность сервера и ключ подписи ресурсов (без `resource-cache\`, его можно не копировать);
-   - `acl.jsonc` (права), `tunables.json` (правила выпуска денег/предметов и настройки `rp_*`, вкл. `corporateKey`; **`testMode` там должен быть `false` на живом сервере**);
+   - `acl.jsonc` (права), `tunables.json` (правила выпуска денег/предметов и настройки `rp_*`; **`testMode` там должен быть `false` на живом сервере**);
    - четыре ручных системных ресурса из `resources\system\`: `open77_transactions`, `open77_containers`, `open77_hacking`, `open77_rp_basics` ([SYSTEM-RESOURCES.md](SYSTEM-RESOURCES.md)).
 3. На хостинге загрузить базу: `tools/ops/restore.sh --replace backups/open77-<дата>.sql.gz` (Windows: `restore.ps1 -Replace …`) — сначала страховочный бэкап пустой базы, затем загрузка и сверка таблиц.
 4. Проверки: `./Open77.Server --check-config` (с переменными окружения), затем старт службы. В логе: `ядро готово`, `[migrations] …` у всех `rp_*`, `[rp_phone] готов`, `[rp_clothing] готов: записей одежды 2054`; нет `resource_activation_failed`, `permission_denied`; ошибка `SQL 1062` от `open77_transactions` — норма ([SYSTEM-RESOURCES.md](SYSTEM-RESOURCES.md) §3).

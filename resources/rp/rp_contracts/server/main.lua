@@ -223,7 +223,7 @@ local function verify(hunter,target)
       call("rp_medical","is_downed",target)~=true then return end
     -- Подтверждение идёт через сканер Kiroshi: без нейро-ОС оно не работает.
     if call("rp_cyberware","has_os",hunter)~=true then
-        return note(hunter,"Сканеру нужна нейро-ОС: кибердека или гражданская ОС.")
+        return note(hunter,"Сканеру нужна ОС: гражданская ОС, кибердека или Сандевистан.")
     end
     local row=sql("single",[[SELECT * FROM rp_fixer_contracts
         WHERE mercenary_id=? AND target_id=? AND status='active' ORDER BY id LIMIT 1]],{a.id,b.id})

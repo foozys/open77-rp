@@ -75,7 +75,7 @@ end)
 -- Категории фильтра панели: шаблоны LIKE по действию.
 local CATEGORIES = {
     money = { "rp_money:%", "rp_medical:charge", "rp_shops:buy", "rp_vehicles:car_buy%", "rp_inventory:chip_%" },
-    items = { "rp_inventory:%", "rp_shops:buy", "rp_vehicles:car_buy%" },
+    items = { "rp_inventory:%", "rp_shops:buy", "rp_vehicles:car_buy%", "rp_vehicles:car_kit" },
     admin = { "rp_admin:%", "ban", "unban", "kick", "whitelist_%", "staff_%", "tune", "audit_view",
               "rp_money:money_%", "rp_inventory:item_%", "rp_vehicles:car_give", "rp_vehicles:car_tow",
               "rp_jobs:job_%", "rp_needs:%", "rp_shops:shop_%" },
@@ -84,7 +84,7 @@ local CATEGORIES = {
     contracts = { "rp_contracts:%", "rp_money:contract_%" },
     psychosis = { "rp_cyberware:psychosis%" },
     police = { "rp_police:%", "rp_inventory:loot_%" },
-    characters = { "character_%", "corporate_key_fail" },
+    characters = { "character_%", "corporate_key_fail", "application_%", "rp_factions:start_kit" },
 }
 
 -- Операция open77_transactions по opId: только чтение (без resolve — тот «огораживает» opId).

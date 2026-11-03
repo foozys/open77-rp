@@ -87,10 +87,10 @@ local function send(playerId, event, payload)
     if not ok then log("warn", "%s для %s не отправлено: %s", event, tostring(playerId), tostring(why)) end
 end
 
--- Нейро-ОС в слоте os (кибердека или гражданская ОС, не Сандевистан): телефон, щепки, сканер.
+-- ОС — любой имплант в слоте os: гражданская ОС, кибердека или Сандевистан (решение
+-- владельца 2026-11-03). Нужна телефону, щепкам и сканеру Kiroshi.
 local function hasNeuralOs(s)
-    local def = s and s.slots.os and CyberConfig.implants[s.slots.os]
-    return def ~= nil and def.neuralOs == true
+    return s ~= nil and s.slots.os ~= nil and CyberConfig.implants[s.slots.os] ~= nil
 end
 
 local function labelOf(implantId)
@@ -590,6 +590,27 @@ exports("surgery_install", function(patient, implantId)
     patient = math.tointeger(tonumber(patient))
     if not patient or type(implantId) ~= "string" then return nil, "invalid_argument" end
     return install(patient, implantId, 0, SOURCE_CLINIC)
+end)
+
+-- Имплант стартового набора роли (rp_factions, шаг 5.3): выдать предмет и сразу поставить,
+-- бесплатно. Нет состояния — nil, "not_loaded" (ничего не выдано, повторить позже); слот
+-- занят — nil, "slot_busy" (ничего не выдано). Не встал — имплант остаётся в карманах:
+-- true, текст. Ждёт: вызывать через Open77.exports.call.
+exports("kit_implant", function(patient, implantId)
+    if GetInvokingResource() ~= "rp_factions" then return nil, "caller_denied" end
+    patient = math.tointeger(tonumber(patient))
+    local s, def = patient and state[patient], type(implantId) == "string" and CyberConfig.implants[implantId]
+    if not patient or not def then return nil, "invalid_argument" end
+    if not s then return nil, "not_loaded" end
+    if s.slots[def.slot] then return nil, "slot_busy" end
+    local given, why = await("rp_inventory", "give", patient, implantId, 1)
+    if not given then return nil, why or "busy" end
+    local ok, text = install(patient, implantId, 0, SOURCE_CLINIC)
+    if not ok then
+        log("warn", "игрок %d: имплант набора %s не встал (%s) — в карманах", patient, implantId, tostring(text))
+        return true, "в карманах"
+    end
+    return true
 end)
 
 exports("surgery_fail", function(patient, implantId)
@@ -1637,7 +1658,7 @@ RegisterNetEvent("rp_cyberware:scan", function(open)
     if not hasNeuralOs(s) then
         s.scanning = false
         return send(playerId, "rp_cyberware:scanState", { open = false,
-            text = "Сканеру нужна нейро-ОС: кибердека или гражданская ОС." })
+            text = "Сканеру нужна ОС: гражданская ОС, кибердека или Сандевистан." })
     end
     if Open77.players.isDead(playerId) or isDowned(playerId) then
         s.scanning = false
@@ -1940,7 +1961,7 @@ AddEventHandler("onResourceStop", function(name)
     for id in pairs(state) do saveState(id) end
 end)
 
--- Есть ли у игрока нейро-ОС (rp_inventory: щепки; rp_phone: телефон). Только чтение
+-- Есть ли у игрока ОС — любой имплант в слоте os (rp_inventory: щепки; rp_phone: телефон). Только чтение
 -- памяти: вызывается через callSync. nil — импланты игрока ещё не загружены.
 exports("has_os", function(playerId)
     local s = state[math.tointeger(tonumber(playerId)) or 0]

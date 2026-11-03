@@ -162,3 +162,20 @@ Migrations.add(9, "character_frozen", {
     ]],
     [[CREATE INDEX IF NOT EXISTS idx_characters_frozen ON rp_characters (status, frozen_at)]],
 })
+
+-- Заявка на роль (шаг 5.2): каждый новый персонаж подаёт предысторию, администрация одобряет.
+-- Уже созданные персонажи — одобрены (DEFAULT 'approved' на момент добавления столбца),
+-- после этого значение по умолчанию — 'pending': забытый путь создания не пропустит без заявки.
+Migrations.add(10, "character_application", {
+    [[
+        ALTER TABLE rp_characters
+            ADD COLUMN IF NOT EXISTS approval ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'approved' AFTER background,
+            ADD COLUMN IF NOT EXISTS backstory     TEXT         NULL AFTER approval,
+            ADD COLUMN IF NOT EXISTS submitted_at  DATETIME     NULL AFTER backstory,
+            ADD COLUMN IF NOT EXISTS review_note   VARCHAR(255) NULL AFTER submitted_at,
+            ADD COLUMN IF NOT EXISTS reviewed_by   VARCHAR(64)  NULL AFTER review_note,
+            ADD COLUMN IF NOT EXISTS reviewed_at   DATETIME     NULL AFTER reviewed_by
+    ]],
+    [[ALTER TABLE rp_characters ALTER COLUMN approval SET DEFAULT 'pending']],
+    [[CREATE INDEX IF NOT EXISTS idx_characters_approval ON rp_characters (approval, submitted_at)]],
+})

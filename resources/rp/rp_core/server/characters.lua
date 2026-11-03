@@ -75,6 +75,9 @@ local function normalize(row)
     row.gender = type(row.gender) == "string" and row.gender or nil
     row.origin_country = type(row.origin_country) == "string" and row.origin_country or nil
     row.background = type(row.background) == "string" and row.background or nil
+    row.approval = type(row.approval) == "string" and row.approval or "approved"
+    row.backstory = type(row.backstory) == "string" and row.backstory or nil
+    row.review_note = type(row.review_note) == "string" and row.review_note or nil
     return row
 end
 
@@ -90,7 +93,7 @@ end
 
 local SELECT_COLUMNS = [[
     id, slot, status, first_name, last_name, DATE_FORMAT(birth_date, '%d.%m.%Y') AS birth_text,
-    race, gender, origin_country, background,
+    race, gender, origin_country, background, approval, backstory, review_note,
     pos_x, pos_y, pos_z, heading, health, look IS NOT NULL AS has_look
 ]]
 
@@ -153,7 +156,7 @@ local function publicList(s)
             id = row.id, slot = row.slot, status = row.status,
             firstName = row.first_name, lastName = row.last_name, birthDate = row.birth_text or "",
             race = row.race, gender = row.gender, country = row.origin_country, background = row.background,
-            hasLook = row.has_look,
+            hasLook = row.has_look, approval = row.approval,
         }
     end
     return list
@@ -174,6 +177,14 @@ local function openUi(playerId, s, mode)
             s.current and s.current.background)
         payload.factions = ok and type(factions) == "table" and factions or {}
         if not ok then log.error("каталог фракций игроку %d недоступен: %s", playerId, tostring(factions)) end
+        -- Заявка (шаг 5.2): прежний текст и причина отказа, если отклоняли.
+        local row = s.current
+        payload.application = {
+            backstory = row and row.backstory or "",
+            rejected = row ~= nil and row.approval == "rejected",
+            note = row and row.review_note or "",
+            min = Tune.backstoryMin, max = Tune.backstoryMax,
+        }
     end
     send(playerId, "rp_charselect:open", payload)
     -- тело могло опубликоваться раньше, чем открылась анкета
@@ -196,6 +207,12 @@ local function place(playerId, s)
         if Characters.sessions[playerId] ~= s then return end
         local row = s.current
         local x, y, z = tonumber(row.pos_x), tonumber(row.pos_y), tonumber(row.pos_z)
+        if row.approval == "pending" then
+            -- Заявка не рассмотрена — всегда на точке ожидания (админ-зона, шаг 5.2.6).
+            local wait = RpConfig.applicationSpawn
+            x, y, z = wait.x, wait.y, wait.z
+            row.heading = wait.heading
+        end
         local placed = false
         -- При смене персонажа другого пола open77_appearance пересоздаёт тело,
         -- и телепорт на это время отвечает player_not_ready: повторяем.
@@ -581,12 +598,12 @@ RegisterNetEvent("rp_core:charselect:profile", function(data)
     end)
 end)
 
-local function notifyCorporate(playerId, row)
-    local text = string.format("Создан корпорат: %s [игрок %d, персонаж #%d].", fullName(row), playerId, row.id)
+-- Новая заявка (шаг 5.2) — всем в сети, кто может её рассмотреть.
+local function notifyReviewers(text)
     local notified = 0
     for _, value in ipairs(Open77.players.all()) do
         local adminId = math.tointeger(tonumber(value))
-        if adminId and Roles.can(adminId, "rp.staff") then
+        if adminId and Roles.can(adminId, "rp.applications") then
             Open77.chat.send(adminId, {
                 type = "system", author = "АДМИНИСТРАЦИЯ", text = text, color = { 255, 200, 0 },
             })
@@ -596,11 +613,6 @@ local function notifyCorporate(playerId, row)
     log.info("%s Уведомлено администраторов: %d", text, notified)
 end
 
--- Неверные ключи корпората по аккаунту (license): { count, since }. Сбрасываются верным
--- ключом, через окно или перезапуском ресурса.
-local CORP_KEY_TRIES, CORP_KEY_WINDOW = 5, 600
-local corporateTries = {}
-
 RegisterNetEvent("rp_core:charselect:background", function(data)
     local playerId, s = sessionOf(source, "background")
     if not s or type(data) ~= "table" then return end
@@ -609,25 +621,7 @@ RegisterNetEvent("rp_core:charselect:background", function(data)
         if background ~= "civilian" and background ~= "corporate" then
             return fail(playerId, "Выберите предысторию персонажа.")
         end
-        if background == "corporate" then
-            local key = tostring(Tune.corporateKey or "")
-            if key == "" then return fail(playerId, "Предыстория корпората сейчас недоступна — обратитесь к администрации.") end
-            -- Подбор ключа (аудит И-2): не больше CORP_KEY_TRIES неверных за окно, на аккаунт.
-            local now = Open77.time.unix()
-            local tries = corporateTries[s.license]
-            if tries and now - tries.since > CORP_KEY_WINDOW then tries = nil; corporateTries[s.license] = nil end
-            if tries and tries.count >= CORP_KEY_TRIES then
-                return fail(playerId, "Слишком много неверных попыток. Попробуйте позже или обратитесь к администрации.")
-            end
-            if tostring(data.key or "") ~= key then
-                tries = tries or { count = 0, since = now }
-                tries.count = tries.count + 1
-                corporateTries[s.license] = tries
-                Log.audit("corporate_key_fail", s.license, s.license, { tries = tries.count })
-                return fail(playerId, "Неверный ключ корпората.")
-            end
-            corporateTries[s.license] = nil
-        end
+        -- Ключа корпората больше нет (шаг 5.1): корпората одобряет администрация по заявке.
 
         local row = s.current
         local affected, err = Db.update([[
@@ -658,7 +652,18 @@ RegisterNetEvent("rp_core:charselect:faction", function(data)
     exclusive(s, function()
         local faction = type(data.faction) == "string" and data.faction or nil
         if not faction or #faction > 32 then return fail(playerId, "Выберите фракцию.") end
-        local row, spawn = s.current, RpConfig.characterSpawn
+        -- Заявка (шаг 5.2): история персонажа в пределах tunables backstoryMin..backstoryMax символов.
+        local raw = type(data.backstory) == "string" and #data.backstory <= 24576 and data.backstory or ""
+        local backstory = raw:gsub("\r\n", "\n"):gsub("[%z\1-\8\11\12\14-\31\127]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        local length = utf8.len(backstory)
+        if not length then return fail(playerId, "В тексте заявки недопустимые символы.") end
+        if length < Tune.backstoryMin then
+            return fail(playerId, string.format("История персонажа слишком короткая: %d из %d символов.", length, Tune.backstoryMin))
+        end
+        if length > Tune.backstoryMax then
+            return fail(playerId, string.format("История персонажа слишком длинная: %d, можно до %d символов.", length, Tune.backstoryMax))
+        end
+        local row, spawn = s.current, RpConfig.applicationSpawn
         local claimed, reason = factionCall("claim", row.id, faction, s.license)
         if Characters.sessions[playerId] ~= s then return end
         if claimed ~= true then
@@ -673,10 +678,11 @@ RegisterNetEvent("rp_core:charselect:faction", function(data)
         end
 
         local affected, err = Db.update([[
-            UPDATE rp_characters SET status = 'active',
+            UPDATE rp_characters SET status = 'active', approval = 'pending', backstory = ?, submitted_at = NOW(),
+                review_note = NULL, reviewed_by = NULL, reviewed_at = NULL,
                 pos_x = ?, pos_y = ?, pos_z = ?, heading = ?
             WHERE id = ? AND license = ? AND status = 'creating'
-        ]], { spawn.x, spawn.y, spawn.z, spawn.heading, row.id, s.license })
+        ]], { backstory, spawn.x, spawn.y, spawn.z, spawn.heading, row.id, s.license })
         if Characters.sessions[playerId] ~= s then return end
         if err or (tonumber(affected) or 0) == 0 then
             factionCall("release", row.id)
@@ -684,14 +690,16 @@ RegisterNetEvent("rp_core:charselect:faction", function(data)
             return fail(playerId, "Не удалось завершить создание, попробуйте ещё раз.")
         end
 
-        row.status = "active"
+        local again = row.approval == "rejected"
+        row.status, row.approval, row.backstory, row.review_note = "active", "pending", backstory, nil
         row.pos_x, row.pos_y, row.pos_z, row.heading = spawn.x, spawn.y, spawn.z, spawn.heading
-        Log.audit("character_create", s.license, s.license, {
+        Log.audit(again and "application_resubmit" or "character_create", s.license, s.license, {
             id = row.id, name = fullName(row), birth = row.birth_text,
             race = row.race, gender = row.gender, country = row.origin_country,
-            background = row.background, faction = faction,
-        })
-        if row.background == "corporate" then notifyCorporate(playerId, row) end
+            background = row.background, faction = faction, length = length,
+        }, { targetChar = row.id })
+        notifyReviewers(string.format("%s заявка: %s [игрок %d, персонаж #%d], фракция %s. F3 → «Заявки».",
+            again and "Повторная" or "Новая", fullName(row), playerId, row.id, faction))
         play(playerId, s, row)
     end)
 end)

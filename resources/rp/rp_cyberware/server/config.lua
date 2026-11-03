@@ -64,24 +64,24 @@ CyberConfig = {
             platform = { id = "rp.jump_legs", slot = "legs", profile = "double_jump",
                 grade = { normalDamage = 0, chargedDamage = 0, knockbackMeters = 0, cooldownMs = 800, chargeMs = 650,
                           jumpStaminaCost = 15, maxAirborneMs = 10000, maxFallSpeed = 30 } } },
-        -- neuralOs = true — нейро-ОС: без неё не работают телефон, чтение щепок (досье,
-        -- денежные) и сканер Kiroshi. Её дают кибердеки и гражданская ОС; Сандевистан — нет.
+        -- ОС — любой имплант в слоте os (кибердеки, гражданская ОС, Сандевистан; с 2026-11-03):
+        -- без неё не работают телефон, чтение щепок (досье, денежные) и сканер Kiroshi.
         -- Кибердека: deck.slots — сколько скриптов вставить, ram — запас RAM, ramRegen — RAM в секунду.
         -- Скрипты (CyberConfig.quickhacks) шлются в режиме Kiroshi — нужны глаза implant_kiroshi.
-        implant_deck = { slot = "os", humanity = 15, price = 3000, kind = "cyberware", neuralOs = true,
+        implant_deck = { slot = "os", humanity = 15, price = 3000, kind = "cyberware",
             description = "Кибердека Militech: 3 слота скриптов, 8 RAM. Нейро-ОС: телефон, щепки, сканер",
             deck = { slots = 3, ram = 8, ramRegen = 0.4 },
             platform = { id = "rp.cyberdeck", slot = "operating_system", profile = "cyberdeck", deck = true } },
-        implant_deck_pro = { slot = "os", humanity = 20, price = 4500, kind = "cyberware", neuralOs = true,
+        implant_deck_pro = { slot = "os", humanity = 20, price = 4500, kind = "cyberware",
             description = "Кибердека Netwatch: 5 слотов скриптов, 12 RAM, быстрее восстанавливает RAM. Нейро-ОС",
             deck = { slots = 5, ram = 12, ramRegen = 0.7 },
             platform = { id = "rp.cyberdeck", slot = "operating_system", profile = "cyberdeck", deck = true } },
         -- Облегчённая гражданская ОС: только нейро-ОС, без скриптов и эффектов платформы.
-        implant_civil_os = { slot = "os", humanity = 2, price = 600, kind = "passive", neuralOs = true,
+        implant_civil_os = { slot = "os", humanity = 2, price = 600, kind = "passive",
             description = "Гражданская нейро-ОС: телефон, чтение щепок, сканер Kiroshi. Без скриптов взлома",
             passive = {} },
         implant_kiroshi = { slot = "eyes", humanity = 3, price = 1000, kind = "passive",
-            description = "Сканер: зажать TAB (нужна нейро-ОС). С кибердекой — выбор скрипта колесом, отправка ЛКМ",
+            description = "Сканер: зажать TAB (нужна любая ОС). С кибердекой — выбор скрипта колесом, отправка ЛКМ",
             passive = { scanner = true } },
         implant_ice = { slot = "ice", humanity = 4, price = 800, kind = "cyberware", hack = true,
             description = "Отражает одну загрузку квикхака, перезарядка 30 с",

@@ -250,8 +250,6 @@ RegisterCommand("rp.tune", function(source, args)
         table.sort(names)
         for _, name in ipairs(names) do
             local value = tostring(Tune[name])
-            -- Ключи не показываем всем с rp.view: только задан или нет.
-            if name == "corporateKey" then value = value ~= "" and "(задан)" or "(не задан)" end
             Util.reply(source, "%s = %s", name, value)
         end
         return
@@ -278,7 +276,7 @@ RegisterCommand("rp.tune", function(source, args)
         Util.reply(source, "Не изменено: %s", tostring(message))
         return
     end
-    Log.audit("tune", actorOf(source), key, { value = key == "corporateKey" and "(изменён)" or value })
+    Log.audit("tune", actorOf(source), key, { value = value })
     if key == "testMode" then
         Open77.log.warn("[rp_core] тестовый режим " .. (value and "ВКЛЮЧЁН" or "выключен") .. " командой rp.tune")
     end

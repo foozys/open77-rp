@@ -3,7 +3,7 @@ version "0.1.0"
 auto_start true
 
 -- Телефон персонажа: номер, контакты, сообщения, звонки (голосовой канал mode = "phone")
--- и аватар для звонка. Работает только с нейро-ОС (rp_cyberware has_os).
+-- и аватар для звонка. Работает только с ОС в слоте os (rp_cyberware has_os).
 dependency "rp_core"
 dependency "rp_cyberware"
 dependency "rp_medical"

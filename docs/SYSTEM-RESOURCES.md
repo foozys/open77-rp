@@ -44,7 +44,7 @@ tunable.set open77_transactions mint3 rp_shops sys:rp.shops * 5000
 
 Проверить: `transactions mints`. Лимиты черновые — пересмотр в шаге 13 (экономика).
 
-В том же `tunables.json` лежат настройки `rp_*` (например `rp_core`: `maxCharacters`, `testMode`, `corporateKey`; `rp_money`: payday), поэтому файл переносится целиком.
+В том же `tunables.json` лежат настройки `rp_*` (например `rp_core`: `maxCharacters`, `testMode`, `backstoryMin`; `rp_money`: payday), поэтому файл переносится целиком.
 
 ## 3. Ошибка `SQL 1062` при каждом старте — норма
 

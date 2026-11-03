@@ -99,6 +99,9 @@ if not queued then log("error", "база данных недоступна: %s"
 
 local function grantStart(playerId, characterId)
     if not dbReady then return end
+    -- Заявка на роль (шаг 5.2): пока её не одобрили — без стартовых денег; выдача — по
+    -- rp_core:characterApproved или при входе уже одобренным.
+    if core("approved", playerId) ~= true then return end
     local ok, done = pcall(Open77.database.scalar.await,
         "SELECT 1 FROM rp_money_start WHERE character_id = ?", { characterId })
     if not ok then
@@ -153,6 +156,39 @@ AddEventHandler("rp_core:characterLoaded", function(playerIdArg, characterIdArg)
         grantStart(playerId, characterId)
         mergeCash(playerId, characterId)
     end)
+end)
+
+-- Заявку одобрили, пока игрок в сети.
+AddEventHandler("rp_core:characterApproved", function(playerIdArg, characterIdArg)
+    local playerId, characterId = tonumber(playerIdArg), math.tointeger(tonumber(characterIdArg))
+    if not playerId or not characterId then return end
+    CreateThread(function() grantStart(playerId, characterId) end)
+end)
+
+-- Деньги стартового набора роли (rp_factions, шаг 5.3) — сверх стартового счёта.
+-- Один раз на персонажа: opId "rpkit:<персонаж>" (повтор — replay без второй выдачи).
+-- Ждёт: вызывать через Open77.exports.call. true, или nil, reason.
+exports("kit_money", function(playerIdArg, characterIdArg, amountArg)
+    if GetInvokingResource() ~= "rp_factions" then return nil, "caller_denied" end
+    local playerId, characterId = tonumber(playerIdArg), math.tointeger(tonumber(characterIdArg))
+    local amount = math.tointeger(tonumber(amountArg))
+    if not playerId or not characterId or not amount or amount < 1 or amount > 1000000 then
+        return nil, "invalid_argument"
+    end
+    local character = characterOf(playerId)
+    if not character or character.id ~= characterId then return nil, "no_character" end
+    local bank, why = Ledger.bank(playerId)
+    if not bank then return nil, why or "no_bank" end
+    local opId = "rpkit:" .. characterId
+    local receipt
+    receipt, why = Ledger.transfer({ opId = opId, kind = "rp.start.kit", reason = "kit",
+                                     lines = { { money = amount, from = SOURCE, to = bank } } })
+    if not receipt then
+        log("error", "деньги набора #%d не выданы: %s", characterId, explain(why))
+        return nil, why or "busy"
+    end
+    if not receipt.replay then journal("start_kit_money", nil, playerId, { amount = amount }, opId) end
+    return true
 end)
 
 -- -- зарплата ---------------------------------------------------------------------

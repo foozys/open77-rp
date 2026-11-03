@@ -36,6 +36,20 @@ RegisterNetEvent("rp_admin:frozen", function(payload)
     if type(payload) == "table" and isOpen then send("adm:frozen", payload) end
 end)
 
+-- Вкладка «Заявки»: заявки новых персонажей (данные и права — сервер). Странице — по одной
+-- заявке: истории длинные, размер сообщения WebUI ограничен. Первая пачка заменяет список.
+RegisterNetEvent("rp_admin:applications", function(payload)
+    if type(payload) ~= "table" or not isOpen then return end
+    if payload.error or type(payload.list) ~= "table" or #payload.list <= 1 then
+        send("adm:applications", payload)
+        return
+    end
+    for i, item in ipairs(payload.list) do
+        send("adm:applications", { list = { item }, append = i > 1, total = #payload.list,
+            message = i == 1 and payload.message or nil })
+    end
+end)
+
 -- Странице — пачками по 10 строк: размер сообщения WebUI ограничен, кириллица в JSON тяжёлая.
 -- Первая пачка заменяет таблицу (или дописывает, если это «Ещё»), остальные дописываются.
 RegisterNetEvent("rp_admin:journal", function(payload)
@@ -90,6 +104,12 @@ AddEventHandler("onClientResourceStart", function(name)
     page:on("adm:close", close)
     page:on("adm:refresh", function() TriggerServerEvent("rp_admin:panel") end)
     page:on("adm:frozen", function() TriggerServerEvent("rp_admin:frozen") end)
+    page:on("adm:applications", function() TriggerServerEvent("rp_admin:applications") end)
+    page:on("adm:applicationReview", function(p)
+        if type(p) ~= "table" then return end
+        TriggerServerEvent("rp_admin:applicationReview", math.tointeger(tonumber(p.id)),
+            tostring(p.decision or ""), tostring(p.note or ""))
+    end)
     page:on("adm:frozenRestore", function(p)
         if type(p) == "table" then TriggerServerEvent("rp_admin:frozenRestore", math.tointeger(tonumber(p.id))) end
     end)

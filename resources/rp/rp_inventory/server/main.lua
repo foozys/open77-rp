@@ -325,7 +325,7 @@ local function useItem(playerId, index, itemId)
     withStack(playerId, index, itemId, function(state, stack, at)
         local def = InvConfig.items[stack.i]
         if def.needsOs and not Store.hasOs(playerId) then
-            return notify(playerId, "Щепку нечем прочитать: нужна нейро-ОС (кибердека или гражданская ОС).")
+            return notify(playerId, "Щепку нечем прочитать: нужна ОС (гражданская ОС, кибердека или Сандевистан).")
         end
         if def.use == "chip" then
             -- Вставить щепку в нейропорт: щепка тратится, сумма — из хранилища на счёт.
@@ -1004,7 +1004,7 @@ RegisterCommand("chip", function(source, args)
     local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
     if not okAct or allowed ~= true then return notify(playerId, text or "Сейчас нельзя.") end
     if not Store.hasOs(playerId) then
-        return notify(playerId, "Записать щепку нечем: нужна нейро-ОС (кибердека или гражданская ОС).")
+        return notify(playerId, "Записать щепку нечем: нужна ОС (гражданская ОС, кибердека или Сандевистан).")
     end
     if not Grid.fits(state.stacks, "credchip", 1) then return notify(playerId, "Нет места в инвентаре.") end
     local bank = Store.bank(playerId)

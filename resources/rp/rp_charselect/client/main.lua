@@ -254,14 +254,13 @@ local function ensurePage()
     end)
     page:on("background", function(payload)
         if type(payload) ~= "table" then return end
-        emit("rp_core:charselect:background", {
-            background = tostring(payload.background or ""),
-            key = tostring(payload.key or ""),
-        })
+        emit("rp_core:charselect:background", { background = tostring(payload.background or "") })
     end)
     page:on("faction", function(payload)
         if type(payload) == "table" then
-            emit("rp_core:charselect:faction", { faction = tostring(payload.faction or "") })
+            -- Заявка (шаг 5.2): фракция и история персонажа; длину проверяет сервер.
+            local backstory = type(payload.backstory) == "string" and payload.backstory:sub(1, 24576) or ""
+            emit("rp_core:charselect:faction", { faction = tostring(payload.faction or ""), backstory = backstory })
         end
     end)
     page:on("back", function()
