@@ -498,7 +498,7 @@ local PANEL_PERMS = {
     "rp.staff", "rp.view", "rp.teleport", "rp.spectate", "rp.freeze", "rp.heal", "rp.warn", "rp.unwarn",
     "rp.announce", "rp.kick", "rp.ban", "rp.ban.permanent", "rp.unban", "rp.whitelist.add", "rp.whitelist.remove",
     "rp.staff.manage", "rp.tune", "rp.money", "rp.items", "rp.jobs", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber",
-    "rp.audit.view", "rp.frozen", "rp.applications",
+    "rp.audit.view", "rp.frozen", "rp.applications", "rp.identity.manage", "rp.objects", "rp.npcs", "rp.checkpoints",
 }
 
 -- Экспорт другого ресурса или пустой список, если ресурс не запущен.
@@ -664,4 +664,302 @@ end)
 AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     local playerId = tonumber(playerIdStr)
     if playerId then applicationsBusy[playerId] = nil end
+end)
+
+-- Вкладка «NPC (тест)» (просьба владельца 2026-11-04): создать NPC по записи игры Character.*,
+-- при желании — натравить на себя. Не сохраняются (тестовые): «Убрать моих», выход админа и
+-- перезапуск ресурса их убирают. Право rp.npcs. Попадания игроков считает платформа
+-- (hitPricing = "platform"), иначе NPC реагирует на выстрелы, но здоровье не теряет.
+local NPC_MAX_PER_ADMIN, NPC_SPAWN_DISTANCE = 6, 12
+local testNpcs = {} -- [npcId] = { owner, record, at }
+
+local function npcState(playerId, message, failed)
+    local list = {}
+    for id, n in pairs(testNpcs) do
+        if n.owner == playerId then
+            local snap = Open77.npcs.get(id)
+            list[#list + 1] = { id = tostring(id), record = n.record,
+                health = type(snap) == "table" and math.floor(tonumber(snap.health) or 0) or nil,
+                dead = type(snap) == "table" and (snap.dead == true or (tonumber(snap.health) or 1) <= 0) or nil }
+        end
+    end
+    table.sort(list, function(a, b) return a.id < b.id end)
+    TriggerClientEvent("rp_admin:npcs", playerId, { list = list, message = message, failed = failed == true })
+end
+
+local function npcAllowed(playerId)
+    return playerId and core("can", playerId, "rp.npcs") == true
+end
+
+RegisterNetEvent("rp_admin:npcs", function()
+    local playerId = math.tointeger(tonumber(source))
+    if npcAllowed(playerId) then npcState(playerId) end
+end)
+
+-- spot = { x, y, z, yaw } — перед админом (клиент); attack — натравить на себя.
+RegisterNetEvent("rp_admin:npcSpawn", function(record, spot, attack, health, armor)
+    local playerId = math.tointeger(tonumber(source))
+    if not npcAllowed(playerId) then return end
+    if type(record) ~= "string" or not record:match("^Character%.[%w_]+$") or #record > 120 then
+        return npcState(playerId, "Запись — вида Character.имя (латиница, цифры, _).", true)
+    end
+    -- Запись проверяет само создание (npc_record_invalid): Open77.data.npc на сервере ищет путь
+    -- шаблона .ent в урезанном каталоге, а не запись Character.*, и отвергает рабочие записи.
+    local mine = 0
+    for _, n in pairs(testNpcs) do if n.owner == playerId then mine = mine + 1 end end
+    if mine >= NPC_MAX_PER_ADMIN then return npcState(playerId, string.format("Не больше %d своих NPC: уберите лишних.", NPC_MAX_PER_ADMIN), true) end
+    local here = placeOf(playerId)
+    local x, y, z = type(spot) == "table" and tonumber(spot.x), type(spot) == "table" and tonumber(spot.y), type(spot) == "table" and tonumber(spot.z)
+    local yaw = type(spot) == "table" and tonumber(spot.yaw) or 0
+    if not here or not x or not y or not z or x ~= x or y ~= y or z ~= z or yaw ~= yaw then return end
+    local dx, dy, dz = x - here.x, y - here.y, z - here.z
+    if dx * dx + dy * dy + dz * dz > NPC_SPAWN_DISTANCE * NPC_SPAWN_DISTANCE then return npcState(playerId, "Место слишком далеко.", true) end
+    health = math.tointeger(tonumber(health)) or 0
+    armor = math.tointeger(tonumber(armor)) or 0
+    local def = { record = record, position = { x = x, y = y, z = z }, yaw = yaw % 360, bucket = here.bucket,
+                  damagePolicy = 0, -- Open77.npcs.damage.mortal
+                  -- Без «атаковать меня» — без боя: боссы (Смэшер) иначе нападают сами.
+                  behavior = { hitPricing = "platform", combatEnabled = attack == true }, persistent = false }
+    -- Своё здоровье: платформа считает попадание долей обычного тела × наш максимум, и NPC с любым
+    -- здоровьем умирает за те же 4 выстрела. Поэтому попадания считает этот ресурс (open77:npcHit).
+    local customHealth = health >= 1 and health <= 100000
+    if customHealth then
+        def.health, def.maxHealth = health, health
+        def.behavior.hitPricing = "resource"
+    end
+    if armor >= 1 and armor <= 100000 then def.armor = armor end
+    local npc, why = Open77.npcs.create(def)
+    if not npc then
+        return npcState(playerId, why == "npc_record_invalid" and string.format("Записи %s нет в игре.", record)
+            or string.format("Не создан: %s.", tostring(why)), true)
+    end
+    testNpcs[npc] = { owner = playerId, record = record, at = Open77.time.unix(), resourcePriced = customHealth }
+    local text = string.format("Создан %s.", record)
+    if attack == true then
+        local task, taskWhy = Open77.npcs.tasks.attack(npc, { playerId = playerId }, { reacquireMs = 3000 })
+        text = task and (text .. " Атакует вас.") or (text .. " Атаковать не смог: " .. tostring(taskWhy) .. ".")
+    end
+    local snap = Open77.npcs.get(npc)
+    local hp = type(snap) == "table" and tonumber(snap.health) or def.health
+    local hpMax = type(snap) == "table" and tonumber(snap.maxHealth) or def.maxHealth
+    journal("npc_spawn", playerId, nil, { record = record, attack = attack == true or nil, health = hp, maxHealth = hpMax,
+        armor = def.armor })
+    log("info", "тестовый NPC %s (%s) от %d: здоровье %s / %s, броня %s", tostring(npc), record, playerId,
+        tostring(hp), tostring(hpMax), tostring(def.armor or 0))
+    npcState(playerId, text)
+end)
+
+-- Натравить уже созданного NPC на себя.
+RegisterNetEvent("rp_admin:npcAttack", function(idArg)
+    local playerId = math.tointeger(tonumber(source))
+    local id = math.tointeger(tonumber(idArg))
+    local n = id and testNpcs[id]
+    if not npcAllowed(playerId) or not n or n.owner ~= playerId then return end
+    Open77.npcs.setCombatEnabled(id, true)
+    local task, why = Open77.npcs.tasks.attack(id, { playerId = playerId }, { reacquireMs = 3000 })
+    npcState(playerId, task and "Атакует вас." or ("Атаковать не смог: " .. tostring(why) .. "."), not task)
+end)
+
+local function removeNpc(id)
+    local ok, why = Open77.npcs.remove(id)
+    if not ok then log("warn", "тестовый NPC %s не убран: %s", tostring(id), tostring(why)) end
+    testNpcs[id] = nil
+end
+
+-- Убрать одного (id) или всех своих (id = nil).
+RegisterNetEvent("rp_admin:npcRemove", function(idArg)
+    local playerId = math.tointeger(tonumber(source))
+    if not npcAllowed(playerId) then return end
+    local id, count = math.tointeger(tonumber(idArg)), 0
+    for npc, n in pairs(testNpcs) do
+        if n.owner == playerId and (not id or npc == id) then removeNpc(npc); count = count + 1 end
+    end
+    if count > 0 then journal("npc_clear", playerId, nil, { count = count }) end
+    npcState(playerId, string.format("Убрано: %d.", count))
+end)
+
+AddEventHandler("onPlayerDisconnected", function(playerIdStr)
+    local playerId = math.tointeger(tonumber(playerIdStr))
+    if not playerId then return end
+    for npc, n in pairs(testNpcs) do if n.owner == playerId then removeNpc(npc) end end
+end)
+
+-- Диагностика (2026-11-04): попадания по тестовым NPC — сколько снял выстрел и сколько осталось.
+AddEventHandler("onNpcDamaged", function(npcIdArg, src, amount, health, cause)
+    local id = math.tointeger(tonumber(npcIdArg))
+    local n = id and testNpcs[id]
+    if not n then return end
+    log("info", "тестовый NPC %s (%s): -%s от %s (%s), осталось %s", tostring(id), n.record, tostring(amount),
+        tostring(src), tostring(cause), tostring(health))
+end)
+
+-- Урон тестовых NPC по игроку (2026-11-04). Платформа (op77.184) проводит попадания NPC по игроку
+-- с нулевым уроном (лог клиента: «Combat funnel … zeroDamage»), игра снимает здоровье только на
+-- экране, и следующее обновление с сервера его возвращает. Клиент сообщает о попадании
+-- (open77:npcAttackedMe: [npcId, 0, высота, оружие, вид]), сервер проверяет и снимает здоровье сам.
+-- Урон фиксированный: точного урона оружия платформа не передаёт.
+local NPC_HIT_DAMAGE, NPC_HIT_RANGE, NPC_HITS_PER_SECOND = 10, 120, 4
+local hitWindow = {} -- [playerId] = { second, count }
+
+-- Попадание игрока по тестовому NPC со своим здоровьем (hitPricing = "resource"): клиент стрелка
+-- пересылает open77:npcHit (npcId, damage, hitZ, weaponTdbId, attackKind). Урон — как пришёл; если
+-- это доля (≤ 1) — × 100 (обычное тело). Не больше 300 за попадание и 10 попаданий в секунду.
+local shotWindow = {} -- [playerId] = { second, count }
+local shotLogged = 0
+RegisterNetEvent("rp_admin:npcShot", function(npcIdArg, damageArg, kind)
+    local playerId = math.tointeger(tonumber(source))
+    local id = math.tointeger(tonumber(npcIdArg))
+    local n = id and testNpcs[id]
+    local damage = tonumber(damageArg)
+    if not playerId or not n or not n.resourcePriced or not damage or damage ~= damage or damage <= 0 then
+        if n and n.resourcePriced and shotLogged < 20 then
+            shotLogged = shotLogged + 1
+            log("info", "попадание по NPC %s без урона: %s (%s)", tostring(id), tostring(damageArg), tostring(kind))
+        end
+        return
+    end
+    local now = Open77.time.unix()
+    local w = shotWindow[playerId]
+    if not w or w.second ~= now then w = { second = now, count = 0 }; shotWindow[playerId] = w end
+    w.count = w.count + 1
+    if w.count > 10 or Open77.players.isDead(playerId) then return end
+    local snap, here = Open77.npcs.get(id), placeOf(playerId)
+    local pos = type(snap) == "table" and (type(snap.position) == "table" and snap.position or snap)
+    local x, y, z = pos and tonumber(pos.x), pos and tonumber(pos.y), pos and tonumber(pos.z)
+    if not here or not x then return end
+    local dx, dy, dz = x - here.x, y - here.y, z - here.z
+    if dx * dx + dy * dy + dz * dz > 150 * 150 then return end
+    local amount = damage <= 1 and damage * 100 or damage
+    amount = math.min(300, amount)
+    if shotLogged < 20 then
+        shotLogged = shotLogged + 1
+        log("info", "попадание по NPC %s: пришло %s (%s), снято %.1f", tostring(id), tostring(damageArg), tostring(kind), amount)
+    end
+    Open77.npcs.applyDamage(id, amount, playerId, "player_hit")
+end)
+RegisterNetEvent("rp_admin:npcHitMe", function(npcIdArg)
+    local playerId = math.tointeger(tonumber(source))
+    local id = math.tointeger(tonumber(npcIdArg))
+    local n = id and testNpcs[id]
+    if not playerId or not n then return end
+    local now = Open77.time.unix()
+    local w = hitWindow[playerId]
+    if not w or w.second ~= now then w = { second = now, count = 0 }; hitWindow[playerId] = w end
+    w.count = w.count + 1
+    if w.count > NPC_HITS_PER_SECOND then return end
+    if Open77.players.isDead(playerId) then return end
+    local snap, here = Open77.npcs.get(id), placeOf(playerId)
+    local pos = type(snap) == "table" and (type(snap.position) == "table" and snap.position or snap)
+    local x, y, z = pos and tonumber(pos.x), pos and tonumber(pos.y), pos and tonumber(pos.z)
+    if not here or not x or (tonumber(snap.health) or 1) <= 0 then return end
+    local dx, dy, dz = x - here.x, y - here.y, z - here.z
+    if dx * dx + dy * dy + dz * dz > NPC_HIT_RANGE * NPC_HIT_RANGE then return end
+    -- Без параметров: с { cause = "npc" } платформа отвечала invalid_argument.
+    local ok, why = Open77.players.damage(playerId, NPC_HIT_DAMAGE)
+    if not ok then log("warn", "урон тестового NPC %s игроку %d: %s", tostring(id), playerId, tostring(why)) end
+end)
+AddEventHandler("onPlayerDisconnected", function(playerIdStr)
+    local playerId = math.tointeger(tonumber(playerIdStr))
+    if playerId then hitWindow[playerId], shotWindow[playerId] = nil, nil end
+end)
+
+-- Проба эффектов тела (2026-11-04, 2026-11-05). Имя без пути — Open77.effects.playOn без слота:
+-- эффект, заданный шаблоном цели (у копии игрока имён Сандевистана нет — ничего не видно).
+-- Путь к файлу эффекта (…\имя.effect) — Open77.effects.playOn со слотом: по справочнику так
+-- играется файл эффекта на кости цели (2026-11-05: файлы Сандевистана Смэшера из его шаблона
+-- base\characters\entities\boss\adam_smasher.ent). Не принял — Open77.effects.attach (только
+-- пресеты платформы). Причина отказа — в статусе вкладки и в логе.
+local FX_SLOTS = { Chest = true, Head = true, RightHand = true, LeftHand = true, LeftFoot = true, RightFoot = true,
+                   Hips = true, Spine3 = true }
+RegisterNetEvent("rp_admin:fxTry", function(name, onNpcs, seconds, slot)
+    local playerId = math.tointeger(tonumber(source))
+    if not npcAllowed(playerId) then return end
+    local isPath = type(name) == "string" and name:match("^[%w_\\/%.]+%.effect$") ~= nil and #name <= 200
+    if not isPath and (type(name) ~= "string" or not name:match("^[%w_]+$") or #name > 64) then
+        return npcState(playerId, "Имя эффекта — латиница, цифры, _; или путь …\\имя.effect.", true)
+    end
+    slot = FX_SLOTS[slot] and slot or "Chest"
+    seconds = math.max(1, math.min(30, tonumber(seconds) or 8))
+    local targets = {}
+    if onNpcs == true then
+        for npc, n in pairs(testNpcs) do if n.owner == playerId then targets[#targets + 1] = { kind = "npc", id = tostring(npc) } end end
+    else
+        targets[1] = { kind = "player", id = tostring(playerId) }
+    end
+    local sent, lastWhy, how = 0, nil, nil
+    for _, target in ipairs(targets) do
+        local ok, why
+        if isPath then
+            ok, why = Open77.effects.playOn(target, name, { slot = slot, duration = seconds })
+            how = "playOn"
+            if not ok then
+                log("info", "эффект %s: playOn со слотом %s — %s, пробуем attach", name, slot, tostring(why))
+                ok, why = Open77.effects.attach(target, name, { slot = slot, ttlMs = math.floor(seconds * 1000) })
+                how = ok and "attach" or how
+            end
+        else
+            ok, why = Open77.effects.playOn(target, name, { duration = seconds })
+            how = "playOn"
+        end
+        if ok then sent = sent + 1 else
+            lastWhy = why
+            log("warn", "эффект %s на %s %s: %s", name, target.kind, target.id, tostring(why))
+        end
+    end
+    log("info", "проба эффекта %s (%s, %s) от %d: целей %d", name, isPath and slot or "шаблон", tostring(how), playerId, sent)
+    if sent == 0 then
+        return npcState(playerId, string.format("Эффект не принят: %s.", tostring(lastWhy or "нет целей")), true)
+    end
+    npcState(playerId, string.format("Эффект включён на %d с (%s%s, целей: %d). Смотрите со второго ПК; ничего не видно — так не рисуется.",
+        seconds, tostring(how), isPath and (", кость " .. slot) or "", sent))
+end)
+
+-- Тест ускорения платформы (2026-11-04): настоящий Open77.reflex (define → grant), не наш
+-- Сандевистан (rp_cyberware — свой переключатель поверх клиентского Open77.reflex.overdrive). Включение —
+-- F6 (open77_reflex регистрирует действие reflex_overdrive), 15 с, перезарядка 15 с, 3 заряда.
+-- Не включать одновременно с нашим Сандевистаном (X): у клиента одна машина ускорения.
+local REFLEX_TEST = {
+    reflex = "rp.admin.reflex_test", reflex_heavy = "rp.admin.reflex_test_heavy",
+}
+local reflexDefined = false
+local function defineReflexTests()
+    if reflexDefined then return true end
+    for tier, id in pairs(REFLEX_TEST) do
+        local result, why = Open77.reflex.define({ id = id, version = 1, profile = "reflex_overdrive", config = {
+            tier = tier, inputKey = "f6", presentation = "native", durationMs = 15000, cooldownMs = 15000,
+            maxCharges = 3, chargeRegenMs = 15000, staminaCost = 0, heatCost = 0,
+        } })
+        -- Повторный define той же версии после перезапуска ресурса — не ошибка для теста.
+        if not (result and result.ok) then log("info", "ускорение %s: define — %s", id, tostring(why)) end
+    end
+    reflexDefined = true
+    return true
+end
+
+local function reflexText(playerId)
+    local cur = Open77.reflex.current(playerId)
+    if type(cur) ~= "table" then return "ускорения платформы нет" end
+    local proj = type(cur.projection) == "table" and cur.projection or {}
+    local def = type(proj.definition) == "table" and (proj.definition.id or proj.definition) or proj.definition
+    return string.format("ускорение платформы: %s, статус %s, фаза %s, зарядов %s", tostring(def or "?"),
+        tostring(proj.status or "?"), tostring(cur.phase or "—"), tostring(cur.charges or "?"))
+end
+
+RegisterNetEvent("rp_admin:reflexTest", function(action)
+    local playerId = math.tointeger(tonumber(source))
+    if not npcAllowed(playerId) then return end
+    defineReflexTests()
+    if action == "reflex" or action == "reflex_heavy" then
+        local result, why = Open77.reflex.grant(playerId, REFLEX_TEST[action])
+        if not result then return npcState(playerId, "Ускорение не выдано: " .. tostring(why), true) end
+        journal("reflex_test", playerId, nil, { tier = action })
+        SetTimeout(1500, function()
+            if GetPlayerName(playerId) then npcState(playerId, "Выдано (" .. action .. "). F6 — включить на 15 с. " .. reflexText(playerId)) end
+        end)
+        return npcState(playerId, "Выдаю ускорение платформы (" .. action .. ")…")
+    elseif action == "revoke" then
+        local result, why = Open77.reflex.revoke(playerId)
+        return npcState(playerId, result and "Ускорение платформы забрано." or ("Не забрано: " .. tostring(why)), not result)
+    end
+    npcState(playerId, reflexText(playerId))
 end)

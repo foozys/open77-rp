@@ -1,0 +1,1609 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Инвентарь</title>
+<style>
+  :root {
+    --cell: 76px;
+    --bg: rgba(10, 12, 18, 0.92);
+    --line: rgba(94, 246, 255, 0.28);
+    --accent: #5ef6ff;
+    --warn: #ff5e6c;
+    --ok: #78dc8c;
+    --text: #e8f1f2;
+    --muted: #8fa3a8;
+    --red: #ff6158;
+    --gold: #f3c018;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 15px/1.3 "Segoe UI", Arial, sans-serif; user-select: none; }
+  #root { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+  #root.open { display: block; }
+  #panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    padding: 22px 24px 20px; background: var(--bg); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; gap: 40px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; }
+  #weight { min-width: 220px; }
+  #weightText { text-align: right; font-size: 13px; color: var(--muted); }
+  #weightBar { height: 4px; margin-top: 4px; background: rgba(255, 255, 255, 0.08); }
+  #weightFill { height: 100%; background: var(--accent); width: 0; }
+
+  #panel { display: flex; gap: 22px; }
+  #tabs { display: flex; flex-direction: column; gap: 6px; padding-right: 18px; border-right: 1px solid var(--line); }
+  .tab { writing-mode: vertical-rl; transform: rotate(180deg); padding: 14px 8px; background: transparent; color: var(--muted);
+    border: 1px solid transparent; font: inherit; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-color: var(--line); background: rgba(94, 246, 255, 0.06); }
+  /* -- вкладка «Импланты»: тело в центре, слоты по бокам, шкалы по краям -- */
+  #cyberView { display: none; width: 1080px; position: relative; }
+  .cyTile.deckTile { cursor: pointer; }
+  .cyTile .tBadge { position: absolute; left: 6px; bottom: 4px; font-size: 10px; color: var(--accent); }
+  #deckBox { position: absolute; display: none; z-index: 25; left: 50%; top: 92px; transform: translateX(-50%); width: 460px;
+    background: #080a10; border: 1px solid rgba(94, 246, 255, 0.6); border-top: 3px solid var(--accent); padding: 14px 16px;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45); }
+  #deckBox.open { display: block; }
+  #deckBox .dHead { display: flex; justify-content: space-between; align-items: baseline; }
+  #deckBox .dHead b { color: var(--accent); font-size: 16px; letter-spacing: 2px; text-transform: uppercase; }
+  #deckBox .dHead button { background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+  #deckBox .dSub { color: var(--muted); font-size: 12px; margin: 4px 0 10px; }
+  #deckBox .dCap { color: var(--red); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 12px 0 6px; }
+  .dSlots { display: flex; gap: 6px; flex-wrap: wrap; }
+  .dSlot { width: 80px; height: 64px; padding: 5px; position: relative; font-size: 11px; line-height: 1.15;
+    border: 1px solid rgba(94, 246, 255, 0.5); background: rgba(94, 246, 255, 0.07); cursor: pointer; }
+  .dSlot:hover { border-color: var(--warn); }
+  .dSlot .ram { position: absolute; right: 5px; bottom: 3px; color: var(--accent); font-weight: 700; }
+  .dSlot.empty { border-style: dashed; border-color: rgba(255, 97, 88, 0.5); background: none; cursor: default;
+    color: rgba(255, 97, 88, 0.7); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .dRow { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 4px; }
+  .dRow .n { flex: 1; font-size: 13px; }
+  .dRow .n small { display: block; color: var(--muted); font-size: 11px; }
+  .dRow .r { color: var(--accent); font-weight: 700; font-size: 13px; }
+  .dRow button { padding: 4px 10px; background: var(--accent); border: 0; color: #041014; font: inherit; font-size: 12px;
+    font-weight: 600; cursor: pointer; }
+  .dRow button:disabled { opacity: 0.35; cursor: default; }
+  #deckBox .dWarn { color: var(--warn); font-size: 12px; margin-top: 10px; }
+  #deckBox .dEmpty { color: var(--muted); font-size: 12px; }
+  #panel.cyber #invView { display: none; }
+  #panel.cyber #cyberView { display: block; }
+  #panel.cyber { background: radial-gradient(ellipse 60% 70% at 55% 50%, rgba(140, 24, 32, 0.45), transparent 75%), var(--bg);
+    border-top-color: var(--red); }
+  #cyberView h1 { color: var(--red); }
+  .cyMain { display: grid; grid-template-columns: 110px 1fr 260px 1fr 110px; gap: 10px; align-items: center;
+    height: 560px; margin-top: 6px; }
+  .vMeter { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .vTitle { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+  .vBar { position: relative; width: 44px; height: 380px;
+    background: repeating-linear-gradient(to top, rgba(255, 255, 255, 0.08) 0 5px, transparent 5px 8px);
+    -webkit-mask: linear-gradient(90deg, #000 0 44%, transparent 44% 56%, #000 56%); }
+  .vFill { position: absolute; left: 0; right: 0; bottom: 0; transition: height 0.4s;
+    background: repeating-linear-gradient(to top, var(--c) 0 5px, transparent 5px 8px); }
+  .vWrap { position: relative; }
+  .vMark { position: absolute; left: -8px; right: -8px; height: 2px; background: var(--warn); }
+  .vMark span { position: absolute; right: calc(100% + 4px); top: -9px; padding: 0 4px; font-size: 11px;
+    border: 1px solid var(--warn); color: var(--warn); background: rgba(10, 12, 18, 0.9); }
+  .vValue { padding: 2px 10px; border: 1px solid var(--c); color: var(--c); font-weight: 700; font-size: 15px; }
+  .vNote { width: 110px; min-height: 44px; text-align: center; font-size: 11px; color: var(--muted); }
+  .cyCol { display: flex; flex-direction: column; gap: 22px; }
+  .cyCol.left { align-items: flex-end; text-align: right; }
+  .cyHead { color: var(--red); font-size: 13px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .cyHead::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 8px; border-radius: 50%;
+    background: var(--accent); vertical-align: middle; opacity: 0; }
+  .cyCol.right .cyHead::after { display: none; }
+  .cyCol.right .cyHead::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px;
+    border-radius: 50%; background: var(--accent); vertical-align: middle; opacity: 0; }
+  .cyGroup.has .cyHead::after, .cyGroup.has .cyHead::before { opacity: 1; }
+  .cyTiles { display: flex; gap: 6px; }
+  .cyTile { position: relative; width: 84px; height: 84px; padding: 6px; cursor: default; overflow: hidden;
+    border: 1px solid rgba(94, 246, 255, 0.35); background: rgba(0, 0, 0, 0.4); text-align: left; }
+  .cyTile::after { content: ""; position: absolute; right: 0; bottom: 0; border: 7px solid transparent;
+    border-right-color: var(--accent); border-bottom-color: var(--accent); }
+  .cyTile.filled { border-left: 4px solid var(--gold); background: linear-gradient(160deg, rgba(94, 246, 255, 0.10), rgba(0, 0, 0, 0.5)); }
+  .cyTile.empty { border: 1px dashed rgba(255, 97, 88, 0.55); background: rgba(80, 10, 16, 0.25); }
+  .cyTile.empty::after { display: none; }
+  .cyTile:hover, .cyTile.sel { border-color: var(--accent); box-shadow: 0 0 12px rgba(94, 246, 255, 0.35); }
+  .cyTile .tName { font-size: 11px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 2px #000; }
+  .cyTile .tSlot { position: absolute; left: 6px; bottom: 4px; font-size: 9px; color: var(--muted); text-transform: uppercase; }
+  .cyTile .tCost { position: absolute; right: 16px; bottom: 3px; font-size: 11px; font-weight: 700; color: var(--gold); }
+  .cyTile .tPlus { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 26px; color: rgba(255, 97, 88, 0.6); }
+  .cyBodyBox { position: relative; height: 540px; display: flex; justify-content: center; overflow: hidden; }
+  #cyBody { height: 100%; }
+  .cyScan { position: absolute; left: 10%; right: 10%; height: 60px; top: -60px; pointer-events: none;
+    background: linear-gradient(transparent, rgba(94, 246, 255, 0.12), transparent); animation: cyScan 5s linear infinite; }
+  @keyframes cyScan { to { top: 100%; } }
+  #cyBody .solid { fill: url(#cyGlass); stroke: rgba(255, 200, 196, 0.7); stroke-width: 1; transition: fill 0.2s, stroke 0.2s; }
+  #cyBody .limb { fill: none; stroke: url(#cyGlass); stroke-linecap: round; transition: stroke 0.2s; }
+  #cyBody .bones path, #cyBody .bones ellipse { fill: none; stroke: rgba(255, 236, 232, 0.45); stroke-width: 1.4; transition: stroke 0.2s; }
+  #cyBody .heart { fill: rgba(255, 97, 88, 0.75); transform-origin: 108px 120px; animation: cyBeat 1.1s ease-in-out infinite; }
+  @keyframes cyBeat { 50% { transform: scale(1.12); } }
+  #cyBody .has .solid { stroke: rgba(94, 246, 255, 0.8); }
+  #cyBody .has.bones path, #cyBody .has.bones ellipse { stroke: rgba(94, 246, 255, 0.6); }
+  #cyBody .lit .solid { fill: rgba(94, 246, 255, 0.35); stroke: var(--accent); }
+  #cyBody .lit .limb { stroke: rgba(94, 246, 255, 0.5); }
+  #cyBody .lit.bones path, #cyBody .lit.bones ellipse { stroke: var(--accent); stroke-width: 2; }
+  #cyBody .lit .heart, #cyBody .lit.heart { fill: var(--accent); }
+  .cyFoot { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .cyFoot b { color: var(--text); }
+  #cyTip { position: fixed; display: none; z-index: 30; width: 300px; background: rgba(8, 10, 16, 0.97);
+    border: 1px solid rgba(94, 246, 255, 0.6); pointer-events: none; }
+  #cyTip .tipHead { padding: 4px 12px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    background: rgba(94, 246, 255, 0.14); color: var(--accent); }
+  #cyTip .tipHead.empty { background: rgba(255, 97, 88, 0.15); color: #ff6158; }
+  #cyTip .tipBody { padding: 10px 12px 12px; }
+  #cyTip .tipName { font-size: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); }
+  #cyTip .tipSlot { color: #ff6158; font-size: 13px; margin: 2px 0 8px; }
+  #cyTip .tipCost { display: inline-block; padding: 2px 8px; border: 1px solid #f3c018; color: #f3c018; font-weight: 700; margin-bottom: 8px; }
+  #cyTip .tipDesc { font-size: 13px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+  #cyTip .tipFoot { margin-top: 10px; padding: 6px 8px; font-size: 12px; color: var(--muted);
+    border: 1px solid rgba(243, 192, 24, 0.5); }
+  #grids { display: flex; gap: 28px; align-items: flex-start; }
+  /* -- снаряжение: слоты оружия и пояс -- */
+  #gearBox { width: 270px; }
+  .gearTitle { color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; }
+  .gearTitle.belt { margin-top: 14px; }
+  .lootGearTitle { color: var(--warn); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 10px 0 6px; }
+  #lootGear { display: flex; flex-wrap: wrap; gap: 6px; min-height: 40px; max-width: 640px; }
+  #lootGear .item { position: relative; width: 120px; height: 56px; }
+  #lootGear .empty { color: var(--muted); font-size: 12px; }
+  .wslot, .bslot { position: relative; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.02); }
+  .wslot { width: 266px; height: 92px; margin-bottom: 8px; }
+  .beltRow { display: flex; gap: 6px; }
+  .bslot { width: 49px; height: 112px; }
+  .wslot.hover, .bslot.hover { border-color: var(--ok); background: rgba(120, 220, 140, 0.08); }
+  .wslot.deny, .bslot.deny { border-color: var(--warn); background: rgba(255, 94, 108, 0.08); }
+  .slotKey { position: absolute; right: 4px; top: 2px; font-size: 11px; font-weight: 700; color: var(--accent); z-index: 2;
+    pointer-events: none; text-shadow: 0 1px 2px #000; }
+  .slotHint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: rgba(255, 255, 255, 0.18); text-transform: uppercase; letter-spacing: 1px; pointer-events: none; }
+  .wslot .item, .bslot .item { left: 0; top: 0; width: 100%; height: 100%; }
+  .item .mag { position: absolute; left: 5px; bottom: 2px; font-size: 11px; color: #ffe08a; text-shadow: 0 1px 2px #000; }
+  #lootBox { display: none; }
+  #lootBox.visible { display: block; }
+  .lootTitle { color: var(--warn); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; }
+  .lootTitle span { color: var(--muted); letter-spacing: 0; text-transform: none; margin-left: 8px; }
+  #lootSearch { margin-left: 12px; padding: 4px 12px; background: var(--warn); border: 0; color: #140406;
+    font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+  #lootSearch[hidden] { display: none; }
+  .item.hidden { cursor: default; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 6px,
+    rgba(255, 255, 255, 0.02) 6px 12px); border-color: rgba(255, 255, 255, 0.18); display: flex;
+    align-items: center; justify-content: center; }
+  .item.hidden .q { font-size: 22px; font-weight: 700; color: rgba(255, 255, 255, 0.35); }
+  .item.hidden.searching { border-color: var(--warn); }
+  .item.hidden .bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--warn); }
+  .mineTitle { color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: -4px 0 8px; display: none; }
+  #grids.looting .mineTitle { display: block; }
+  #grid, #lootGrid { position: relative; background-color: rgba(255, 255, 255, 0.02);
+    background-image: linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: var(--cell) var(--cell); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .item { position: absolute; padding: 4px 5px; overflow: hidden; cursor: grab;
+    border: 1px solid rgba(255, 255, 255, 0.25); }
+  .item .name { font-size: 11px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 2px #000; }
+  .item .count { position: absolute; right: 4px; bottom: 2px; font-size: 13px; font-weight: 700; text-shadow: 0 1px 2px #000; }
+  .item:hover { border-color: var(--accent); }
+  .item.dragging { opacity: 0.25; }
+
+  #ghost { position: absolute; display: none; pointer-events: none; z-index: 20; opacity: 0.85;
+    border: 2px solid var(--ok); }
+  #ghost.bad { border-color: var(--warn); }
+  #ghost .name { font-size: 11px; font-weight: 600; padding: 4px 5px; text-shadow: 0 1px 2px #000; }
+
+  #overflow { margin-top: 12px; display: none; }
+  #overflow.visible { display: block; }
+  #overflow .title { color: var(--warn); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  #overflowList { display: flex; flex-wrap: wrap; gap: 6px; }
+  #overflowList .item { position: relative; width: auto; height: 34px; padding-right: 30px; }
+
+  #tooltip { position: absolute; display: none; z-index: 30; padding: 8px 10px; background: #0b0e14;
+    border: 1px solid var(--line); font-size: 13px; pointer-events: none; max-width: 260px; }
+  #tooltip .muted { color: var(--muted); font-size: 12px; }
+
+  #menu { position: absolute; display: none; z-index: 40; min-width: 180px; background: #0b0e14; border: 1px solid var(--line); }
+  #menu button { display: block; width: 100%; padding: 9px 14px; text-align: left; background: none; border: 0;
+    color: var(--text); font: inherit; cursor: pointer; }
+  #menu button:hover { background: rgba(94, 246, 255, 0.12); }
+  #menu .sep { padding: 6px 14px 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+
+  #dialog { position: absolute; display: none; z-index: 50; padding: 14px; background: #0b0e14; border: 1px solid var(--accent); }
+  #dialog label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  #dialog input { width: 160px; padding: 6px 8px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--line);
+    color: var(--text); font: inherit; }
+  #dialog button { margin-left: 6px; padding: 6px 12px; background: var(--accent); border: 0; color: #041014;
+    font: inherit; font-weight: 600; cursor: pointer; }
+
+/* =====================================================================
+   NIGHT CITY / REDLINE  — визуальная тема инвентаря и имплантов.
+   Оригинал: design-backups/inventory-and-implants-before-redesign.html
+   Только CSS: DOM, item layout, drag/drop, inventory events не изменены.
+   ===================================================================== */
+:root{
+  --bg:rgba(9,11,17,.965);--line:rgba(54,231,240,.43);
+  --accent:#39e7ed;--red:#ff4f64;--warn:#ff4f64;
+  --gold:#ffc43b;--text:#eef5f7;--muted:#9db9c1;
+}
+#root{background:radial-gradient(ellipse at 50% 38%,rgba(46,12,25,.43),rgba(3,6,12,.8) 76%);backdrop-filter:blur(5px)}
+#panel{
+  width:min(1660px,calc(100vw - 44px));height:min(940px,calc(100vh - 36px));
+  max-width:none;max-height:none;
+  padding:94px 26px 26px 250px;gap:0;
+  background:
+   radial-gradient(ellipse at 85% 12%,rgba(68,12,27,.26),transparent 54%),
+   repeating-linear-gradient(90deg,transparent 0 39px,rgba(38,203,229,.015) 39px 40px),
+   linear-gradient(135deg,#130b16 0%,#080d15 57%,#090e15 100%);
+  border:2px solid rgba(254,77,101,.75);border-top:3px solid #ff5568;
+  box-shadow:inset 0 0 0 5px rgba(255,75,98,.035),0 25px 100px #000b,0 0 28px #ff315125;
+  overflow:hidden;
+}
+#panel::before{
+ content:"";position:absolute;left:20px;right:20px;top:72px;height:2px;
+ background:linear-gradient(90deg,#ff5065,rgba(255,70,92,.4) 58%,#16d9e4);
+ box-shadow:0 0 12px #ff36545a;pointer-events:none;
+}
+#panel::after{
+ content:"NIGHT CITY   /   CYBERWARE MANAGEMENT SYSTEM";
+ position:absolute;bottom:8px;right:28px;color:#63bec7;font:10px Consolas,monospace;
+ letter-spacing:2px;opacity:.64;pointer-events:none;
+}
+#tabs{
+ position:absolute;left:22px;top:94px;bottom:28px;width:210px;padding:0 12px 0 0;
+ border-right:1px solid rgba(255,71,96,.35);gap:8px;
+}
+#tabs::before{
+ content:"OPEN // 77";position:absolute;top:-79px;left:5px;
+ font:bold 16px Consolas,monospace;color:#fc6371;letter-spacing:3px;
+ text-shadow:0 0 16px #f74c6577;
+}
+.tab{
+ transform:none;writing-mode:horizontal-tb;text-align:left;padding:15px 14px;
+ font:700 16px/1.25 "Segoe UI",Arial,sans-serif;letter-spacing:.6px;
+ border:1px solid rgba(255,72,97,.2);
+ border-left:3px solid transparent;
+ background:rgba(25,19,29,.48);color:#b0c0cb;
+ transition:background .15s,border-color .15s,box-shadow .15s;
+}
+.tab[data-tab="inv"]::before{content:"▣";margin-right:13px;color:#6cdee8}
+.tab[data-tab="cyber"]::before{content:"▤";margin-right:13px;color:#6cdee8}
+.tab:hover{color:#fff;background:#2d1b2a}
+.tab.active{
+ color:#fff;border-color:#ff4a63;border-left:4px solid #ff5968;
+ background:linear-gradient(90deg,rgba(166,26,50,.42),rgba(46,18,34,.65));
+ box-shadow:inset 0 0 16px #ff3b5129,0 0 13px #ff364029;
+}
+.tab.active::before{color:#ff7582}
+#invView,#cyberView{width:100%;min-width:0;height:100%;overflow:auto;scrollbar-width:thin;scrollbar-color:#d34565 #111b26}
+#invView>header{position:relative;min-height:76px;align-items:flex-start;margin-bottom:18px;gap:15px}
+#invView h1,#cyberView>h1{
+ color:#ff6472;font-size:33px;letter-spacing:1px;text-shadow:0 0 20px #fb32513c;
+}
+#invView h1::before{content:"◇";color:#ff7182;margin-right:14px}
+#cyberView>h1::before{content:"▤";color:#ff7182;margin-right:14px}
+#invView .hint,#cyberView>.hint{font-size:12px;line-height:1.5;color:#cad6dd;max-width:800px}
+#weight{width:340px;min-width:240px}
+#weightText{font:700 20px Consolas,monospace;color:#69e7ed}
+#weightBar{height:10px;background:#0c252e;border:1px solid #219aa8;box-shadow:0 0 8px #18bfda33}
+#weightFill{background:linear-gradient(90deg,#0a8798,#24eff2);box-shadow:0 0 12px #20f7f2}
+#grids{gap:34px;justify-content:space-between}
+#grids>div:first-child{min-width:0}
+#grid,#lootGrid{
+ background-color:rgba(5,22,27,.68);--line:rgba(44,207,222,.4);
+ outline:2px solid #24a8b9;outline-offset:9px;
+ box-shadow:0 0 0 14px rgba(10,41,48,.28),inset 0 0 30px #0007;
+}
+#gearBox{width:350px;flex:0 0 350px;padding:0 4px}
+.gearTitle{color:#54e7eb;font-size:18px;letter-spacing:2px;margin:0 0 15px}
+.gearTitle::before{content:"//";color:#ff6472;margin-right:12px}
+.gearTitle.belt{margin-top:32px}
+.wslot{width:100%;height:100px;border:2px solid #19bbcb;
+ background:linear-gradient(120deg,rgba(13,46,54,.6),rgba(3,13,19,.84));
+ box-shadow:inset 0 0 18px #10d8f014,0 0 9px #17dfe81c;
+ margin-bottom:11px;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);
+}
+.wslot .slotKey{color:#48f8ff;font-size:18px;right:11px;top:8px}
+.beltRow{gap:6px}.bslot{
+ flex:1;min-width:0;height:102px;border:2px solid #13b1c3;
+ background:linear-gradient(160deg,#0b2632e0,#071319d6);
+ clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
+}
+.bslot .slotKey{font-size:13px;right:7px;top:5px}
+.item{
+ border:2px solid rgba(39,223,238,.7);
+ background-image:linear-gradient(135deg,#0e333ca6,#091117bb);
+ box-shadow:inset 0 0 16px #30e6ed1d;
+ border-radius:3px;
+}
+.item:hover{border-color:#ffcf57;box-shadow:inset 0 0 10px #ffc14b33,0 0 14px #ffd45166}
+.item .name{color:#fff;font-weight:700}
+.item .count{font-size:15px;color:#fff}
+.item.dragging{opacity:.25}
+.wslot .item,.bslot .item{border:1px solid #e7bb51}
+#ghost{border:2px dashed #4efcff;background:#063743b7}
+#tooltip,#menu,#dialog,#cyTip,#deckBox{
+ background:#0b1420f5!important;border:1px solid #23d8e2!important;
+ box-shadow:0 14px 45px #000c,0 0 15px #25d0e72e!important;
+}
+#menu button:hover{background:#16404b}
+#panel.cyber{
+ background:
+  radial-gradient(ellipse at 48% 50%,rgba(175,28,54,.3),transparent 47%),
+  repeating-linear-gradient(0deg,transparent 0 32px,#fa314506 32px 33px),
+  linear-gradient(120deg,#140a14,#090d16 75%);
+ border-top-color:#ff586a;
+}
+#cyberView{display:none;width:100%;overflow:auto}
+#panel.cyber #cyberView{display:block}
+#cyberView .cyMain{
+ grid-template-columns:92px minmax(178px,1fr) minmax(230px,320px) minmax(178px,1fr) 92px;
+ gap:clamp(7px,1vw,18px);height:min(585px,calc(100% - 90px));
+ min-height:500px;margin-top:12px;
+}
+.cyBodyBox{height:100%;min-height:490px}
+#cyBody{filter:drop-shadow(0 0 14px #ff546d9a) drop-shadow(0 0 25px #ff4d6042)}
+.cyCol{gap:25px}
+.cyHead{font-size:15px;color:#ff8692;letter-spacing:.6px;margin-bottom:8px}
+.cyTiles{gap:6px;justify-content:flex-end}
+.cyCol.right .cyTiles{justify-content:flex-start}
+.cyTile{
+ width:clamp(56px,5vw,90px);height:clamp(72px,6.9vw,102px);
+ border:2px solid #39c8d7;
+ background:linear-gradient(140deg,#112533dc,#120d1ae0);
+ box-shadow:inset 0 0 16px #09cde425;
+}
+.cyTile.filled{border:2px solid #f0c34c;border-left:5px solid #f5bc3b;box-shadow:0 0 10px #f0b62c3a,inset 0 0 14px #eab64319}
+.cyTile.empty{border:1px dashed #f1506b;background:#340e1d59}
+.cyTile:hover,.cyTile.sel{border-color:#ff6c7a;box-shadow:0 0 18px #ff40576a}
+.cyTile .tName{font-size:clamp(9px,.8vw,13px);color:#f8f2e9}
+.cyTile .tSlot{font-size:9px;letter-spacing:.3px}
+.vMeter{gap:10px}
+.vTitle{font-size:12px;color:#ff9baa}
+.vBar{height:350px;width:47px}
+.vValue{font:700 16px Consolas,monospace;padding:4px 5px}
+.vNote{font-size:10px}
+.cyFoot{border-top:1px solid #e54e5b55;padding-top:10px}
+#deckBox{border-top:3px solid #30dfeb!important}
+@media(max-width:1280px){
+ #panel{padding-left:195px}
+ #tabs{width:165px}
+ .tab{font-size:13px;padding:12px 8px}
+ #grids{gap:18px}
+ #gearBox{width:275px;flex-basis:275px}
+ #cyberView .cyMain{grid-template-columns:72px minmax(145px,1fr) 225px minmax(145px,1fr) 72px;gap:6px}
+ .cyTile{width:62px;height:76px}
+ .vNote{width:72px}
+ #weight{width:240px}
+}
+
+
+/* V2: конструкция двух экранов по концепту, поверх исходной темы.
+   Вся игровая сетка и ID DOM остаются на месте. */
+#panel{padding:110px 25px 28px 248px}
+#hudHeader{position:absolute;top:0;left:0;right:0;height:96px;display:flex;align-items:center;gap:18px;padding:12px 28px 14px 44px;background:linear-gradient(90deg,#1b101b,#0c1420 60%,#10131b);border-bottom:1px solid #ff4f657a;z-index:1}
+#hudHeader::after{content:"";position:absolute;bottom:0;left:28px;right:28px;height:2px;background:linear-gradient(90deg,#ff6470 0%,#ff6470 55%,#18dae8 90%);box-shadow:0 0 12px #ff455b66}
+.hudMark{width:58px;height:58px;border:2px solid #ff5a6c;display:grid;place-items:center;font-size:38px;color:#ff6e7d;clip-path:polygon(15% 0,100% 0,100% 85%,85% 100%,0 100%,0 15%);text-shadow:0 0 16px #ff5968}
+.hudBrand{flex:1;min-width:0}.hudEyebrow{font:10px Consolas,monospace;letter-spacing:3px;color:#7ec7cf}
+#hudTitle{color:#fff2ec;font:bold italic 33px/1.1 "Segoe UI",Arial,sans-serif;letter-spacing:2px;text-shadow:0 0 18px #f1435d6f}
+#hudSubtitle{color:#e1dbde;font:12px "Segoe UI",Arial,sans-serif;letter-spacing:.6px;margin-top:5px}
+.hudRight{display:flex;gap:16px;align-items:center;align-self:flex-start}
+.hudSignal{font:10px Consolas,monospace;color:#ff8390;letter-spacing:1px}
+.hudSignal.cyan{color:#55e1eb;font-weight:700;font-size:16px}
+#panel::before{top:94px}#tabs{top:113px}#tabs::before{display:none}
+.sidebarExtras{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.sidebarExtras>div{padding:15px 11px;color:#8dabb6;border-bottom:1px solid #2f424a;font:bold 14px "Segoe UI",Arial,sans-serif;letter-spacing:.8px;opacity:.6}
+.sidebarFooter{margin-top:auto;padding:16px 10px;border-top:1px solid #783847;font:11px Consolas,monospace;color:#ff7889;letter-spacing:1px}
+.sidebarFooter span{color:#58dfe9}
+#invView>header.invInternalHeader{min-height:36px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+#invView>header.invInternalHeader>div:first-child>h1,#cyberView>h1{display:none}
+#invView>header.invInternalHeader .hint{font-size:11px;letter-spacing:.2px}
+#weight{margin-left:auto;flex-shrink:0}
+#grids{height:calc(100% - 95px);overflow:auto;padding:20px 10px 24px 12px;gap:28px}
+.inventoryCells{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}
+.inventoryFrame{display:flex;width:max-content;max-width:100%;padding:4px;border:2px solid #4bbec6;box-shadow:inset 0 0 0 4px #061c24,0 0 22px #22dfec35;background:#071823;overflow:auto}
+#grid{outline:none;box-shadow:inset 0 0 30px #0008}
+#gearBox{flex:0 0 325px;width:325px;display:flex;flex-direction:column;align-self:flex-start}
+.gearCaption{font:10px Consolas,monospace;float:right;color:#7ab7c5;letter-spacing:1px}
+.gearTitle{border-top:1px solid #395661;padding-top:8px}
+#gearBox .wslot{height:86px}
+.beltRow{width:100%}.bslot{height:84px}
+.bottomSystemStrip{position:absolute;bottom:5px;left:250px;right:25px;height:25px;display:flex;align-items:center;justify-content:space-between;color:#a9c4cb;font:10px Consolas,monospace;letter-spacing:.5px;border-top:1px solid #214654;padding:7px 0 0;pointer-events:none}
+.item .name{position:absolute;top:5px;left:7px;right:7px;z-index:2;font-size:10px;max-height:27px;overflow:hidden;text-shadow:0 1px 4px #000,0 0 6px #000}
+.itemArt{position:absolute;inset:12px 4px 9px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:1;filter:drop-shadow(0 5px 4px #000b)}
+.itemArt svg{height:100%;width:100%;max-height:130px}
+.item .count{z-index:3;bottom:4px;right:5px;color:#fff1d0;text-shadow:0 2px 5px #000}
+.item .mag{z-index:3}
+.item{border:2px solid #d2ab56!important;box-shadow:inset 0 0 16px #ffc44820,0 0 5px #dca93629}
+.item:hover{border-color:#5ff7ff!important;box-shadow:0 0 18px #47ecff7a,inset 0 0 18px #37ebfa34}
+.item.hidden{border-color:#6c6d74!important}
+.wslot .item .itemArt{inset:5px 14px 5px 8px}.wslot .item .name{font-size:10px;max-width:130px}
+.bslot .item .itemArt{inset:10px 0 2px}
+#panel.cyber{padding-left:242px}
+#cyberView{height:100%;overflow:hidden}
+#cyberView>.hint{position:relative;z-index:2;font-size:11px;max-width:100%;margin-bottom:4px}
+#cyberView .cyConnectors{position:absolute;inset:0;pointer-events:none;z-index:0}
+#cyberView .cyMain{height:calc(100% - 99px);min-height:490px;max-height:715px;grid-template-columns:140px minmax(175px,1fr) minmax(210px,280px) minmax(175px,1fr) 145px;gap:8px;align-items:center;position:relative}
+#cyberView .cyBodyBox{height:100%;min-height:470px}
+#cyberView .cyCol{gap:18px;position:relative;z-index:2}
+#cyberView .cyHead{margin-bottom:6px;font-size:13px;color:#ffacb5;letter-spacing:1px}
+#cyberView .cyTile{height:clamp(73px,9vh,97px);width:clamp(60px,5.4vw,88px);background:linear-gradient(135deg,#152632e8,#150d19eb);clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
+#cyberView .cyTile.filled{border:2px solid #f1bf49;border-left:5px solid #ffbe34;background:linear-gradient(140deg,#533f2145,#13272cc2)}
+#cyberView .cyTile .itemArt{inset:3px 1px 11px;opacity:.93}
+#cyberView .cyTile .tName{position:absolute;top:2px;left:4px;right:3px;z-index:3;font-size:9px;text-shadow:0 0 5px #000,0 0 5px #000;max-height:22px;overflow:hidden}
+#cyberView .cyTile .tCost{display:none}
+#cyberView .cyTile .tSlot{font-size:9px;z-index:3}
+#cyberView .cyBodyBox{background:radial-gradient(ellipse at 50% 50%,rgba(248,52,78,.24),transparent 60%)}
+#cyBody{filter:drop-shadow(0 0 9px #fa607f) drop-shadow(0 0 24px #fc435e96)}
+#cyberView #humMeter{position:relative;align-self:center;background:linear-gradient(140deg,#3b142370,#10131bd9);border:1px solid #e45b69;padding:12px 5px 16px;min-height:375px;justify-content:center}
+#cyberView #sanMeter{position:relative;align-self:center;background:linear-gradient(140deg,#081c26d9,#11141bd9);border:1px solid #26b7cc;padding:12px 5px 16px;min-height:375px;justify-content:center}
+#cyberView .vBar{height:240px;width:33px}
+#cyberView .vTitle{font-size:10px;letter-spacing:1px;text-align:center;word-break:break-word}
+#cyberView .vValue{font-size:13px}
+#cyberView .vNote{width:auto;font-size:10px}
+#cyberView .cyFoot{position:relative;margin-top:8px}
+#panel.cyber #hudTitle{color:#fff2ec}
+#panel.cyber .hudMark{color:#ff6478}
+@media(max-width:1450px){
+ #panel{padding-left:203px}#tabs{width:170px}.bottomSystemStrip{left:205px}
+ #cyberView .cyMain{grid-template-columns:95px minmax(140px,1fr) 210px minmax(140px,1fr) 95px;gap:6px}
+ #cyberView .cyTile{width:59px;height:74px}
+ #cyberView #humMeter,#cyberView #sanMeter{padding:8px 3px}
+ #gearBox{width:260px;flex-basis:260px}
+}
+
+/* === NEURAL // 77 : art-directed interface v3 === */
+:root{--cell:76px;--accent:#25eff6;--red:#ff425b;--gold:#ffcc50}
+#panel{
+ width:min(1740px,calc(100vw - 35px));height:min(960px,calc(100vh - 24px));
+ padding:104px 20px 28px 224px!important;
+ border:0;outline:1px solid #ff5770;outline-offset:-7px;
+ clip-path:polygon(28px 0,calc(100% - 35px) 0,100% 34px,100% calc(100% - 28px),calc(100% - 30px) 100%,24px 100%,0 calc(100% - 28px),0 28px);
+ box-shadow:inset 0 0 0 10px #bc243e16,0 0 80px #070207aa;
+ background:
+  radial-gradient(ellipse 51% 78% at 56% 37%,rgba(140,21,38,.23),transparent 95%),
+  repeating-linear-gradient(0deg,transparent 0 41px,#ff445505 41px 42px),
+  repeating-linear-gradient(90deg,transparent 0 47px,#28d4ed04 47px 48px),
+  linear-gradient(125deg,#1d0f1e,#0a0f17 48%,#090f1a 80%,#0a1119);
+}
+#hudHeader{height:100px;padding:10px 25px 14px 32px;border-bottom:0;background:linear-gradient(90deg,#34101f88,#0c111ae6 60%,#0a1a22)}
+#hudHeader::after{background:linear-gradient(90deg,#ff395c 20%,#ff415d 50%,#1ceaf1 100%);height:3px;bottom:4px;left:22px;right:22px}
+.hudMark{height:66px;width:66px;font-size:42px;box-shadow:0 0 25px #ff486930}
+#hudTitle{font:bold italic 38px "Segoe UI",Arial,sans-serif;text-transform:uppercase;letter-spacing:1px}
+#hudSubtitle{font-size:13px;letter-spacing:.3px}
+.hudEyebrow{font-size:11px}
+#tabs{top:115px;left:24px;bottom:40px;width:180px;padding-right:12px;gap:10px;border-right:1px solid #f6475c73}
+.tab{font-size:15px;padding:17px 12px;text-transform:uppercase;background:#191320b9;border-color:#57313d}
+.tab.active{border:1px solid #ff5d6d;border-left:5px solid #ff5d6d;background:linear-gradient(90deg,#a82946b2,#5216286a);box-shadow:0 0 21px #fa355661,inset 0 0 24px #ff355d3f}
+.sidebarExtras>div{border-bottom:1px solid #4d343c;font-size:13px}
+#invView,#cyberView{overflow:hidden}
+#invView .invInternalHeader{padding:4px 8px 17px;border-bottom:1px solid #ff4b5752;align-items:center}
+#weightText{text-align:right;color:#4ffaff;font-size:21px}
+#weightBar{height:12px;margin-top:8px}
+#grids{height:calc(100% - 108px);padding:22px 6px 24px 6px;justify-content:space-between;overflow:auto}
+.inventoryCells{
+ position:relative;background:linear-gradient(150deg,#03141c91,#02080f55);
+ border:1px solid #ff52645c;border-top:3px solid #e5495e;padding:21px 16px 22px;
+ box-shadow:inset 0 0 35px #f34c5116,0 0 15px #0eafb016;
+}
+.inventoryCells::before{content:"// PERSONAL STORAGE  /  GRID SYSTEM";position:absolute;top:8px;right:18px;font:10px Consolas,monospace;letter-spacing:1px;color:#64d9e6;opacity:.85}
+.inventoryCells::after{content:"";pointer-events:none;position:absolute;left:10px;right:10px;bottom:8px;height:7px;background:repeating-linear-gradient(90deg,#29d0da 0 4px,transparent 4px 9px);opacity:.28}
+.mineTitle{color:#ff7a86!important;font-size:17px!important;letter-spacing:2px!important;margin:10px 0 18px!important;font-weight:700}
+.inventoryFrame{border:2px solid #25eaf1;box-shadow:0 0 27px #00f5ed39,inset 0 0 40px #082530,0 0 0 6px #08212f96}
+#grid,#lootGrid{background-image:linear-gradient(#159da868 1px,transparent 1px),linear-gradient(90deg,#159da868 1px,transparent 1px);background-color:#061a21}
+#gearBox{width:340px;flex-basis:340px;padding:10px 12px;background:linear-gradient(#07182372,#050e18b3);border-left:1px solid #2cdce84b}
+.gearTitle{font-size:18px;margin-bottom:12px;color:#50f5f8;border-top:0}
+.gearTitle::before{font-weight:700;color:#ff5063}
+.wslot{height:104px!important;margin-bottom:10px;background:radial-gradient(ellipse at 30% 25%,#0d66704d,#06121ad9 73%);border:2px solid #29ecf2;box-shadow:inset 0 0 27px #27dce829,0 0 10px #1ffde322}
+.wslot .slotKey{font:bold 20px Consolas,monospace;color:#56f9fa}
+.bslot{height:95px;background:linear-gradient(145deg,#0e3842,#05121b)}
+.bslot .slotKey{color:#7efaff}
+.item{background:radial-gradient(ellipse 70% 75% at 50% 35%,color-mix(in srgb,var(--itemColor) 35%,#10232a),#07131a 90%)!important;
+ border:2px solid #ecc052!important;outline:1px solid #fff2b222;outline-offset:-6px;
+ box-shadow:inset 0 0 20px #ffc14b19,0 0 7px #efbe553e;
+}
+.item:before{content:"";position:absolute;inset:4px;pointer-events:none;background:linear-gradient(135deg,#ffda6b8c 0 12%,transparent 12% 88%,#ffda6b8c 88%);clip-path:polygon(0 0,18px 0,18px 4px,4px 4px,4px 18px,0 18px,0 0,100% 100%,calc(100% - 18px) 100%,calc(100% - 18px) calc(100% - 4px),calc(100% - 4px) calc(100% - 4px),calc(100% - 4px) calc(100% - 18px),100% calc(100% - 18px))}
+.item:hover{border-color:#27e9ef!important;box-shadow:0 0 18px #23f9fe88,inset 0 0 20px #20effa22}
+.item .name{font-size:10px;background:linear-gradient(90deg,#06121ac9,#07121a38);padding:3px 2px;color:#fdfaf4;right:5px;left:5px}
+.itemArt{inset:18px 4px 7px;filter:drop-shadow(0 5px 4px #000b) drop-shadow(0 0 9px #74fcff39)}
+.itemArt svg{max-height:170px}
+.wslot .itemArt{inset:3px 12px 3px 12px}
+.wslot .item .name{background:#06121ac1;max-width:170px}
+.bslot .item .name{font-size:8px;max-height:14px}
+.bslot .itemArt{inset:20px 0 0}
+.bottomSystemStrip{left:226px;right:25px;bottom:8px;font-size:10px;background:#0a161b;padding:8px 12px;height:30px;border-top:1px solid #1ac3d267}
+#panel.cyber{padding-left:225px!important}
+#cyberView>.hint{padding:7px 12px;border-bottom:1px solid #f3505955;margin-bottom:10px}
+#cyberView .cyMain{
+ display:grid;grid-template-columns:125px minmax(200px,1fr) minmax(230px,320px) minmax(200px,1fr) 130px;
+ height:calc(100% - 105px);min-height:500px;gap:12px;
+ background:
+ radial-gradient(ellipse 20% 65% at 50% 50%,#ff3f5d36,transparent 95%),
+ repeating-linear-gradient(0deg,transparent 0 31px,#fc445008 31px 32px);
+}
+.cyConnectors{position:absolute!important;inset:0!important;z-index:0!important;pointer-events:none!important}
+.cyConnectors svg{width:100%;height:100%;filter:drop-shadow(0 0 3px #ff506b)}
+#cyberView .cyCol{z-index:2;gap:15px}
+#cyberView .cyHead{color:#ff9da9;font-size:16px;font-weight:700;letter-spacing:1px;text-shadow:0 0 12px #ff4b5877}
+#cyberView .cyTiles{gap:7px}
+#cyberView .cyTile{width:clamp(70px,5.1vw,98px);height:clamp(82px,8.9vh,108px);border:1px solid #ffb644;outline:1px solid #58f2f433;outline-offset:-6px}
+#cyberView .cyTile.filled{background:radial-gradient(ellipse at 50% 50%,#436b683d,#101a26 75%);border:2px solid #ffc342;box-shadow:0 0 11px #fac14b3b,inset 0 0 18px #3ce9ec1c}
+#cyberView .cyTile.empty{border:1px dashed #f44d63}
+#cyberView .cyTile .itemArt{inset:13px 1px 9px;filter:drop-shadow(0 0 6px #d6e4d26c)}
+#cyberView .cyTile .tName{font-size:10px;top:2px;line-height:1.08}
+#cyberView .cyTile .tSlot{font-size:9px}
+#cyberView .cyBodyBox{z-index:1;height:100%;background:radial-gradient(ellipse 65% 80% at 50% 50%,#fb547a33,transparent 85%);border-bottom:2px solid #fa5c79a2}
+#cyberView .cyBodyBox:after{content:"";position:absolute;left:8%;right:8%;bottom:3%;height:24px;border:2px solid #fa687a;border-radius:50%;box-shadow:0 0 18px #fa3b72,inset 0 0 18px #ff4a7188;transform:perspective(160px) rotateX(65deg)}
+#cyBody{filter:drop-shadow(0 0 6px #ffb9c6) drop-shadow(0 0 28px #ff4464a6)}
+#cyBody .anatomy-overlay{mix-blend-mode:screen}
+#cyberView #humMeter{border:1px solid #f1aa4e;background:linear-gradient(145deg,#4c1d3088,#0a141b);box-shadow:0 0 18px #fba74e27;min-height:430px}
+#cyberView #sanMeter{border:1px solid #17cadd;background:linear-gradient(145deg,#12303d,#091017);box-shadow:0 0 17px #1ceefa2c;min-height:430px}
+#cyberView .vBar{height:285px}
+#cyberView .vTitle{font-size:11px}
+#cyberView .vValue{font-size:14px;background:#111920}
+#cyberView .cyFoot{border-top:1px solid #ff5e7188}
+@media(max-width:1470px){
+ #panel{padding-left:200px!important}#panel.cyber{padding-left:200px!important}#tabs{width:160px}
+ #gearBox{width:300px;flex-basis:300px}
+ #cyberView .cyMain{grid-template-columns:102px minmax(160px,1fr) 220px minmax(160px,1fr) 102px;gap:7px}
+ #cyberView .cyTile{width:65px;height:80px}
+ .bottomSystemStrip{left:202px}
+}
+
+/* === REDLINE V4 : illustrated art direction and final HUD finishing === */
+#panel,#panel.cyber{padding-top:143px!important}
+#panel {
+  background:
+    radial-gradient(ellipse 50% 90% at 42% 10%,rgba(136,18,55,.2),transparent 80%),
+    radial-gradient(ellipse 55% 65% at 67% 55%,rgba(14,137,152,.07),transparent 85%),
+    repeating-linear-gradient(0deg,transparent 0 3px,rgba(196,247,255,.007) 3px 4px),
+    #080c13;
+  border:0;
+  outline:2px solid #e9385a;
+  outline-offset:-8px;
+}
+#panel::before {top:119px;left:23px;right:23px;height:4px;background:linear-gradient(90deg,#ff375c 0%,#f34b66 64%,#19e3eb 90%);box-shadow:0 0 14px #ff4363a8;z-index:3}
+#hudHeader {
+  height:125px;align-items:flex-start;padding:23px 27px 18px 34px;
+  background:
+    linear-gradient(90deg,rgba(13,10,17,.99) 0%,rgba(15,10,20,.96) 29%,rgba(15,9,20,.45) 50%,rgba(8,13,20,.45) 75%,rgba(5,13,17,.92) 100%),
+    url("assets/nightcity-skyline.svg") center 37% / cover no-repeat;
+  overflow:hidden;
+}
+#hudHeader::after {bottom:1px}
+.hudBrand{position:relative;z-index:2;max-width:620px}
+.hudEyebrow{color:#7deff6;font:700 10px Consolas,monospace;letter-spacing:3px}
+#hudTitle{font-size:39px;color:#fff1f4;text-shadow:0 0 8px #fe5972,0 0 25px #ff355877}
+#hudSubtitle{font-size:12px;color:#f8e7ed;letter-spacing:.85px}
+.hudMark{border-color:#ff5b77;background:#2d0b1d66;box-shadow:0 0 18px #ff36586c,inset 0 0 20px #ff456d48;z-index:2}
+.hudRight{margin-left:auto;z-index:2;align-self:center;padding:12px 8px;background:#061019a8;border-right:3px solid #15dfec}
+#tabs{top:151px!important;bottom:54px!important}
+#tabs::after{content:"NC//77";position:absolute;bottom:95px;left:18px;font:italic 900 35px/1 Arial,sans-serif;color:#ff40663b;letter-spacing:-2px;pointer-events:none}
+#tabs .tab{height:64px;clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,0 100%);font-size:15px}
+#tabs .tab.active{background:linear-gradient(105deg,#7f1a39da,#3c1125c9);box-shadow:inset 0 0 12px #ff597b4a}
+#tabs .tab.active::after{content:"///";float:right;letter-spacing:0;color:#ff8698}
+.sidebarExtras{margin-top:16px}
+.sidebarExtras>div{background:#1119228a;opacity:.67}
+.sidebarFooter{border-top-color:#f1436370}
+#invView>header.invInternalHeader{border-bottom:0!important;min-height:42px}
+#invView>header.invInternalHeader .hint::before,#cyberView>.hint::before{content:"//";color:#ff4864;font:900 21px Arial,sans-serif;letter-spacing:-3px;margin-right:10px}
+#grids{padding-top:13px}
+.inventoryCells{
+  background:
+    linear-gradient(135deg,rgba(3,29,34,.91),rgba(2,16,27,.9)),
+    repeating-linear-gradient(45deg,transparent 0 13px,#30dfea11 13px 14px);
+  clip-path:polygon(15px 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%,0 15px);
+  border:2px solid #fc4a67;
+  border-top:4px solid #ff4260;
+  box-shadow:inset 0 0 25px #0be0ea1c,0 0 15px #fa507b27;
+}
+.inventoryCells::before{color:#61fbff;top:9px}
+.inventoryFrame{border:2px solid #23f5f8;background:#041318;box-shadow:inset 0 0 35px #1fc9e344,0 0 0 6px #0a3335,0 0 28px #05f2f638}
+#grid{background-image:linear-gradient(#117582 1px,transparent 1px),linear-gradient(90deg,#117582 1px,transparent 1px),radial-gradient(circle at center,#0d6771 1px,transparent 1px);background-size:var(--cell) var(--cell),var(--cell) var(--cell),var(--cell) var(--cell);}
+#gearBox{background:linear-gradient(150deg,#071822d9,#071018d4);border:1px solid #f7465a59;border-top:0;padding:11px 13px 15px;box-shadow:inset 0 0 25px #0bafbd19}
+.gearTitle{font-style:italic;font-weight:800;border-bottom:1px solid #fa486a73;padding:6px 0 9px;margin-bottom:12px}
+.gearTitle::before{content:"//";color:#fa526a;letter-spacing:-2px;font-size:22px}
+.wslot,.bslot{clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%,0 11px)}
+.wslot{background:linear-gradient(140deg,#0e3b43af,#08121c) !important;border:2px solid #19e7f0;box-shadow:inset 0 0 30px #22eaf81b,0 0 9px #2bfbf733}
+.wslot:has(.item){border-color:#ffda69;box-shadow:0 0 15px #f9cd4c40,inset 0 0 12px #ffcd4925}
+.wslot .item{border:0!important;background:transparent!important;outline:0!important}
+.bslot{border-color:#25ddf4;background:linear-gradient(140deg,#072832,#040f19)}
+.bslot:has(.item){border-color:#ffce60}
+.item{overflow:hidden}
+.item .name{background:linear-gradient(90deg,#090e18d9,#09101b4d)}
+#cyberView .cyMain{
+ background:
+ radial-gradient(ellipse 30% 70% at 50% 60%,#f64b6523,transparent),
+ radial-gradient(circle at 50% 83%,#e1234933,transparent 24%),
+ repeating-linear-gradient(0deg,transparent 0 35px,#f4435806 35px 36px),
+ #070e16;
+ border:1px solid #0a94a64d;box-shadow:inset 0 0 35px #12b7c016;
+ clip-path:polygon(18px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 16px),calc(100% - 18px) 100%,0 100%,0 18px);
+}
+#cyberView .cyBodyBox{background:radial-gradient(ellipse 48% 83% at 50% 50%,#c82e5d38,transparent 96%);border-bottom:none}
+#cyberView .cyBodyBox::before{content:"";position:absolute;inset:4%;border:1px dashed #ff4a6c40;border-radius:50%;transform:scaleX(.83);pointer-events:none}
+#cyberView .cyBodyBox:after{height:32px;bottom:0;border-color:#ff4568;box-shadow:0 0 22px #ff4769b8,inset 0 0 25px #ff386bc2}
+#cyberView .cyTile{clip-path:polygon(11px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 11px)}
+#cyberView .cyTile.empty{border:2px solid #32e5ed;box-shadow:inset 0 0 18px #0de0e51f;background:linear-gradient(135deg,#0a343f99,#08111ae5)}
+#cyberView .cyTile.empty .tPlus{color:#9bcfd5;font-size:31px}
+#cyberView .cyTile.filled{border:2px solid #ffd25b;outline-color:#ffa7384d;box-shadow:inset 0 0 20px #ffcf3430,0 0 12px #ffc44c47}
+#cyberView .cyHead::before{content:"//";font-size:19px;color:#ff4660;letter-spacing:-3px;margin-right:9px}
+#cyberView .cyCol.right .cyHead::before{display:inline-block;height:auto;width:auto;border-radius:0;background:none;opacity:1}
+#cyberView #humMeter,#cyberView #sanMeter{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);box-shadow:inset 0 0 25px #ea315721}
+#cyberView #sanMeter{box-shadow:inset 0 0 22px #32edfc23}
+@media(max-width:1200px){
+ #hudHeader{background-position: 56% 50%}
+ #hudTitle{font-size:30px}
+ #gearBox{width:260px;flex-basis:260px}
+ #cyberView .cyMain{overflow:hidden}
+}
+</style>
+<link rel="stylesheet" href="implants.css">
+<link rel="stylesheet" href="inventory.css">
+</head>
+<body>
+<div id="root">
+  <div id="panel">
+    <div id="hudHeader"><div class="hudMark">▣</div><div class="hudBrand"><div class="hudEyebrow">NIGHT CITY // PERSONAL SYSTEM</div><div id="hudTitle">ИНВЕНТАРЬ</div><div id="hudSubtitle">УПРАВЛЕНИЕ СНАРЯЖЕНИЕМ, ОРУЖИЕМ И ПРЕДМЕТАМИ</div></div><div class="hudRight"><span class="hudSignal">● СИСТЕМА АКТИВНА</span><span class="hudSignal cyan">OPEN//77</span></div></div>
+    <div id="tabs">
+      <button class="tab active" data-tab="inv">Инвентарь</button>
+      <button class="tab" data-tab="cyber">Импланты</button>
+      <div class="sidebarExtras"><div>◈ ПЕРСОНАЖ</div><div>▥ СТАТИСТИКА</div></div><div class="sidebarFooter">NEURAL LINK<br><span>CONNECTED / SECURE</span></div>
+    </div>
+    <div id="invView">
+    <header class="invInternalHeader">
+      <div>
+        <h1>Инвентарь</h1>
+        <div class="hint">Перетащите мышью · R — повернуть · ПКМ — действия · I / Esc — закрыть · при обыске — тащите между сетками</div>
+      </div>
+      <div id="weight"><div id="weightText"></div><div id="weightBar"><div id="weightFill"></div></div></div>
+    </header>
+    <div id="grids">
+      <div class="inventoryCells">
+        <div class="storageHeading"><div class="mineTitle">Карманы</div><span id="gridSize"></span></div>
+        <div class="inventoryFrame"><div id="grid"></div></div>
+        <div id="overflow"><div class="title">Не помещается — переложите или выбросьте</div><div id="overflowList"></div></div>
+        <!-- Одежда (rp_clothing): что лежит в этих слотах — то и надето на персонаже. -->
+        <div id="clothBox">
+          <div class="storageHeading"><div class="mineTitle">Одежда</div><span class="clothNote">надето на персонаже</span></div>
+          <div class="clothRow">
+            <div class="cslot" data-target="cl_Head"><div class="slotHint">Голова</div></div>
+            <div class="cslot" data-target="cl_Face"><div class="slotHint">Лицо</div></div>
+            <div class="cslot" data-target="cl_OuterChest"><div class="slotHint">Верх</div></div>
+            <div class="cslot" data-target="cl_InnerChest"><div class="slotHint">Под низ</div></div>
+            <div class="cslot" data-target="cl_Legs"><div class="slotHint">Низ</div></div>
+            <div class="cslot" data-target="cl_Feet"><div class="slotHint">Обувь</div></div>
+            <div class="cslot" data-target="cl_Outfit"><div class="slotHint">Костюм</div></div>
+          </div>
+        </div>
+      </div>
+      <div id="gearBox">
+        <div class="gearTitle">Оружие <span class="gearCaption">WEAPON SYSTEMS</span></div>
+        <div class="wslot" data-target="w1"><span class="slotKey">1</span><div class="slotHint">Оружие</div></div>
+        <div class="wslot" data-target="w2"><span class="slotKey">2</span><div class="slotHint">Оружие</div></div>
+        <div class="wslot" data-target="w3"><span class="slotKey">3</span><div class="slotHint">Оружие</div></div>
+        <div class="gearTitle belt">Пояс <span class="gearCaption">QUICK ACCESS</span></div>
+        <div class="beltRow">
+          <div class="bslot" data-target="b1"><span class="slotKey">4</span></div>
+          <div class="bslot" data-target="b2"><span class="slotKey">5</span></div>
+          <div class="bslot" data-target="b3"><span class="slotKey">6</span></div>
+          <div class="bslot" data-target="b4"><span class="slotKey">7</span></div>
+          <div class="bslot" data-target="b5"><span class="slotKey">8</span></div>
+        </div>
+        <!-- Нейропорт (шаг 6): щепки. Денежная считывается и пропадает, остальные — содержимое на экране. -->
+        <div class="neuroRow">
+          <div class="neuroLabel"><b>Нейропорт</b><small>вставьте щепку</small></div>
+          <div class="bslot nslot" data-target="n1"></div>
+          <div class="bslot nslot" data-target="n2"></div>
+        </div>
+        <div class="hint" style="margin-top: 8px">Патроны на поясе — запас оружия, R — перезарядка · 4–8 — применить с пояса</div>
+      </div>
+      <div id="lootBox">
+        <div class="lootTitle">Обыск<span id="lootName"></span><button id="lootSearch" hidden>Обыскать</button></div>
+        <div id="lootFrame"><div id="lootGrid"></div></div>
+        <div class="lootGearTitle">Снаряжение</div>
+        <div id="lootGear"></div>
+      </div>
+    </div>
+    <div class="bottomSystemStrip"><span>◉ ЛКМ — ДЕЙСТВИЕ / ПЕРЕТАЩИТЬ</span><span>⟳ R — ПОВЕРНУТЬ</span><span>▣ ПКМ — МЕНЮ</span><span>ESC — ЗАКРЫТЬ</span></div>
+    </div>
+    <div id="cyberView">
+      <h1>Импланты</h1>
+      <div class="hint">Наведите на слот — подробности. Ставит и снимает рипердок. Нейроблокатор (аптека) снижает психоз.</div>
+      <div class="cyMain"><div class="cyConnectors" aria-hidden="true"><svg></svg></div>
+        <div class="vMeter" id="humMeter">
+          <div class="vTitle" style="color: #f3c018">Человечность</div>
+          <div class="vWrap"><div class="vBar"><div class="vFill" id="humFill"></div></div><div class="vMark" id="humMark"><span></span></div></div>
+          <div class="vValue" id="humValue"></div>
+          <div class="vNote" id="humNote"></div>
+        </div>
+        <div class="cyCol left" id="cyLeft"></div>
+        <div class="cyBodyBox">
+          <svg id="cyBody" viewBox="0 0 793 1983" role="img" aria-label="Анатомическая проекция имплантов">
+            <image href="assets/implants/body-v1.png" width="793" height="1983"/>
+            <g id="r-skin" class="region" data-anchor="380,830"><path d="M245 315 Q395 252 548 315 L595 620 L530 875 L490 1020 L305 1020 L258 875 L202 620 Z"/></g>
+            <g id="r-legs" class="region" data-anchor="496,1290"><path d="M302 940 L384 960 L370 1260 L350 1720 L365 1870 L270 1910 L264 1790 L283 1280 Z M410 960 L492 940 L510 1280 L529 1790 L523 1910 L428 1870 L443 1720 L423 1260 Z"/></g>
+            <g id="r-arms" class="region" data-anchor="192,650"><path d="M209 335 L263 360 L212 650 L115 938 L91 1060 L20 1025 L37 927 L132 626 Z M584 335 L530 360 L581 650 L678 938 L702 1060 L773 1025 L756 927 L661 626 Z"/></g>
+            <g id="r-torso" class="region" data-anchor="474,700"><ellipse cx="396" cy="650" rx="136" ry="206"/></g>
+            <g id="r-head" class="region" data-anchor="396,150"><ellipse cx="396" cy="143" rx="86" ry="128"/></g>
+            <g id="r-bones" class="region" data-anchor="361,920"><path d="M379 300 L415 300 L415 820 L490 877 L475 951 L396 975 L318 951 L302 877 L379 820 Z"/></g>
+            <g id="r-heart" class="region" data-anchor="452,458"><ellipse cx="452" cy="458" rx="58" ry="72"/></g>
+          </svg>
+          <div class="cyScan"></div>
+        </div>
+        <div class="cyCol right" id="cyRight"></div>
+        <div class="vMeter" id="sanMeter">
+          <div class="vTitle" style="color: var(--accent)">Рассудок</div>
+          <div class="vWrap"><div class="vBar"><div class="vFill" id="sanityFill"></div></div>
+            <div class="vMark" id="sanEpisode"><span></span></div><div class="vMark" id="sanSevere"><span></span></div></div>
+          <div class="vValue" id="sanityValue"></div>
+          <div class="vNote" id="sanityNote"></div>
+        </div>
+      </div>
+      <div id="deckBackdrop" hidden></div>
+      <div id="deckBox" role="dialog" aria-modal="true" aria-label="Скрипты кибердеки"></div>
+      <div class="cyFoot"><span id="cyCount"></span><span>Снять или заменить имплант — у рипердока</span></div>
+    </div>
+  </div>
+  <div id="ghost"><div class="name"></div></div>
+  <div id="tooltip"></div>
+  <div id="cyTip"></div>
+  <div id="menu"></div>
+  <div id="dialog"><label id="dialogLabel"></label><input id="dialogInput" type="number" min="1"><button id="dialogOk">OK</button></div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const CELL = 76;
+  let state = null;        // последнее состояние от сервера
+  let catalog = {};
+  let drag = null;         // { index, stack, rotated, grabX, grabY, el }
+
+  const emit = (event, payload) => Open77.emit(event, payload || {});
+
+  function def(stack) {
+    const d = catalog[stack.i] || { label: stack.i, w: 1, h: 1, weightG: 0, stack: 1, color: "#555" };
+    // Одежда: у каждой вещи своё название (stack.l), общий тип — в подсказке.
+    return stack.l ? { ...d, kind: d.label, label: stack.l } : d;
+  }
+  function size(stack, rotated) {
+    const d = def(stack);
+    return rotated ? [d.h, d.w] : [d.w, d.h];
+  }
+  const kg = grams => (grams / 1000).toFixed(1);
+
+  // -- отрисовка -------------------------------------------------------------------
+
+  // Две сетки: "mine" — своя, "loot" — карманы обыскиваемого (state.loot).
+  const gridEl = side => $(side === "loot" ? "lootGrid" : "grid");
+  const stacksOf = side => side === "loot" ? (state.loot ? state.loot.stacks : []) : state.stacks;
+
+
+  // Стилизованные векторные изображения предметов без внешних ассетов.
+  // Данные, геометрия сетки и функции предметов остаются прежними.
+  function itemIllustration(key, d) {
+    const k = String(key || "").toLowerCase();
+    let drawing;
+    if (/katana|sword|knife|blade|меч|нож/.test(k)) {
+      drawing='<g transform="rotate(-25 62 40)"><path d="M15 36 Q66 23 113 32 Q73 34 24 42 Z" fill="#e6f7f8" stroke="#5be8f8" stroke-width="2"/><path d="M16 36 L8 40 L25 48 L31 41 Z" fill="#ffc84c" stroke="#f5b041" stroke-width="2"/><path d="M9 39 L6 47 L30 55 L33 49 Z" fill="#2d2233" stroke="#ffc94b" stroke-width="2"/><path d="M39 35 Q72 27 100 33" fill="none" stroke="#ffe4a3" stroke-width="1.5"/></g>';
+    } else if (d.weapon || /rifle|pistol|shotgun|smg|weapon|revolver|sniper/.test(k)) {
+      drawing = '<path d="M11 43 L16 32 L48 31 L53 24 L80 23 L86 28 L107 28 L113 35 L91 37 L80 47 L65 47 L59 38 L40 40 L35 52 L21 52 L24 41 Z" fill="#29353b" stroke="#e8c68b" stroke-width="2"/><path d="M20 32 L80 29 L86 35 L26 39" fill="#b3bdc5" stroke="#293c4a" stroke-width="2"/><path d="M61 39 L78 38 L81 51 L69 54 Z" fill="#76584b" stroke="#ecc58a" stroke-width="2"/><path d="M42 33 L44 23 L51 23 L52 33" stroke="#ffca48" stroke-width="3" fill="none"/>';
+    } else if (/med|bandage|heal|stim|inject/.test(k)) {
+      drawing = '<rect x="25" y="15" width="72" height="51" rx="7" fill="#5f1725" stroke="#ff8796" stroke-width="3"/><path d="M52 20 V10 H72 V20" fill="none" stroke="#ffd8a5" stroke-width="4"/><path d="M56 26 H68 V38 H80 V50 H68 V62 H56 V50 H44 V38 H56 Z" fill="#fff1e9" stroke="#ffc6bb" stroke-width="2"/><path d="M31 58 H43 M78 58 H91" stroke="#f86b70" stroke-width="3"/>';
+    } else if (/ammo|bullet|cartridge/.test(k)) {
+      drawing = '<rect x="25" y="26" width="65" height="38" rx="4" fill="#735326" stroke="#f8c956" stroke-width="2"/><path d="M32 33 H82 M32 43 H82 M32 53 H82" stroke="#e3bc5b" stroke-width="2"/><path d="M43 16 V34 M58 10 V34 M73 14 V34" stroke="#ffe18c" stroke-width="7" stroke-linecap="round"/>';
+    } else if (/chip|deck|cyber|shard|module|processor|quickhack|implant/.test(k)) {
+      drawing = '<g transform="rotate(-12 61 40)"><rect x="29" y="14" width="64" height="55" rx="5" fill="#123b45" stroke="#4bf5fd" stroke-width="3"/><rect x="40" y="24" width="41" height="33" rx="3" fill="#1c7084" stroke="#d6faff" stroke-width="2"/><path d="M45 40 H76 M60 28 V53" stroke="#65efff" stroke-width="2"/><path d="M38 7 V15 M50 7 V15 M62 7 V15 M74 7 V15 M86 7 V15 M38 69 V77 M50 69 V77 M62 69 V77 M74 69 V77 M86 69 V77" stroke="#ffce69" stroke-width="5"/></g>';
+    } else if (/water|drink|bottle|soda/.test(k)) {
+      drawing = '<path d="M51 13 H73 V24 Q79 30 79 37 V65 Q79 71 72 71 H50 Q44 71 44 65 V37 Q44 30 51 24 Z" fill="#116979" stroke="#a5fbff" stroke-width="3"/><rect x="52" y="8" width="19" height="10" rx="2" fill="#a4cbd7"/><rect x="46" y="40" width="31" height="18" fill="#48bdcc" opacity=".65"/>';
+    } else if (/phone|radio|scanner/.test(k)) {
+      drawing = '<rect x="39" y="9" width="45" height="66" rx="6" fill="#172b3d" stroke="#ffbf51" stroke-width="3"/><rect x="45" y="18" width="33" height="44" fill="#0e5a69"/><path d="M50 32 H73 M50 40 H66 M50 48 H72" stroke="#64e7f3" stroke-width="2"/><circle cx="61" cy="68" r="3" fill="#ffd15c"/>';
+    } else {
+      drawing = '<path d="M30 28 L61 13 L92 28 V60 L61 76 L30 60 Z" fill="#193846" stroke="#f3b957" stroke-width="3"/><path d="M30 28 L61 45 L92 28 M61 45 V76" fill="none" stroke="#62e3ed" stroke-width="3"/><path d="M44 22 L75 38" stroke="#b3c8d0" stroke-width="3"/>';
+    }
+    const icon = document.createElement("div");
+    icon.className = "itemArt";
+    icon.innerHTML = '<svg viewBox="0 0 122 84" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><filter id="iglow"><feGaussianBlur stdDeviation="2"/></filter></defs><ellipse cx="62" cy="73" rx="45" ry="5" fill="#02070b" opacity=".5"/>' + drawing + '</svg>';
+    return icon;
+  }
+  // Одежда: силуэт по слоту (конкретную вещь игра не отдаёт картинкой).
+  function clothingIllustration(wear) {
+    const S = 'fill="#2b2140" stroke="#c9a3ff" stroke-width="3" stroke-linejoin="round"';
+    const drawing = {
+      Head: `<path d="M30 52 Q32 22 61 20 Q90 22 92 52 Z" ${S}/><path d="M22 52 H100 V58 H22 Z" ${S}/>`,
+      Face: `<circle cx="42" cy="42" r="15" ${S}/><circle cx="80" cy="42" r="15" ${S}/><path d="M57 40 H65 M27 40 L14 34 M95 40 L108 34" stroke="#c9a3ff" stroke-width="3" fill="none"/>`,
+      InnerChest: `<path d="M40 14 L52 10 Q61 18 70 10 L82 14 L100 28 L90 40 L82 34 V74 H40 V34 L32 40 L22 28 Z" ${S}/>`,
+      OuterChest: `<path d="M38 10 L50 8 L61 30 L72 8 L84 10 L104 26 L100 74 H84 V36 L80 76 H42 L38 36 V74 H22 L18 26 Z" ${S}/><path d="M61 30 V76" stroke="#c9a3ff" stroke-width="2"/>`,
+      Legs: `<path d="M38 8 H84 L90 78 H68 L61 32 L54 78 H32 Z" ${S}/>`,
+      Feet: `<path d="M18 46 Q22 34 36 36 L48 42 Q56 54 60 56 V64 H18 Z" ${S}/><path d="M62 46 Q66 34 80 36 L92 42 Q100 54 104 56 V64 H62 Z" ${S}/>`,
+      Outfit: `<circle cx="61" cy="14" r="8" ${S}/><path d="M44 24 H78 L94 44 L86 50 L78 42 L82 80 H66 L61 54 L56 80 H40 L44 42 L36 50 L28 44 Z" ${S}/>`,
+    }[wear] || "";
+    const art = document.createElement("div");
+    art.className = "itemArt";
+    art.innerHTML = '<svg viewBox="0 0 122 84" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + drawing + '</svg>';
+    return art;
+  }
+  // Только изображение предмета: размеры и свойства остаются серверными.
+  function inventoryIllustration(key, d) {
+    const implantSlot = {
+      implant_kiroshi: "eyes", implant_deck: "os", implant_deck_pro: "os", implant_sandevistan: "os", implant_civil_os: "os",
+      implant_gorilla: "arms", implant_slam: "skeleton", implant_dash: "tendons",
+      implant_subdermal: "skin", implant_heart: "heart", implant_biomonitor: "blood",
+      implant_metabolic: "metabolism", implant_ice: "ice", implant_purge: "purge", implant_legs: "legs"
+    }[key];
+    if (d.wear) return clothingIllustration(d.wear);
+    if (!implantSlot) return itemIllustration(String(key).startsWith("qh_") ? "quickhack" : key, d);
+    const index = CY_ART.indexOf(implantSlot);
+    const art = document.createElement("div");
+    art.className = "itemArt";
+    art.innerHTML = `<svg viewBox="0 0 362 362" aria-hidden="true"><image href="assets/implants/icons-v1.png"
+      width="1448" height="1086" x="${-(index % 4) * 362}" y="${-Math.floor(index / 4) * 362}"/></svg>`;
+    return art;
+  }
+
+  function tile(stack, index, w, h, side) {
+    const d = def(stack);
+    const el = document.createElement("div");
+    el.className = "item";
+    el.style.width = `${w * CELL}px`;
+    el.style.height = `${h * CELL}px`;
+    el.style.setProperty("--itemColor", d.color || "#3ae0e9");
+    const badge = stack.a != null ? `${stack.a} €$` : stack.t ? stack.t : stack.n > 1 ? `×${stack.n}` : "";
+    // старый магазин: патроны / ёмкость; оружие: патроны в нём
+    const magText = d.mag ? `${stack.m || 0}/${d.mag}` : d.weapon && !d.melee ? `▮ ${stack.wr || 0}` : "";
+    el.innerHTML = `<div class="name"></div>${badge ? `<div class="count"></div>` : ""}${magText ? `<div class="mag"></div>` : ""}`;
+    el.querySelector(".name").textContent = d.label;
+    el.append(inventoryIllustration(stack.i, d));
+    if (badge) el.querySelector(".count").textContent = badge;
+    if (magText) el.querySelector(".mag").textContent = magText;
+    el.addEventListener("pointerdown", e => startDrag(e, index, stack, el, side));
+    // Действия (использовать, передать…) — только со своими вещами.
+    if (side === "mine") el.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(e, index, stack); });
+    el.addEventListener("mouseenter", e => showTooltip(e, stack));
+    el.addEventListener("mousemove", moveTooltip);
+    el.addEventListener("mouseleave", hideTooltip);
+    return el;
+  }
+
+  function renderGrid(side, overflow) {
+    const grid = gridEl(side);
+    grid.style.width = `${state.cols * CELL + 1}px`;
+    grid.style.height = `${state.rows * CELL + 1}px`;
+    grid.replaceChildren();
+    stacksOf(side).forEach((stack, i) => {
+      const index = i + 1; // индексы Lua
+      if (stack.hidden) {
+        // Ещё не обыскано: только место и размер; что внутри — сервер не присылает.
+        if (!stack.x) return;
+        const el = document.createElement("div");
+        el.className = "item hidden";
+        el.innerHTML = `<div class="q">?</div><div class="bar"></div>`;
+        el.style.left = `${(stack.x - 1) * CELL + 1}px`;
+        el.style.top = `${(stack.y - 1) * CELL + 1}px`;
+        el.style.width = `${stack.w * CELL - 1}px`;
+        el.style.height = `${stack.h * CELL - 1}px`;
+        const s = state.loot && state.loot.searching;
+        if (s && s.x === stack.x && s.y === stack.y) {
+          el.classList.add("searching");
+          const bar = el.querySelector(".bar");
+          // Полоска заполняется за оставшееся время.
+          requestAnimationFrame(() => {
+            bar.style.transition = `width ${Math.max(0, s.ms)}ms linear`;
+            bar.style.width = "100%";
+          });
+        }
+        grid.append(el);
+        return;
+      }
+      if (stack.c) {
+        // в слоте оружия или на поясе: своё — рисует renderGear, у задержанного — ряд «Снаряжение»
+        if (side === "loot") $("lootGear").append(tile(stack, index, 1, 1, side));
+        return;
+      }
+      if (stack.x) {
+        const [w, h] = size(stack, stack.r);
+        const el = tile(stack, index, w, h, side);
+        el.style.left = `${(stack.x - 1) * CELL + 1}px`;
+        el.style.top = `${(stack.y - 1) * CELL + 1}px`;
+        el.style.width = `${w * CELL - 1}px`;
+        el.style.height = `${h * CELL - 1}px`;
+        grid.append(el);
+      } else if (overflow) {
+        const el = tile(stack, index, 1, 1, side);
+        el.style.width = "auto";
+        el.style.height = "34px";
+        overflow.append(el);
+      }
+    });
+  }
+
+  // Ячейки снаряжения: оружие и пояс (#gearBox), одежда (#clothBox).
+  const GEAR_SLOTS = "#gearBox [data-target], #clothBox [data-target]";
+  // Снаряжение: стопки с c = "w1".."w3" / "b1".."b5" / "cl_<слот>" — в свои ячейки.
+  function renderGear() {
+    document.querySelectorAll(GEAR_SLOTS).forEach(slot => {
+      slot.querySelectorAll(".item").forEach(el => el.remove());
+      const hint = slot.querySelector(".slotHint");
+      if (hint) hint.style.display = "";
+    });
+    state.stacks.forEach((stack, i) => {
+      if (!stack.c) return;
+      const slot = document.querySelector(`[data-target="${stack.c}"]`);
+      if (!slot) return;
+      const el = tile(stack, i + 1, 1, 1, "mine");
+      el.style.width = el.style.height = "";
+      slot.append(el);
+      const hint = slot.querySelector(".slotHint");
+      if (hint) hint.style.display = "none";
+    });
+  }
+
+  function render() {
+    if (!state) return;
+    $("gridSize").textContent = `${state.cols} × ${state.rows}`;
+    const overflow = $("overflowList");
+    overflow.replaceChildren();
+    renderGrid("mine", overflow);
+    renderGear();
+    const looting = !!state.loot;
+    $("lootBox").classList.toggle("visible", looting);
+    $("grids").classList.toggle("looting", looting);
+    if (looting) {
+      const status = state.loot.done ? "обыскано" : state.loot.started ? "идёт обыск…" : "не обыскано";
+      $("lootName").textContent = `${state.loot.name} [${state.loot.target}] · ${status}`;
+      $("lootSearch").hidden = state.loot.started;
+      $("lootGear").replaceChildren();
+      renderGrid("loot", null);
+      if (!$("lootGear").children.length) {
+        $("lootGear").innerHTML = `<div class="empty">${state.loot.started ? "нет" : "откроется при обыске"}</div>`;
+      }
+    }
+    $("overflow").classList.toggle("visible", overflow.children.length > 0);
+    const ratio = state.capacityG ? Math.min(1, state.weightG / state.capacityG) : 0;
+    $("weightText").textContent = `${kg(state.weightG)} / ${kg(state.capacityG)} кг`;
+    $("weightFill").style.width = `${ratio * 100}%`;
+    $("weightFill").style.background = ratio > 0.9 ? "var(--warn)" : "var(--accent)";
+  }
+
+  // -- подсказка -------------------------------------------------------------------
+
+  function showTooltip(e, stack) {
+    if (drag) return;
+    const d = def(stack);
+    const tip = $("tooltip");
+    tip.innerHTML = `<div class="label"></div><div class="muted"></div>`;
+    tip.querySelector(".label").textContent = d.label +
+      (stack.a != null ? ` — ${stack.a} €$` : stack.t ? ` — ${stack.t}` : stack.n > 1 ? ` ×${stack.n}` : "");
+    let extra = "";
+    if (d.wear) extra = ` · ${d.kind || "одежда"}${stack.c ? " · надето" : " · наденьте в слот «Одежда»"}`;
+    else if (d.mag) extra = ` · старый магазин, патронов: ${stack.m || 0} (разрядите)`;
+    else if (d.weapon && !d.melee) extra = ` · в оружии ${stack.wr || 0} патр. · запас — патроны на поясе`;
+    tip.querySelector(".muted").textContent =
+      `${kg(d.weightG * stack.n)} кг · ${d.w}×${d.h}${d.stack > 1 ? ` · до ${d.stack} в клетке` : ""}${extra}`;
+    tip.style.display = "block";
+    moveTooltip(e);
+  }
+  function moveTooltip(e) {
+    const tip = $("tooltip");
+    positionPopup(tip, e.clientX + 16, e.clientY + 16);
+  }
+  function hideTooltip() { $("tooltip").style.display = "none"; }
+
+  function positionPopup(element, x, y) {
+    element.style.left = `${Math.max(8, Math.min(x, window.innerWidth - element.offsetWidth - 8))}px`;
+    element.style.top = `${Math.max(8, Math.min(y, window.innerHeight - element.offsetHeight - 8))}px`;
+  }
+
+  // -- перетаскивание --------------------------------------------------------------
+
+  function startDrag(e, index, stack, el, side) {
+    if (e.button !== 0) return;
+    closeMenu();
+    hideTooltip();
+    const rect = el.getBoundingClientRect();
+    drag = { index, stack, side, rotated: !!stack.r, el,
+             grabX: Math.floor((e.clientX - rect.left) / CELL), grabY: Math.floor((e.clientY - rect.top) / CELL) };
+    el.classList.add("dragging");
+    const ghost = $("ghost");
+    ghost.querySelector(".name").textContent = def(stack).label;
+    ghost.style.background = el.style.background;
+    ghost.style.display = "block";
+    updateGhost(e);
+  }
+
+  // Над какой сеткой курсор: при обыске — та, над которой он; иначе — своя.
+  function dropSide(e) {
+    if (state.loot) {
+      const r = $("lootGrid").getBoundingClientRect();
+      if (e.clientX >= r.left - CELL / 2 && e.clientX <= r.right + CELL / 2 && e.clientY >= r.top - CELL / 2 &&
+          e.clientY <= r.bottom + CELL / 2) return "loot";
+    }
+    return "mine";
+  }
+
+  // Клетка сетки side, куда ляжет левый верхний угол предмета (1..).
+  function target(e, side) {
+    const grid = gridEl(side).getBoundingClientRect();
+    const [w, h] = size(drag.stack, drag.rotated);
+    const gx = Math.min(drag.grabX, w - 1), gy = Math.min(drag.grabY, h - 1);
+    const x = Math.floor((e.clientX - grid.left) / CELL) - gx + 1;
+    const y = Math.floor((e.clientY - grid.top) / CELL) - gy + 1;
+    return { x, y, w, h, gx, gy };
+  }
+
+  // Своя стопка не мешает себе только в своей же сетке.
+  const skip = (side, i) => side === drag.side && i + 1 === drag.index;
+
+  function overlaps(side, x, y, w, h) {
+    let hit = null;
+    stacksOf(side).forEach((other, i) => {
+      if (skip(side, i) || !other.x) return;
+      const [ow, oh] = size(other, other.r);
+      if (x < other.x + ow && other.x < x + w && y < other.y + oh && other.y < y + h) hit = hit === null ? i + 1 : -1;
+    });
+    return hit; // null — свободно, индекс — одна стопка, -1 — несколько
+  }
+
+  function stackUnderCursor(e, side) {
+    const grid = gridEl(side).getBoundingClientRect();
+    const cx = Math.floor((e.clientX - grid.left) / CELL) + 1, cy = Math.floor((e.clientY - grid.top) / CELL) + 1;
+    let found = null;
+    stacksOf(side).forEach((other, i) => {
+      if (skip(side, i) || !other.x) return;
+      const [ow, oh] = size(other, other.r);
+      if (cx >= other.x && cx < other.x + ow && cy >= other.y && cy < other.y + oh) found = i + 1;
+    });
+    return found;
+  }
+
+  // Ячейка снаряжения под курсором (призрак не ловит мышь).
+  function gearSlotAt(e) {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    return el && el.closest ? el.closest(GEAR_SLOTS) : null;
+  }
+  function gearAllows(stack, target) {
+    const d = def(stack);
+    if (target.startsWith("cl_")) return d.wear === target.slice(3);
+    if (target[0] === "n") return !!d.shard;
+    return target[0] === "w" ? !!d.weapon : !!d.belt;
+  }
+  function markGear(e) {
+    document.querySelectorAll(GEAR_SLOTS).forEach(el => el.classList.remove("hover", "deny"));
+    const slot = drag && drag.side === "mine" ? gearSlotAt(e) : null;
+    if (slot) slot.classList.add(gearAllows(drag.stack, slot.dataset.target) ? "hover" : "deny");
+    return slot;
+  }
+
+  function updateGhost(e) {
+    if (markGear(e)) {
+      const ghost = $("ghost");
+      ghost.style.left = `${e.clientX - CELL / 2}px`;
+      ghost.style.top = `${e.clientY - CELL / 2}px`;
+      ghost.classList.remove("bad");
+      return;
+    }
+    const side = dropSide(e);
+    const t = target(e, side);
+    const ghost = $("ghost");
+    ghost.style.width = `${t.w * CELL}px`;
+    ghost.style.height = `${t.h * CELL}px`;
+    ghost.style.left = `${e.clientX - t.gx * CELL - CELL / 2}px`;
+    ghost.style.top = `${e.clientY - t.gy * CELL - CELL / 2}px`;
+    const inside = t.x >= 1 && t.y >= 1 && t.x + t.w - 1 <= state.cols && t.y + t.h - 1 <= state.rows;
+    let bad;
+    if (side !== drag.side) {
+      // В другую сетку: сервер положит сюда, а занято — на первое свободное место.
+      bad = false;
+    } else if (side === "loot") {
+      bad = true; // раскладывать чужие вещи нельзя
+    } else {
+      const under = stackUnderCursor(e, side);
+      const merge = under && state.stacks[under - 1].i === drag.stack.i && def(drag.stack).stack > 1;
+      bad = !merge && (!inside || overlaps(side, t.x, t.y, t.w, t.h) !== null);
+    }
+    ghost.classList.toggle("bad", bad);
+  }
+
+  document.addEventListener("pointermove", e => { if (drag) updateGhost(e); });
+
+  $("lootSearch").addEventListener("click", () => {
+    $("lootSearch").hidden = true;
+    emit("inv:lootSearch");
+  });
+
+  document.addEventListener("pointerup", e => {
+    if (!drag) return;
+    const slot = drag.side === "mine" ? gearSlotAt(e) : null;
+    const side = dropSide(e);
+    const t = target(e, side);
+    const d = drag;
+    d.el.classList.remove("dragging");
+    $("ghost").style.display = "none";
+    markGear({ clientX: -1, clientY: -1 });
+    drag = null;
+    if (slot) {
+      if (slot.dataset.target !== d.stack.c) emit("inv:gear", { index: d.index, item: d.stack.i, target: slot.dataset.target });
+      return;
+    }
+    if (d.stack.c && side === "mine") {
+      // из слота/пояса — в рюкзак, в клетку под курсором
+      emit("inv:gear", { index: d.index, item: d.stack.i, target: "grid", a: t.x, b: t.y, c: d.rotated });
+      return;
+    }
+    if (side !== d.side) {
+      emit("inv:loot", { from: d.side, index: d.index, item: d.stack.i, a: t.x, b: t.y, c: d.rotated });
+      return;
+    }
+    if (side === "loot") return;
+    drag = d; // stackUnderCursor смотрит на drag
+    const under = stackUnderCursor(e, side);
+    drag = null;
+    const payload = { index: d.index, item: d.stack.i, a: t.x, b: t.y, c: d.rotated };
+    if (under && state.stacks[under - 1].i === d.stack.i) payload.d = under;
+    const moved = payload.d || t.x !== d.stack.x || t.y !== d.stack.y || d.rotated !== !!d.stack.r;
+    if (moved) emit("inv:move", payload);
+  });
+
+  // -- меню и количество -------------------------------------------------------------
+
+  function closeMenu() { $("menu").style.display = "none"; }
+
+  function addButton(menu, text, action) {
+    const b = document.createElement("button");
+    b.textContent = text;
+    b.addEventListener("click", () => { closeMenu(); action(); });
+    menu.append(b);
+  }
+
+  function askCount(e, label, max, onOk) {
+    if (max <= 1) return onOk(1);
+    const dialog = $("dialog");
+    $("dialogLabel").textContent = `${label} (1–${max})`;
+    const input = $("dialogInput");
+    input.max = max;
+    input.value = max;
+    dialog.style.display = "block";
+    positionPopup(dialog, e.clientX, e.clientY);
+    input.focus();
+    input.select();
+    const finish = () => {
+      dialog.style.display = "none";
+      $("dialogOk").onclick = null;
+      input.onkeydown = null;
+      const n = Math.max(1, Math.min(max, Math.floor(Number(input.value) || 0)));
+      onOk(n);
+    };
+    $("dialogOk").onclick = finish;
+    input.onkeydown = ev => {
+      if (ev.key === "Enter") finish();
+      if (ev.key === "Escape") { dialog.style.display = "none"; ev.stopPropagation(); }
+    };
+  }
+
+  function openMenu(e, index, stack) {
+    hideTooltip();
+    const d = def(stack);
+    const menu = $("menu");
+    menu.replaceChildren();
+    const base = { index, item: stack.i };
+    if (d.usable) addButton(menu, d.useLabel || "Использовать", () => emit("inv:use", base));
+    if ((d.mag && stack.m > 0) || (d.weapon && !d.melee && stack.wr > 0)) addButton(menu, "Разрядить", () => emit("inv:unload", base));
+    if (stack.c) {
+      addButton(menu, d.wear ? "Снять" : "Снять в рюкзак", () => emit("inv:gear", { ...base, target: "grid" }));
+    } else if (d.wear) {
+      // Одежда: в свой слот (занят — прежняя вещь уходит в рюкзак).
+      if (document.querySelector(`[data-target="cl_${d.wear}"]`)) addButton(menu, "Надеть", () => emit("inv:gear", { ...base, target: "cl_" + d.wear }));
+    } else {
+      // Быстро: в первый свободный слот оружия / ячейку пояса.
+      const taken = new Set(state.stacks.filter(s => s.c).map(s => s.c));
+      const free = prefix => [1, 2, 3, 4, 5].map(n => prefix + n).find(t => document.querySelector(`#gearBox [data-target="${t}"]`) && !taken.has(t));
+      if (d.weapon && free("w")) addButton(menu, "В слот оружия", () => emit("inv:gear", { ...base, target: free("w") }));
+      if (d.belt && free("b")) addButton(menu, "На пояс", () => emit("inv:gear", { ...base, target: free("b") }));
+      if (d.shard && free("n")) addButton(menu, "В нейропорт", () => emit("inv:gear", { ...base, target: free("n") }));
+    }
+    if (stack.n > 1 && stack.x) {
+      addButton(menu, "Разделить", () => askCount(e, "Сколько отделить", stack.n - 1,
+        n => emit("inv:split", { ...base, a: n })));
+    }
+    const nearby = state.nearby || [];
+    if (nearby.length) {
+      const sep = document.createElement("div");
+      sep.className = "sep";
+      sep.textContent = "Передать";
+      menu.append(sep);
+      for (const p of nearby) {
+        addButton(menu, `${p.name} [${p.id}]`, () => askCount(e, "Сколько передать", stack.n,
+          n => emit("inv:give", { ...base, a: n, b: p.id })));
+      }
+    }
+    addButton(menu, "Выбросить", () => askCount(e, "Сколько выбросить", stack.n,
+      n => emit("inv:drop", { ...base, a: n })));
+    menu.style.display = "block";
+    positionPopup(menu, e.clientX, e.clientY);
+  }
+
+  document.addEventListener("pointerdown", e => {
+    if (!$("menu").contains(e.target)) closeMenu();
+    if (!$("dialog").contains(e.target)) $("dialog").style.display = "none";
+  });
+  document.addEventListener("contextmenu", e => e.preventDefault());
+
+  document.addEventListener("keydown", e => {
+    if (!$("root").classList.contains("open")) return;
+    if (document.activeElement === $("dialogInput")) return;
+    const key = e.key.toLowerCase();
+    if (key === "escape" && deckOpen) {
+      e.preventDefault();
+      closeDeck();
+      return;
+    }
+    if (key === "r" || key === "к") {
+      if (drag) {
+        drag.rotated = !drag.rotated;
+        const d = def(drag.stack);
+        if (d.w === d.h) drag.rotated = false;
+        // курсор остаётся над той же клеткой предмета
+        [drag.grabX, drag.grabY] = [drag.grabY, drag.grabX];
+      }
+      return;
+    }
+    if (key === "escape" || key === "i" || key === "ш") {
+      e.preventDefault();
+      emit("inv:close");
+    }
+  });
+
+  // -- вкладка «Импланты» ------------------------------------------------------------
+
+  // Раскладка слотов по системам организма (только вид; слоты задаёт rp_cyberware).
+  const CY_GROUPS = {
+    left: [
+      { label: "Голова", slots: ["eyes", "os"] },
+      { label: "Руки", slots: ["arms"] },
+      { label: "Скелет", slots: ["skeleton", "tendons"] },
+      { label: "Покровы", slots: ["skin"] },
+    ],
+    right: [
+      { label: "Кровообращение", slots: ["heart", "blood"] },
+      { label: "Метаболизм", slots: ["metabolism"] },
+      { label: "Защита разума", slots: ["ice", "purge"] },
+      { label: "Ноги", slots: ["legs"] },
+    ],
+  };
+  // Какая часть тела подсвечивается для слота.
+  const CY_REGION = { eyes: "head", os: "head", ice: "head", purge: "head", arms: "arms", legs: "legs", tendons: "legs",
+    skeleton: "bones", skin: "skin", heart: "heart", blood: "torso", metabolism: "torso" };
+
+  // Категорийные иллюстрации: атлас 4 × 3, порядок не зависит от серверного каталога.
+  const CY_ART = ["eyes", "os", "arms", "skeleton", "tendons", "skin", "heart", "blood", "metabolism", "ice", "purge", "legs"];
+  function cyIllustration(slot) {
+    const index = CY_ART.indexOf(slot.id);
+    if (index < 0) return itemIllustration(slot.implant.id || slot.id, {});
+    const art = document.createElement("div");
+    art.className = "implantArt";
+    art.setAttribute("aria-hidden", "true");
+    art.style.backgroundPosition = `${index % 4 * 100 / 3}% ${Math.floor(index / 4) * 50}%`;
+    return art;
+  }
+
+  // Связи пересчитываются при смене данных/размера, а не на каждом кадре.
+  let cyLineFrame = 0;
+  function cyLayout() {
+    cancelAnimationFrame(cyLineFrame);
+    cyLineFrame = requestAnimationFrame(() => {
+      if (!$("panel").classList.contains("cyber") || !$("root").classList.contains("open")) return;
+      const main = document.querySelector("#cyberView .cyMain").getBoundingClientRect();
+      const svg = document.querySelector(".cyConnectors svg");
+      const matrix = $("cyBody").getScreenCTM();
+      if (!matrix || !main.width || !main.height) return;
+      svg.setAttribute("viewBox", `0 0 ${main.width} ${main.height}`);
+      svg.replaceChildren();
+      for (const group of document.querySelectorAll("#cyberView .cyGroup")) {
+        const region = $("r-" + group.dataset.region);
+        if (!region) continue;
+        const column = group.parentElement.getBoundingClientRect();
+        const rect = group.querySelector(".cyHead").getBoundingClientRect();
+        if (rect.top < column.top || rect.bottom > column.bottom) continue;
+        const [ax, ay] = region.dataset.anchor.split(",").map(Number);
+        const point = $("cyBody").createSVGPoint();
+        point.x = ax; point.y = ay;
+        const target = point.matrixTransform(matrix);
+        const left = group.parentElement.id === "cyLeft";
+        const startX = (left ? rect.right + 8 : rect.left - 8) - main.left;
+        const startY = rect.top + rect.height / 2 - main.top;
+        const endX = target.x - main.left, endY = target.y - main.top;
+        const bendX = startX + (endX - startX) * .55;
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", `M${startX},${startY} H${bendX} L${endX},${endY}`);
+        svg.append(path);
+      }
+    });
+  }
+  new ResizeObserver(cyLayout).observe(document.querySelector("#cyberView .cyMain"));
+  [$("cyLeft"), $("cyRight")].forEach(column => column.addEventListener("scroll", () => { cyHideTip(); cyLayout(); }));
+  window.addEventListener("resize", () => { cyHideTip(); cyLayout(); });
+
+  let cyber = null;
+  const shortName = label => String(label).replace(/^Имплант: /, "");
+
+  function cyLight(slotId, on) {
+    const region = document.getElementById("r-" + (CY_REGION[slotId] || "skin"));
+    if (region) region.classList.toggle("lit", on);
+  }
+
+  function cyShowTip(tile, slot, side) {
+    const tip = $("cyTip");
+    const it = slot.implant;
+    tip.innerHTML = it
+      ? `<div class="tipHead">Установлен</div><div class="tipBody"><div class="tipName"></div><div class="tipSlot"></div>
+         <div class="tipCost"></div><div class="tipDesc"></div><div class="tipFoot">Снять или заменить — в клинике рипердока</div></div>`
+      : `<div class="tipHead empty">Пустой слот</div><div class="tipBody"><div class="tipName"></div><div class="tipSlot"></div>
+         <div class="tipDesc">Имплант для этого слота можно купить в магазине имплантов и поставить у рипердока.</div></div>`;
+    tip.querySelector(".tipName").textContent = it ? shortName(it.label) : "Пусто";
+    tip.querySelector(".tipSlot").textContent = slot.label;
+    if (it) {
+      tip.querySelector(".tipCost").textContent = `−${it.humanity} человечности`;
+      tip.querySelector(".tipDesc").textContent = it.description || "";
+      if (slot.id === "os" && cyber && cyber.deck) {
+        tip.querySelector(".tipFoot").textContent = "Нажмите — вставить или вынуть скрипты";
+      }
+    }
+    tip.style.display = "block";
+    const r = tile.getBoundingClientRect();
+    const left = side === "left" ? r.right + 12 : r.left - 12 - tip.offsetWidth;
+    const top = Math.min(Math.max(8, r.top - 10), window.innerHeight - tip.offsetHeight - 8);
+    tip.style.left = `${Math.max(8, Math.min(left, window.innerWidth - tip.offsetWidth - 8))}px`;
+    tip.style.top = `${Math.max(8, top)}px`;
+  }
+
+  function cyHideTip() { $("cyTip").style.display = "none"; }
+
+  function cyTile(slot, side) {
+    const el = document.createElement("div");
+    el.className = "cyTile " + (slot.implant ? "filled" : "empty");
+    el.dataset.slot = slot.id;
+    if (slot.implant) {
+      el.innerHTML = `<div class="tName"></div><div class="tCost"></div>`;
+      el.querySelector(".tName").textContent = shortName(slot.implant.label);
+      el.querySelector(".tCost").textContent = `−${slot.implant.humanity}`;
+      el.append(cyIllustration(slot));
+    } else {
+      el.innerHTML = `<div class="tPlus">+</div><div class="tSlot"></div>`;
+      el.querySelector(".tSlot").textContent = slot.label;
+    }
+    // Кибердека: щелчок — окно скриптов.
+    if (slot.id === "os" && slot.implant && cyber && cyber.deck) {
+      el.classList.add("deckTile");
+      el.tabIndex = 0;
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", `${shortName(slot.implant.label)} — открыть скрипты`);
+      el.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); el.click(); }
+      });
+      const badge = document.createElement("div");
+      badge.className = "tBadge";
+      badge.textContent = `▣ ${cyber.deck.scripts.length}/${cyber.deck.size}`;
+      el.append(badge);
+      el.addEventListener("click", () => {
+        cyHideTip(); cyLight(slot.id, false); deckOpen = true; renderDeck();
+        $("deckBox").querySelector("button").focus();
+      });
+    }
+    el.addEventListener("mouseenter", () => {
+      if (deckOpen) return;
+      el.classList.add("sel"); cyLight(slot.id, true); cyShowTip(el, slot, side);
+    });
+    el.addEventListener("mouseleave", () => { el.classList.remove("sel"); cyLight(slot.id, false); cyHideTip(); });
+    return el;
+  }
+
+  function cyColumn(parent, groups, bySlot, side) {
+    parent.replaceChildren();
+    for (const g of groups) {
+      const slots = g.slots.map(id => bySlot.get(id)).filter(Boolean);
+      if (!slots.length) continue;
+      const box = document.createElement("div");
+      box.className = "cyGroup" + (slots.some(s => s.implant) ? " has" : "");
+      box.dataset.region = CY_REGION[slots[0].id] || "skin";
+      const head = document.createElement("div");
+      head.className = "cyHead";
+      head.textContent = g.label;
+      const tiles = document.createElement("div");
+      tiles.className = "cyTiles";
+      for (const s of slots) tiles.append(cyTile(s, side));
+      box.append(head, tiles);
+      parent.append(box);
+    }
+  }
+
+  function renderCyber() {
+    if (!cyber) return;
+    cyHideTip();
+    document.querySelectorAll("#cyBody .lit").forEach(el => el.classList.remove("lit"));
+    const max = cyber.humanityMax || 100;
+    const low = cyber.humanity < cyber.threshold;
+    $("humMeter").style.setProperty("--c", low ? "var(--warn)" : "#f3c018");
+    $("humValue").textContent = `${cyber.humanity} / ${max}`;
+    $("humFill").style.height = `${Math.max(0, cyber.humanity) / max * 100}%`;
+    $("humMark").style.bottom = `${cyber.threshold / max * 100}%`;
+    $("humMark").querySelector("span").textContent = cyber.threshold;
+    $("humNote").textContent = low ? "Ниже порога — психоз растёт, пока вы в игре." : `Порог психоза — ${cyber.threshold}.`;
+
+    const sanity = Math.max(0, 100 - cyber.psychosis);
+    $("sanMeter").style.setProperty("--c", cyber.psychosis >= cyber.severeFrom ? "var(--warn)"
+      : cyber.psychosis >= cyber.episodeFrom ? "#f3a600" : "var(--accent)");
+    $("sanityValue").textContent = `${sanity} / 100`;
+    $("sanityFill").style.height = `${sanity}%`;
+    $("sanEpisode").style.bottom = `${100 - cyber.episodeFrom}%`;
+    $("sanEpisode").querySelector("span").textContent = 100 - cyber.episodeFrom;
+    $("sanSevere").style.bottom = `${100 - cyber.severeFrom}%`;
+    $("sanSevere").querySelector("span").textContent = 100 - cyber.severeFrom;
+    $("sanityNote").textContent = cyber.psychosis >= cyber.severeFrom ? "Киберпсихоз: тяжёлые приступы, теряете контроль."
+      : cyber.psychosis >= cyber.episodeFrom ? "Приступы: голоса, помехи. Примите нейроблокатор." : "Рассудок в порядке.";
+
+    // Слоты: известные — по группам, новые из конфига — в «Прочее» справа.
+    const slots = Array.isArray(cyber.slots) ? cyber.slots : [];
+    const bySlot = new Map(slots.map(s => [s.id, s]));
+    const known = new Set([...CY_GROUPS.left, ...CY_GROUPS.right].flatMap(g => g.slots));
+    const rest = slots.filter(s => !known.has(s.id)).map(s => s.id);
+    cyColumn($("cyLeft"), CY_GROUPS.left, bySlot, "left");
+    cyColumn($("cyRight"), rest.length ? [...CY_GROUPS.right, { label: "Прочее", slots: rest }] : CY_GROUPS.right, bySlot, "right");
+
+    // На теле обводкой отмечены части, где что-то стоит.
+    document.querySelectorAll("#cyBody .has").forEach(el => el.classList.remove("has"));
+    for (const s of slots) {
+      if (!s.implant) continue;
+      const region = document.getElementById("r-" + (CY_REGION[s.id] || "skin"));
+      if (region) region.classList.add("has");
+    }
+    $("cyCount").innerHTML = `Установлено: <b>${slots.filter(s => s.implant).length}</b> из ${slots.length}`;
+    renderDeck();
+    cyLayout();
+  }
+
+  // Окно кибердеки: слоты скриптов (щелчок — вынуть) и скрипты в карманах (вставить).
+  let deckOpen = false;
+  function closeDeck() {
+    deckOpen = false; renderDeck();
+    if ($("panel").classList.contains("cyber") && $("root").classList.contains("open")) {
+      document.querySelector(".deckTile")?.focus();
+    }
+  }
+  function renderDeck() {
+    const box = $("deckBox");
+    const d = cyber && cyber.deck;
+    $("deckBackdrop").hidden = !deckOpen || !d;
+    if (!deckOpen || !d) { deckOpen = false; box.classList.remove("open"); return; }
+    const focusKey = box.contains(document.activeElement) ? document.activeElement.dataset.focusKey : null;
+    box.innerHTML = `<div class="dHead"><b></b><button title="Закрыть">×</button></div>
+      <div class="dSub"></div><div class="dSlots"></div><div class="dCap">Скрипты в карманах</div><div class="dPocket"></div>`;
+    box.querySelector("b").textContent = shortName(d.label);
+    box.querySelector("button").dataset.focusKey = "close";
+    box.querySelector("button").addEventListener("click", closeDeck);
+    box.querySelector(".dSub").textContent = `Слотов: ${d.size} · RAM: ${d.ram} · щелчок по скрипту — вынуть в карманы`;
+    const slotsEl = box.querySelector(".dSlots");
+    for (let i = 0; i < d.size; i++) {
+      const sc = d.scripts[i];
+      const el = document.createElement("div");
+      if (sc) {
+        el.className = "dSlot";
+        el.tabIndex = 0;
+        el.dataset.focusKey = `eject-${i}`;
+        el.setAttribute("role", "button");
+        el.setAttribute("aria-label", `${sc.label} — вынуть скрипт`);
+        el.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") { event.preventDefault(); el.click(); }
+        });
+        el.innerHTML = `<span></span><span class="ram"></span>`;
+        el.children[0].textContent = sc.label.replace(/^Скрипт: /, "");
+        el.children[1].textContent = sc.ram;
+        el.title = sc.description;
+        el.addEventListener("click", () => Open77.emit("inv:deckEject", { index: i + 1 }));
+      } else {
+        el.className = "dSlot empty";
+        el.textContent = "+";
+      }
+      slotsEl.append(el);
+    }
+    const pocket = box.querySelector(".dPocket");
+    const full = d.scripts.length >= d.size;
+    const inside = new Set(d.scripts.map(sc => sc.id));
+    if (!d.pocket.length) pocket.innerHTML = `<div class="dEmpty">Скриптов нет — их продают в магазине имплантов.</div>`;
+    for (const sc of d.pocket) {
+      const row = document.createElement("div");
+      row.className = "dRow";
+      row.innerHTML = `<div class="n"><span></span><small></small></div><span class="r"></span><button>Вставить</button>`;
+      row.querySelector(".n span").textContent = sc.label.replace(/^Скрипт: /, "") + (sc.count > 1 ? ` ×${sc.count}` : "");
+      row.querySelector("small").textContent = sc.description;
+      row.querySelector(".r").textContent = `${sc.ram} RAM`;
+      const btn = row.querySelector("button");
+      btn.dataset.focusKey = `insert-${sc.id}`;
+      btn.disabled = full || inside.has(sc.id);
+      if (inside.has(sc.id)) btn.textContent = "Уже в деке";
+      btn.addEventListener("click", () => { btn.disabled = true; Open77.emit("inv:deckInsert", { id: sc.id }); });
+      pocket.append(row);
+    }
+    if (!d.kiroshi) {
+      const warn = document.createElement("div");
+      warn.className = "dWarn";
+      warn.textContent = "Нет оптики Kiroshi: без неё скрипты не отправить (сканер — TAB).";
+      box.append(warn);
+    }
+    box.classList.add("open");
+    if (focusKey) {
+      const target = [...box.querySelectorAll("[data-focus-key]")].find(el => el.dataset.focusKey === focusKey && !el.disabled);
+      (target || box.querySelector("button")).focus();
+    }
+  }
+
+  $("deckBackdrop").addEventListener("click", closeDeck);
+  $("deckBox").addEventListener("keydown", event => {
+    if (event.key !== "Tab") return;
+    const controls = [...$("deckBox").querySelectorAll("button:not(:disabled), [tabindex='0']")];
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+
+  document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b === btn));
+    $("panel").classList.toggle("cyber", btn.dataset.tab === "cyber");
+    $("root").classList.toggle("cyberActive", btn.dataset.tab === "cyber");
+    deckOpen = false;
+    cyHideTip();
+    renderCyber();
+  }));
+
+  // Пустую Lua-таблицу сервер может прислать объектом или null — приводим списки к массивам.
+  const asArray = v => Array.isArray(v) ? v : (v && typeof v === "object" ? Object.values(v) : []);
+  Open77.on("inv:cyber", p => {
+    if (p && p.deck) { p.deck.scripts = asArray(p.deck.scripts); p.deck.pocket = asArray(p.deck.pocket); }
+    cyber = p;
+    renderCyber();
+  });
+
+  // -- сервер ----------------------------------------------------------------------
+
+  Open77.on("inv:open", () => {
+    $("root").classList.add("open");
+    render();
+    cyLayout();
+  });
+  Open77.on("inv:close", () => {
+    $("root").classList.remove("open");
+    closeMenu();
+    hideTooltip();
+    cyHideTip();
+    deckOpen = false;
+    $("deckBox").classList.remove("open");
+    $("deckBackdrop").hidden = true;
+    document.querySelectorAll("#cyBody .lit").forEach(el => el.classList.remove("lit"));
+    $("dialog").style.display = "none";
+    if (drag) { drag.el.classList.remove("dragging"); $("ghost").style.display = "none"; drag = null; }
+  });
+  // Каталог приходит частями (передача в страницу ограничена по размеру).
+  Open77.on("inv:catalog", part => { Object.assign(catalog, part || {}); if (state && !drag) render(); });
+  Open77.on("inv:state", s => {
+    if (s.catalog) catalog = s.catalog;
+    // Пустая Lua-таблица приходит как {}, а не [].
+    s.stacks = Array.isArray(s.stacks) ? s.stacks : [];
+    s.nearby = Array.isArray(s.nearby) ? s.nearby : [];
+    if (s.loot) s.loot.stacks = Array.isArray(s.loot.stacks) ? s.loot.stacks : [];
+    else s.loot = null;
+    state = s;
+    if (!drag) render();
+  });
+
+  // UI-only header title; no effect on the existing tab logic.
+  document.querySelectorAll("#tabs .tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      const cyber = tab.dataset.tab === "cyber";
+      $("hudTitle").textContent = cyber ? "ИМПЛАНТЫ" : "ИНВЕНТАРЬ";
+      $("hudSubtitle").textContent = cyber
+        ? "УПРАВЛЕНИЕ КИБЕРНЕТИЧЕСКИМИ МОДИФИКАЦИЯМИ"
+        : "УПРАВЛЕНИЕ СНАРЯЖЕНИЕМ, ОРУЖИЕМ И ПРЕДМЕТАМИ";
+    });
+  });
+
+  Open77.ready();
+</script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>КПП</title>
+<style>
+  :root { --cyan: #5ef6ff; --ok: #4be38a; --warn: #ff5e6c; --text: #e8f1f2; --muted: #8fa3a8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 16px/1.35 "Segoe UI", Arial, sans-serif; user-select: none; pointer-events: none; }
+
+  /* Скан: голубая рамка, сверху вниз проходит луч, полоса прогресса под прицелом. */
+  #scan { position: absolute; inset: 0; display: none; }
+  #scan.on { display: block; }
+  #scan .edge { position: absolute; inset: 0; box-shadow: inset 0 0 90px rgba(94, 246, 255, 0.28); }
+  #scan .beam { position: absolute; left: 0; right: 0; height: 14px; top: -20px;
+    background: linear-gradient(180deg, transparent, rgba(94, 246, 255, 0.55), transparent);
+    box-shadow: 0 0 24px rgba(94, 246, 255, 0.6); animation: beam 1.3s linear infinite; }
+  @keyframes beam { from { top: -20px; } to { top: 100%; } }
+  #scan .grid { position: absolute; inset: 0; opacity: 0.12;
+    background: repeating-linear-gradient(0deg, rgba(94, 246, 255, 0.5) 0 1px, transparent 1px 6px); }
+
+  #box { position: absolute; left: 50%; top: calc(50% + 120px); transform: translateX(-50%); width: 460px; display: none;
+    padding: 10px 14px 12px; background: rgba(8, 12, 18, 0.9); border: 1px solid rgba(94, 246, 255, 0.6); }
+  #box.on { display: block; }
+  #box .cap { display: flex; justify-content: space-between; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--cyan); font-weight: 700; }
+  #box .track { height: 6px; margin-top: 8px; background: rgba(255, 255, 255, 0.1); }
+  #box .fill { height: 100%; width: 0; background: var(--cyan); }
+  #box .note { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  #box.ok { border-color: var(--ok); }
+  #box.ok .cap { color: var(--ok); }
+  #box.ok .fill { background: var(--ok); }
+  #box.bad { border-color: var(--warn); animation: alarm 0.5s steps(2) infinite; }
+  #box.bad .cap { color: var(--warn); }
+  #box.bad .fill { background: var(--warn); }
+  #box.bad .note { color: #ffc2c8; }
+  @keyframes alarm { 50% { box-shadow: 0 0 28px rgba(255, 60, 80, 0.7); } }
+
+  #red { position: absolute; inset: 0; display: none;
+    background: radial-gradient(ellipse 75% 70% at center, transparent 45%, rgba(200, 0, 20, 0.45) 100%);
+    animation: redPulse 0.6s ease-in-out infinite; }
+  #red.on { display: block; }
+  @keyframes redPulse { 50% { opacity: 0.45; } }
+</style>
+</head>
+<body>
+<div id="scan"><div class="edge"></div><div class="grid"></div><div class="beam"></div></div>
+<div id="red"></div>
+<div id="box"><div class="cap"><span id="title"></span><span id="time"></span></div>
+  <div class="track"><div class="fill" id="fill"></div></div>
+  <div class="note" id="note"></div></div>
+<script>
+  const $ = id => document.getElementById(id);
+  let timer = null, hideTimer = null;
+
+  function stop() { clearInterval(timer); timer = null; }
+  function hideLater(ms) {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { $("box").className = ""; $("red").classList.remove("on"); }, ms);
+  }
+
+  Open77.on("cp:scan", p => {
+    if (!p) return;
+    clearTimeout(hideTimer);
+    stop();
+    const label = p.label || "КПП";
+    if (p.phase === "start") {
+      const ms = Math.max(500, Number(p.ms) || 4000), start = Date.now();
+      $("box").className = "on";
+      $("red").classList.remove("on");
+      $("scan").classList.add("on");
+      $("title").textContent = `${label} · сканирование`;
+      $("note").textContent = "Импланты отключены на время досмотра. Стойте спокойно.";
+      const tick = () => {
+        const left = Math.max(0, ms - (Date.now() - start));
+        $("fill").style.width = `${Math.min(100, (1 - left / ms) * 100)}%`;
+        $("time").textContent = `${(left / 1000).toFixed(1)} с`;
+        if (left <= 0) stop();
+      };
+      tick();
+      timer = setInterval(tick, 50);
+      return;
+    }
+    $("scan").classList.remove("on");
+    $("fill").style.width = "100%";
+    $("time").textContent = "";
+    if (p.phase === "clear") {
+      $("box").className = "on ok";
+      $("title").textContent = `${label} · проход разрешён`;
+      $("note").textContent = "Нарушений не обнаружено.";
+      hideLater(2500);
+    } else if (p.phase === "alarm") {
+      $("box").className = "on bad";
+      $("red").classList.add("on");
+      $("title").textContent = `${label} · нарушение`;
+      $("note").textContent = (Array.isArray(p.reasons) ? p.reasons : []).join(" · ") || "Обнаружено нарушение.";
+      hideLater(7000);
+    }
+  });
+
+  Open77.ready();
+</script>
+</body>
+</html>

@@ -13,6 +13,9 @@ end
 -- Передача в страницу ограничена по размеру: каталог предметов — отдельно и частями,
 -- состояние — без него.
 local catalogSent = false
+-- seq — номер обновления с сервера: состояние с каталогом приходит латентно (частями) и может
+-- опоздать — из устаревшего берём только каталог. Сбрасывается при каждом открытии окна.
+local lastSeq = 0
 local function sendState(state)
     if state.catalog then
         if not catalogSent or state.catalog ~= catalogSent then
@@ -24,6 +27,7 @@ local function sendState(state)
             if n > 0 then send("inv:catalog", chunk) end
             catalogSent = state.catalog
         end
+        if state.skipState then return end
         local copy = {}
         for k, v in pairs(state) do if k ~= "catalog" then copy[k] = v end end
         state = copy
@@ -42,6 +46,7 @@ end
 local function open()
     if isOpen or not page then return end
     isOpen = true
+    lastSeq = 0
     send("inv:open")
     page:setFocus(true, true)
     TriggerServerEvent("rp_inventory:open")
@@ -131,6 +136,15 @@ end)
 
 RegisterNetEvent("rp_inventory:state", function(state)
     if type(state) ~= "table" then return end
+    local seq = math.tointeger(tonumber(state.seq)) or 0
+    if seq > 0 and seq < lastSeq then
+        if state.catalog and isOpen then
+            catalogSent = false
+            sendState({ catalog = state.catalog, skipState = true })
+        end
+        return
+    end
+    if seq > 0 then lastSeq = seq end
     pendingState = state
     if isOpen then sendState(state) end
 end)

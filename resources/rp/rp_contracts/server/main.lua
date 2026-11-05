@@ -190,7 +190,8 @@ RegisterCommand("contractassign",function(source,args)
     if p and cid and merc then CreateThread(function()assign(p,cid,merc) end)
     else note(p,"Использование: /contractassign <номер заказа> <ID наёмника>") end
 end,false)
-AddEventHandler("rp_inventory:used",function(playerArg,item,characterId,meta)
+-- Прочитать досье: ПКМ «Прочитать досье» (used) или щепка в нейропорте (read, rp_inventory).
+local function readShard(playerArg,item,characterId,meta)
     if item~="target_shard" or type(meta)~="table" then return end
     local p=id(playerArg);local cid=id(meta.contractId);if not p or not cid then return end
     CreateThread(function()
@@ -201,7 +202,9 @@ AddEventHandler("rp_inventory:used",function(playerArg,item,characterId,meta)
         TriggerClientEvent("rp_contracts:dossier",p,{id=cid,title=row.title,description=row.description,
             targetName=row.target_name,biometric="NC-"..string.format("%08X",tonumber(row.target_id))})
     end)
-end)
+end
+AddEventHandler("rp_inventory:used",readShard)
+AddEventHandler("rp_inventory:read",readShard)
 -- Контрактные подсказки для штатного сканера Kiroshi. Не раскрывать истинную
 -- личность до data_breach: обычное сканирование лишь сравнивает приметы.
 exports("kiroshi_contract",function(hacker,target,revealed)

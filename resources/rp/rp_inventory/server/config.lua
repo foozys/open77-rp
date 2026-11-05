@@ -32,10 +32,16 @@ InvConfig = {
     chipMax = 10000000,
 
     items = {
-        credchip   = { label = "Денежная щепка",    labelEn = "Cred chip",    w = 1, h = 1, weightG = 10,   stack = 1,  color = "#f3e600", use = "chip", unique = true, needsOs = true },
+        credchip   = { label = "Денежная щепка",    labelEn = "Cred chip",    w = 1, h = 1, weightG = 10,   stack = 1,  color = "#f3e600", use = "chip", unique = true, needsOs = true, shard = true },
+        -- Личная щепка (rp_identity, шаг 6): meta — owner, serial, holder, birth, sin (подделка —
+        -- forged = true и licenses). ПКМ «Показать» — ближайшему игроку.
+        -- shard = true — щепка: вставляется в нейропорт (слоты n1, n2 снаряжения).
+        id_chip    = { label = "Личная щепка",      labelEn = "ID chip",      w = 1, h = 1, weightG = 10,   stack = 1,  color = "#9fd8ff", use = "event", unique = true, useLabel = "Показать", shard = true, meta = {} },
+        -- Пустая щепка (шаг 6, 2026-11-04): вставить в нейропорт — на неё пишется копия чужой личной щепки.
+        blank_shard = { label = "Пустая щепка", labelEn = "Blank shard", w = 1, h = 1, weightG = 10, stack = 1, color = "#7d8a90", shard = true },
         target_shard = { label = "Досье цели", labelEn = "Target dossier shard", w = 1, h = 1,
                          weightG = 10, stack = 1, color = "#f1ae48", use = "event",
-                         unique = true, needsOs = true, useLabel = "Прочитать досье" },
+                         unique = true, needsOs = true, useLabel = "Прочитать досье", shard = true },
         carkey     = { label = "Ключ от машины",    labelEn = "Car key",      w = 1, h = 1, weightG = 20,   stack = 1,  color = "#5ef6ff", use = "event", unique = true, useLabel = "Запереть / открыть" },
         water     ={ label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
         sandwich   = { label = "Сэндвич",           labelEn = "Sandwich",     w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
@@ -54,6 +60,7 @@ InvConfig = {
         implant_dash       = { label = "Имплант: сухожилия (рывок)",    labelEn = "Reinforced Tendons",  w = 1, h = 2, weightG = 900,  stack = 1, color = "#9b59b6" },
         implant_slam       = { label = "Имплант: усиленный скелет",     labelEn = "Bionic Skeleton",     w = 2, h = 2, weightG = 3000, stack = 1, color = "#9b59b6" },
         implant_sandevistan= { label = "Имплант: Сандевистан",          labelEn = "Sandevistan",         w = 2, h = 1, weightG = 700,  stack = 1, color = "#e74c3c" },
+        implant_sandevistan_mk2 = { label = "Имплант: Сандевистан Mk.2", labelEn = "Sandevistan Mk.2",  w = 2, h = 1, weightG = 800,  stack = 1, color = "#ff3b5c" },
         implant_deck       = { label = "Имплант: кибердека",            labelEn = "Cyberdeck",           w = 2, h = 1, weightG = 700,  stack = 1, color = "#16a085" },
         implant_deck_pro   = { label = "Имплант: кибердека Netwatch",   labelEn = "Netwatch Cyberdeck",  w = 2, h = 1, weightG = 800,  stack = 1, color = "#16a085" },
         implant_civil_os   = { label = "Имплант: гражданская ОС",      labelEn = "Civilian OS",         w = 1, h = 1, weightG = 120,  stack = 1, color = "#5ef6ff" },
@@ -66,10 +73,13 @@ InvConfig = {
         qh_optics          = { label = "Скрипт: перезагрузка оптики",   labelEn = "Reboot Optics",       w = 1, h = 1, weightG = 10,   stack = 5, color = "#1abc9c" },
         qh_weapon          = { label = "Скрипт: сбой оружия",           labelEn = "Weapon Glitch",       w = 1, h = 1, weightG = 10,   stack = 5, color = "#1abc9c" },
         qh_data_breach     = { label = "Скрипт: взлом данных",          labelEn = "Data Breach",         w = 1, h = 1, weightG = 10,   stack = 5, color = "#5ef6ff" },
+        qh_identity_copy   = { label = "Скрипт: копирование личности",  labelEn = "Identity Copy",       w = 1, h = 1, weightG = 10,   stack = 5, color = "#5ef6ff" },
+        qh_unmask          = { label = "Скрипт: снятие маскировки",     labelEn = "Unmask",              w = 1, h = 1, weightG = 10,   stack = 5, color = "#5ef6ff" },
         implant_ice        = { label = "Имплант: Self-ICE",             labelEn = "Self-ICE",            w = 1, h = 1, weightG = 200,  stack = 1, color = "#16a085" },
         implant_purge      = { label = "Имплант: очистка (Purge)",      labelEn = "Purge",               w = 1, h = 1, weightG = 200,  stack = 1, color = "#16a085" },
         implant_subdermal  = { label = "Имплант: подкожная броня",      labelEn = "Subdermal Armor",     w = 2, h = 2, weightG = 2000, stack = 1, color = "#7f8c8d" },
-        implant_heart      = { label = "Имплант: второе сердце",        labelEn = "Second Heart",        w = 1, h = 1, weightG = 600,  stack = 1, color = "#c0392b" },
+        implant_chameleon  = { label = "Имплант: кожа хамелеона",       labelEn = "Chameleon Skin",      w = 2, h = 2, weightG = 1600, stack = 1, color = "#8e44ad" },
+        implant_heart      = { label = "Имплант: второе сердце",       labelEn = "Second Heart",        w = 1, h = 1, weightG = 600,  stack = 1, color = "#c0392b" },
         implant_biomonitor = { label = "Имплант: биомонитор",           labelEn = "Biomonitor",          w = 1, h = 1, weightG = 150,  stack = 1, color = "#27ae60" },
         implant_metabolic  = { label = "Имплант: метаболический модуль", labelEn = "Metabolic Editor",   w = 1, h = 1, weightG = 150,  stack = 1, color = "#d35400" },
         neuroblocker       = { label = "Нейроблокатор",                 labelEn = "Neuroblocker",        w = 1, h = 1, weightG = 30,   stack = 10, color = "#5ef6ff",
@@ -134,7 +144,9 @@ InvConfig = {
     -- Снаряжение (окно «Снаряжение» рядом с сеткой): слоты оружия w1..w3 (слоты платформы
     -- 1..3) и пояс b1..b5 — клавиши 4–8. На пояс — предметы не больше beltMaxCells клеток.
     -- Перезарядка — R самой игры: запас оружия = патроны его калибра на поясе.
-    gear = { weaponSlots = 3, beltSlots = 5, beltMaxCells = 2,
+    -- Нейропорт n1..n2 — щепки (shard = true), нужна ОС: денежная считывается и пропадает,
+    -- остальные остаются в слоте, их содержимое — на экране (событие rp_inventory:read).
+    gear = { weaponSlots = 3, beltSlots = 5, beltMaxCells = 2, neuroSlots = 2,
              -- Слоты одежды (cl_<слот>): вещь с wear = слот. Порядок — как в окне.
              clothingSlots = { "Head", "Face", "OuterChest", "InnerChest", "Legs", "Feet", "Outfit" } },
 }

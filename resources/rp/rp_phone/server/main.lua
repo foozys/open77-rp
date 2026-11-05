@@ -614,10 +614,19 @@ end
 
 
 -- ---------- звонки ----------
+-- Синяя подсветка глаз (ванильная, как при голозвонке), пока идёт разговор. Видят все рядом;
+-- платформа сама гасит её при смерти и выходе из игры.
+local function callEyes(p, on)
+    if not p or p == 0 then return end
+    local ok, why = Open77.players.setHoloCallEyes(p, on == true)
+    if not ok and on then log("warn", "подсветка глаз игроку %d: %s", p, tostring(why)) end
+end
+
 local function endCall(callId, reason)
     local x = calls[callId]
     if not x then return end
     calls[callId] = nil
+    callEyes(x.caller, false); callEyes(x.callee, false)
     cancelBulk(x.caller, "rp_phone:avatarPart"); cancelBulk(x.callee, "rp_phone:avatarPart")
     if inCall[x.caller] == callId then inCall[x.caller] = nil end
     if inCall[x.callee] == callId then inCall[x.callee] = nil end
@@ -727,6 +736,7 @@ RegisterNetEvent("rp_phone:answer", function(callIdArg)
         end
         if calls[callId] ~= x then return end
         x.state = "active"
+        callEyes(x.caller, true); callEyes(x.callee, true)
         if x.row then sql("update", "UPDATE rp_phone_calls SET answered_at = NOW() WHERE id = ?", { x.row }) end
         local callerLine, calleeLine = lineOf(x.callerChar), lineOf(x.calleeChar)
         if calls[callId] ~= x then return end  -- положили трубку, пока читали номера

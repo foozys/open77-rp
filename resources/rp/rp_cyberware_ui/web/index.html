@@ -71,6 +71,13 @@
   .contractHint {margin:7px 0;padding:7px 9px;border-left:3px solid var(--k);color:#f0d78c;background:rgba(244,205,78,.08);font-size:12px;line-height:1.4}
   .contractVerify {border:1px solid #ff5969;color:#ffadb6;background:rgba(135,10,22,.22);padding:8px 10px;margin:9px 0;font-size:12px;letter-spacing:.4px}
   .contractTarget {display:inline-block;margin-left:10px;padding:3px 8px;border:2px solid #ff4050;color:#ff5566;background:rgba(90,0,10,.62);font-size:12px;vertical-align:middle;letter-spacing:1px;white-space:nowrap}
+  /* Netwatch: щепка подмены — красный «!» в кружке у имени; занятость обычных нейропортов. */
+  .subMark { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 10px;
+    border: 2px solid #ff4050; border-radius: 50%; color: #ff4050; background: rgba(90, 0, 10, 0.55); font-size: 14px;
+    font-weight: 800; line-height: 1; vertical-align: middle; box-shadow: 0 0 10px rgba(255, 64, 80, 0.55); }
+  .ports { display: inline-flex; gap: 6px; }
+  .ports i { font-style: normal; padding: 0 6px; font-size: 11px; letter-spacing: 1px; border: 1px solid rgba(255, 255, 255, 0.2); color: var(--muted); }
+  .ports i.busy { border-color: var(--k); color: var(--k); background: rgba(243, 230, 0, 0.1); }
   .access { color: var(--ok); font-size: 11px; letter-spacing: 1px; margin-bottom: 4px; }
   .qh { position: absolute; left: 50%; bottom: 34px; width: min(1080px, calc(100% - 120px)); transform: translateX(-50%);
     margin: 0; border-left-color: var(--q); border-color: rgba(94, 246, 255, 0.45); }
@@ -158,6 +165,28 @@
     font-size: 14px; letter-spacing: 8px; text-transform: uppercase; text-shadow: 0 0 10px rgba(60, 255, 140, 0.8); }
   #od .label small { display: block; text-align: center; letter-spacing: 1px; font-size: 12px; color: rgba(160, 255, 200, 0.8);
     margin-top: 4px; text-transform: none; }
+  /* -- Кожа хамелеона: переливающаяся рамка, пока работает; мигает под «Сбоем имплантов» -- */
+  #cham { display: none; position: absolute; inset: 0; pointer-events: none; }
+  #cham.on { display: block; animation: odIn 0.35s ease-out; }
+  #cham .edge { position: absolute; inset: 0;
+    box-shadow: inset 0 0 70px rgba(170, 90, 255, 0.32), inset 0 0 18px rgba(80, 230, 220, 0.22);
+    animation: chamShift 4s ease-in-out infinite; }
+  @keyframes chamShift { 50% { box-shadow: inset 0 0 70px rgba(80, 230, 220, 0.30), inset 0 0 18px rgba(170, 90, 255, 0.25); } }
+  #cham .cells { position: absolute; inset: 0; opacity: 0.18;
+    background: radial-gradient(circle at 50% 50%, transparent 62%, rgba(190, 140, 255, 0.5) 100%),
+      repeating-linear-gradient(60deg, rgba(200, 160, 255, 0.10) 0 1px, transparent 1px 22px),
+      repeating-linear-gradient(-60deg, rgba(120, 240, 230, 0.10) 0 1px, transparent 1px 22px); }
+  #cham .label { position: absolute; top: 40px; right: 46px; color: #c9a6ff; font-size: 13px; letter-spacing: 6px;
+    text-transform: uppercase; text-shadow: 0 0 10px rgba(170, 90, 255, 0.8); text-align: right; }
+  #cham .label small { display: block; letter-spacing: 1px; font-size: 11px; color: rgba(220, 200, 255, 0.8);
+    margin-top: 4px; text-transform: none; }
+  #cham.suspended .edge, #cham.suspended .cells { opacity: 0.15; animation: none; }
+  #cham.suspended .label { color: #ff5e6c; text-shadow: 0 0 10px rgba(255, 60, 80, 0.8); }
+  #cham.flicker .edge, #cham.flicker .cells { animation: chamBlink 0.23s steps(2) infinite; }
+  #cham.flicker .label { animation: chamBlink 0.37s steps(2) infinite; }
+  @keyframes chamBlink { 50% { opacity: 0.05; } }
+  /* Netwatch: кожа хамелеона у цели — строка «Сигнал: лёгкие помехи» (без эффекта на карточке, 2026-11-05) */
+  .card .noiseNote { color: #c9a6ff; }
   #scanHelp { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--k);
     letter-spacing: 1px; opacity: 0.8; }
 </style>
@@ -188,6 +217,8 @@
 <div id="ep"><div class="edge"></div><div id="epBars"></div><div class="scan"></div><div class="flash" id="epFlash"></div></div>
 <div id="od"><div class="glow"></div><div class="lines"></div><div class="ghost"></div>
   <div class="label">Sandevistan<small id="odTime"></small></div></div>
+<div id="cham"><div class="edge"></div><div class="cells"></div>
+  <div class="label" id="chamTitle">Кожа хамелеона<small id="chamNote"></small></div></div>
 <div id="scan">
   <div class="tint"></div><div class="sweep"></div>
   <div class="brand">Kiroshi <b>// сканирование</b></div>
@@ -310,13 +341,27 @@
       action.textContent = i.contractCanVerify ? "ЦЕЛЬ ОБЕЗВРЕЖЕНА · K — ПОДТВЕРДИТЬ ЛИКВИДАЦИЮ" : "ЦЕЛЬ ОБЕЗВРЕЖЕНА · ПОДОЙДИТЕ НА 3 М ДЛЯ ПОДТВЕРЖДЕНИЯ";
       card.append(action);
     }
-    if (i.tier === "public") return;
+    // Статусы личности (rp_identity): открытые — сразу, закрытые — ниже; value нет — до взлома данных.
+    const identity = Array.isArray(i.identity) ? i.identity : [];
+    const identityRows = rows => rows.forEach(line => {
+      const open = line.value !== undefined && line.value !== null;
+      kv(card, line.label, open ? line.value : "▓▒▓▓▒▓▒▓", open ? (line.cls || "") : "pixel");
+    });
+    const publicRows = identity.filter(line => line.level === "public");
+    if (i.tier === "public") { identityRows(publicRows); return; }
 
     const hidden = "▓▒▓▓▒▓▒▓";
     const secret = value => i.revealed ? value : hidden;
     const secretClass = i.revealed ? "" : "pixel";
     card.querySelector(".big").textContent = secret(i.name || "Неизвестно");
     card.querySelector(".big").classList.toggle("pixel", !i.revealed);
+    if (i.revealed && i.substituted) {
+      const mark = document.createElement("span");
+      mark.className = "subMark";
+      mark.textContent = "!";
+      mark.title = "Щепка подмены личности в нейропорте";
+      card.querySelector(".big").append(mark);
+    }
     if (i.revealed && i.contractConfirmed) {
       const badge = document.createElement("span");
       badge.className = "contractTarget";
@@ -329,7 +374,22 @@
       access.textContent = `ДОСТУП ПОЛУЧЕН · ${Math.floor((i.accessLeft || 0) / 60)}:${String((i.accessLeft || 0) % 60).padStart(2, "0")}`;
       card.append(access);
     }
-    kv(card, "Розыск", secret(i.wanted ? "В РОЗЫСКЕ" : "не разыскивается"), i.revealed ? (i.wanted ? "bad" : "good") : secretClass);
+    identityRows(publicRows);
+    // Кожа хамелеона у цели: строка-подсказка (эффект помех на карточке убран по просьбе владельца).
+    if (i.tier === "netwatch" && i.interference) kv(card, "Сигнал", "лёгкие помехи", "noiseNote");
+    if (i.tier === "netwatch" && Array.isArray(i.neuroports)) {
+      // Обычные нейропорты цели (не личности): заняты ли — видно без взлома.
+      kv(card, "Нейропорты", "");
+      const ports = document.createElement("span");
+      ports.className = "ports";
+      i.neuroports.forEach((busy, n) => {
+        const port = document.createElement("i");
+        port.className = busy ? "busy" : "";
+        port.textContent = `${n + 1}: ${busy ? "ЗАНЯТ" : "свободен"}`;
+        ports.append(port);
+      });
+      card.lastElementChild.children[1].replaceWith(ports);
+    }
     kv(card, "Работа", secret(i.job || "нет данных"), secretClass);
     kv(card, "Фракция", secret(i.faction || "нет данных"), secretClass);
     if (i.tier === "netwatch") {
@@ -337,6 +397,7 @@
       const implants = Array.isArray(i.implants) && i.implants.length ? i.implants.join(", ") : "Не обнаружены";
       kv(card, "Импланты", secret(implants), secretClass);
     }
+    identityRows(identity.filter(line => line.level !== "public"));
   }
 
   function renderScripts() {
@@ -501,6 +562,17 @@
     $("od").classList.add("on");
   });
   Open77.on("od:off", () => { clearInterval(odTimer); $("od").classList.remove("on"); });
+
+  // -- Кожа хамелеона ---------------------------------------------------------------------
+  Open77.on("cham:state", p => {
+    const el = $("cham");
+    el.classList.toggle("on", !!p.on);
+    el.classList.toggle("suspended", !!p.suspended);
+    el.classList.toggle("flicker", !!p.flicker && !p.suspended);
+    $("chamTitle").firstChild.textContent = p.suspended ? "Маскировка подавлена" : (p.flicker ? "Сбой: маскировка мерцает" : "Кожа хамелеона");
+    $("chamNote").textContent = p.suspended ? "кожа включится сама после взлома"
+      : p.flicker ? "выключить нельзя, пока идёт сбой" : "J — выключить · рассудок −0,5 каждые 5 с";
+  });
 
   Open77.ready();
 </script>

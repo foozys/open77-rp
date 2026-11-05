@@ -467,6 +467,22 @@ mapping("rp_sandevistan", "Сандевистан: включить / выклю
     TriggerServerEvent("rp_cyberware:overdrive", not od.on)
 end)
 
+-- -- Кожа хамелеона: J — включить / выключить --------------------------------------------
+-- Всё решает сервер (rp_cyberware → rp_identity): внешность, рассудок, сбой, подавление.
+-- Здесь — только экран: рамка, пока кожа работает; мигает под «Сбоем имплантов».
+
+local cham = { on = false }
+
+RegisterNetEvent("rp_cyberware:chameleon", function(p)
+    if type(p) ~= "table" then return end
+    cham.on = p.on == true
+    send("cham:state", { on = cham.on, suspended = p.suspended == true, flicker = p.flicker == true })
+end)
+
+mapping("rp_chameleon", "Кожа хамелеона: включить / выключить", "J", function()
+    TriggerServerEvent("rp_cyberware:chameleon", not cham.on)
+end)
+
 AddEventHandler("onClientResourceStop", function(name)
     if name ~= GetCurrentResourceName() then return end
     if page then page:setFocus(false, false) end

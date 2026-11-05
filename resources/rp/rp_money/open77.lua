@@ -7,7 +7,8 @@ dependency "rp_core"
 
 -- database.access: отметки о выданных стартовых деньгах (rp_money_start);
 -- network.events: chat:ready от клиента чата, чтобы выдать подсказки команд
-permissions { "database.access", "network.events" }
+-- players.holocall.control: подсветка глаз при переводе
+permissions { "database.access", "network.events", "players.holocall.control" }
 
 server_script "server/config.lua"
 server_script "server/ledger.lua"

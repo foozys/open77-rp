@@ -105,10 +105,11 @@ local function claim(characterId)
     if err then return log("error", "набор #%d: %s", characterId, err) end
     if not row then return nil end
     if row.kit_faction then
-        if tonumber(row.done) == 1 then return nil end
+        -- TINYINT(1) из БД приходит как true/false (иногда как число).
+        if row.done == true or tonumber(row.done) == 1 then return nil end
         return row.kit_faction, math.tointeger(tonumber(row.step)) or 0
     end
-    if row.approval ~= "approved" or tonumber(row.reviewed) ~= 1 or not row.faction then return nil end
+    if row.approval ~= "approved" or not (row.reviewed == true or tonumber(row.reviewed) == 1) or not row.faction then return nil end
     local _, insertErr = Factions.db("update",
         "INSERT IGNORE INTO rp_faction_kits (character_id, faction) VALUES (?, ?)", { characterId, row.faction })
     if insertErr then return log("error", "отметка набора #%d: %s", characterId, insertErr) end

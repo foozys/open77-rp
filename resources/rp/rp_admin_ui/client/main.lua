@@ -70,6 +70,231 @@ RegisterNetEvent("rp_admin:journal", function(payload)
     end
 end)
 
+-- -- вкладка «Объекты» (rp_objects, 2026-11-04) --------------------------------------------
+-- Список и каталог — с сервера; странице двумя сообщениями (предел узлов WebUI).
+local objModels = {}
+
+RegisterNetEvent("rp_objects:state", function(p)
+    if type(p) ~= "table" then return end
+    if type(p.models) == "table" then objModels = p.models end
+    if not isOpen then return end
+    send("adm:objCatalog", { models = p.models, solid = p.solid, checked = p.checked })
+    send("adm:objects", { objects = p.objects, message = p.message, failed = p.failed })
+end)
+
+-- Перемещение мышью: гизмо OPEN//77 на серверный объект. Сервер выдал разрешение (ticket);
+-- итог (Enter) уходит серверу, он проверяет и двигает. Панель закрывается: гизмо нужен ввод.
+local gizmo = nil -- { handle, ticket }
+
+local function yawOf(q)
+    if type(q) ~= "table" then return nil end
+    local x, y, z, w = tonumber(q.x), tonumber(q.y), tonumber(q.z), tonumber(q.w)
+    if not x or not y or not z or not w then return nil end
+    return math.deg(math.atan(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
+end
+
+local function dropGizmo()
+    if gizmo and type(Open77.gizmos) == "table" then pcall(Open77.gizmos.destroy, gizmo.handle) end
+    gizmo = nil
+end
+
+RegisterNetEvent("rp_objects:gizmo", function(p)
+    if type(p) ~= "table" or not p.prop or type(p.ticket) ~= "string" then return end
+    -- Open77.gizmos — новый API платформы (в devkit до op77.156 его нет): нет — двигать кнопками
+    -- сдвига во вкладке, панель остаётся открытой.
+    local G = Open77.gizmos
+    if type(G) ~= "table" or type(G.create) ~= "function" then
+        return TriggerServerEvent("rp_objects:cancel", p.ticket,
+            "в этой версии клиента нет гизмо — двигайте кнопками сдвига во вкладке «Объекты»")
+    end
+    close()
+    CreateThread(function()
+        dropGizmo()
+        local handle, why
+        -- Только что поставленный объект может ещё не дойти до клиента: повторы.
+        for _ = 1, 20 do
+            handle, why = G.create({ target = { kind = "prop", id = tostring(p.prop) }, mode = "translate", space = "world",
+                snap = { translation = 0.05, rotation = 5 }, timeoutMs = 300000 })
+            if handle then break end
+            Wait(250)
+        end
+        if not handle then return TriggerServerEvent("rp_objects:cancel", p.ticket, "гизмо: " .. tostring(why)) end
+        local ok, activateWhy
+        for _ = 1, 12 do
+            ok, activateWhy = G.activate(handle)
+            if ok then break end
+            Wait(250)
+        end
+        if not ok then
+            pcall(G.destroy, handle)
+            return TriggerServerEvent("rp_objects:cancel", p.ticket, "гизмо: " .. tostring(activateWhy))
+        end
+        gizmo = { handle = handle, ticket = p.ticket }
+    end)
+end)
+
+AddEventHandler("open77:gizmo:commit", function(state)
+    if not gizmo or type(state) ~= "table" or state.id ~= gizmo.handle then return end
+    local t = type(state.transform) == "table" and state.transform or {}
+    TriggerServerEvent("rp_objects:commit", gizmo.ticket, t.position, yawOf(t.rotation))
+    dropGizmo()
+end)
+
+for _, name in ipairs({ "cancel", "targetLost", "error" }) do
+    AddEventHandler("open77:gizmo:" .. name, function(state)
+        if not gizmo or type(state) ~= "table" or state.id ~= gizmo.handle then return end
+        TriggerServerEvent("rp_objects:cancel", gizmo.ticket, tostring(state.reason or name))
+        dropGizmo()
+    end)
+end
+
+-- Проверка коллизии каталога: каждый объект ставится локально (видит только админ) в 3,5 м
+-- впереди, лучи через его место сравниваются с теми же лучами без объекта. Стал на пути — есть
+-- коллизия. Итог — серверу (rp_object_collision). Если не нашлось ни одного твёрдого — лучи
+-- локальные объекты не видят, ничего не сохраняется.
+local probing = nil -- { stop }
+
+local function rays(base, fwd)
+    local sx, sy = -fwd.y, fwd.x
+    local list = {}
+    for _, h in ipairs({ 0.15, 0.45, 0.9, 1.4, 2.0 }) do
+        list[#list + 1] = { { x = base.x - sx * 2.2, y = base.y - sy * 2.2, z = base.z + h },
+                            { x = base.x + sx * 2.2, y = base.y + sy * 2.2, z = base.z + h } }
+        list[#list + 1] = { { x = base.x - fwd.x * 2.2, y = base.y - fwd.y * 2.2, z = base.z + h },
+                            { x = base.x + fwd.x * 2.2, y = base.y + fwd.y * 2.2, z = base.z + h } }
+    end
+    for _, o in ipairs({ { 0, 0 }, { 0.4, 0 }, { -0.4, 0 }, { 0, 0.4 }, { 0, -0.4 } }) do
+        local x, y = base.x + sx * o[1] + fwd.x * o[2], base.y + sy * o[1] + fwd.y * o[2]
+        list[#list + 1] = { { x = x, y = y, z = base.z + 4 }, { x = x, y = y, z = base.z - 0.5 } }
+    end
+    return list
+end
+
+local function cast(list)
+    local out = {}
+    for i, r in ipairs(list) do
+        local ok, hit = pcall(Open77.world.raycast, r[1], r[2])
+        out[i] = ok and type(hit) == "table" and hit.hit and tonumber(hit.distance) or false
+    end
+    return out
+end
+
+local function renderedState(id)
+    for _, entry in ipairs(Open77.props.list() or {}) do
+        if tostring(entry.id) == tostring(id) then
+            if entry.failed then return "failed" end
+            if entry.rendered then return "ready" end
+            return "wait"
+        end
+    end
+    return "missing"
+end
+
+local function probeProgress(payload)
+    if isOpen then send("adm:objProbe", payload) end
+end
+
+local function runProbe()
+    if probing or #objModels == 0 then return end
+    local job = { stop = false }
+    probing = job
+    local me = Open77.character.state()
+    if type(me) ~= "table" or not me.position then probing = nil; return probeProgress({ error = "Нет положения персонажа." }) end
+    local f = me.forward or { x = 0, y = 1 }
+    local len = math.sqrt((tonumber(f.x) or 0) ^ 2 + (tonumber(f.y) or 0) ^ 2)
+    if len < 0.01 then f, len = { x = 0, y = 1 }, 1 end
+    local fwd = { x = f.x / len, y = f.y / len }
+    local base = { x = me.position.x + fwd.x * 3.5, y = me.position.y + fwd.y * 3.5, z = me.position.z }
+    local list = rays(base, fwd)
+    local results, solidCount, done, skipped = {}, 0, 0, 0
+    for _, alias in ipairs(objModels) do
+        if job.stop then break end
+        local baseline = cast(list)
+        local id = Open77.props.create({ model = alias, position = base, yaw = 0, collision = true })
+        if id then
+            local stateNow = "wait"
+            for _ = 1, 25 do
+                Wait(200)
+                stateNow = renderedState(id)
+                if stateNow ~= "wait" then break end
+            end
+            if stateNow == "ready" then
+                Wait(400) -- физика объекта
+                local after = cast(list)
+                local solid = false
+                for i = 1, #list do
+                    local b, a = baseline[i], after[i]
+                    if a and (not b or a < b - 0.05) then solid = true break end
+                end
+                results[alias] = solid
+                if solid then solidCount = solidCount + 1 end
+            else
+                skipped = skipped + 1
+            end
+            pcall(Open77.props.remove, id)
+        else
+            skipped = skipped + 1
+        end
+        done = done + 1
+        probeProgress({ done = done, total = #objModels, solid = solidCount, alias = alias })
+        Wait(100)
+    end
+    probing = nil
+    if job.stop then return probeProgress({ error = "Проверка остановлена, ничего не сохранено." }) end
+    if solidCount == 0 then
+        return probeProgress({ error = "Ни один объект не задержал луч — проверка в этом месте не сработала, ничего не сохранено." })
+    end
+    -- Серверу частями по 40.
+    local batch, count = {}, 0
+    local keys = {}
+    for alias in pairs(results) do keys[#keys + 1] = alias end
+    for i, alias in ipairs(keys) do
+        batch[alias], count = results[alias], count + 1
+        if count == 40 or i == #keys then
+            TriggerServerEvent("rp_objects:collision", batch, i == #keys)
+            batch, count = {}, 0
+            Wait(200)
+        end
+    end
+    probeProgress({ finished = true, solid = solidCount, total = #keys, skipped = skipped })
+end
+
+-- Вкладка «NPC (тест)»: список своих тестовых NPC (сервер rp_admin).
+local npcDiagnostics = false -- включается, когда у админа есть свои тестовые NPC
+-- Вкладка «КПП» (rp_checkpoints): всё проверяет сервер, место — позиция админа на сервере.
+RegisterNetEvent("rp_checkpoints:state", function(p)
+    if type(p) == "table" and isOpen then send("adm:cps", p) end
+end)
+
+RegisterNetEvent("rp_admin:npcs", function(p)
+    if type(p) ~= "table" then return end
+    npcDiagnostics = type(p.list) == "table" and #p.list > 0
+    if isOpen then send("adm:npcs", p) end
+end)
+
+-- Попадание NPC по мне (open77:npcAttackedMe: [npcId, урон 0, …]): платформа проводит его с нулевым
+-- уроном — сервер rp_admin снимает здоровье сам (только за тестовых NPC). Не чаще раза в 0,25 с:
+-- платформа отключает за > 32 сетевых событий в секунду.
+-- Моё попадание по NPC (open77:npcHit): у тестовых NPC со своим здоровьем урон считает сервер
+-- rp_admin. Не чаще 10 раз в секунду.
+local lastShotReport = 0
+AddEventHandler("open77:npcHit", function(npcId, damage, _, _, attackKind)
+    if not npcDiagnostics then return end
+    local now = GetGameTimer()
+    if now - lastShotReport < 100 then return end
+    lastShotReport = now
+    TriggerServerEvent("rp_admin:npcShot", tostring(npcId), tostring(damage), tostring(attackKind))
+end)
+
+local lastHitReport = 0
+AddEventHandler("open77:npcAttackedMe", function(npcId)
+    if not npcDiagnostics then return end
+    local now = GetGameTimer()
+    if now - lastHitReport < 250 then return end
+    lastHitReport = now
+    TriggerServerEvent("rp_admin:npcHitMe", tostring(npcId))
+end)
+
 -- Ответы команд приходят в чат; пока панель открыта, показываем их и в ней.
 -- Реплики игроков (RP-чат, type = "player") в журнал панели не попадают.
 RegisterNetEvent("chat:addMessage", function(message)
@@ -120,6 +345,70 @@ AddEventHandler("onClientResourceStart", function(name)
         })
         if not ok then send("adm:journal", { error = "Не отправлено: " .. tostring(why) }) end
     end)
+    -- Вкладка «Объекты»: всё проверяет сервер (rp_objects).
+    page:on("adm:objects", function() TriggerServerEvent("rp_objects:state") end)
+    page:on("adm:objSpawn", function(p)
+        if type(p) ~= "table" or type(p.model) ~= "string" then return end
+        local me = Open77.character.state()
+        if type(me) ~= "table" or not me.position then return end
+        local f = me.forward or { x = 0, y = 1 }
+        local len = math.sqrt((tonumber(f.x) or 0) ^ 2 + (tonumber(f.y) or 0) ^ 2)
+        if len < 0.01 then f, len = { x = 0, y = 1 }, 1 end
+        TriggerServerEvent("rp_objects:spawn", p.model, { x = me.position.x + f.x / len * 3, y = me.position.y + f.y / len * 3,
+            z = me.position.z, yaw = ((tonumber(me.yaw) or 0) + 180) % 360 })
+    end)
+    page:on("adm:objEdit", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_objects:edit", math.tointeger(tonumber(p.id))) end
+    end)
+    page:on("adm:objNudge", function(p)
+        if type(p) ~= "table" then return end
+        TriggerServerEvent("rp_objects:nudge", math.tointeger(tonumber(p.id)), tonumber(p.dx) or 0, tonumber(p.dy) or 0,
+            tonumber(p.dz) or 0, tonumber(p.dyaw) or 0)
+    end)
+    page:on("adm:objDelete", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_objects:delete", math.tointeger(tonumber(p.id))) end
+    end)
+    page:on("adm:objProbe", function() CreateThread(runProbe) end)
+    page:on("adm:objProbeStop", function() if probing then probing.stop = true end end)
+    -- Вкладка «NPC (тест)»: место — в 6 м перед админом, лицом к нему; всё проверяет сервер.
+    page:on("adm:npcs", function() TriggerServerEvent("rp_admin:npcs") end)
+    page:on("adm:cps", function() TriggerServerEvent("rp_checkpoints:state") end)
+    page:on("adm:cpCreate", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_checkpoints:create", tostring(p.label or ""), tonumber(p.radius)) end
+    end)
+    page:on("adm:cpCreateTest", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_checkpoints:createTest", tostring(p.label or ""), tonumber(p.radius)) end
+    end)
+    page:on("adm:cpStop", function() TriggerServerEvent("rp_checkpoints:stopTurrets") end)
+    for event, server in pairs({ ["adm:cpTurret"] = "turret", ["adm:cpDoors"] = "doors", ["adm:cpDoorsClear"] = "doorsClear",
+                                 ["adm:cpTest"] = "test", ["adm:cpDelete"] = "delete", ["adm:cpRotate"] = "rotate",
+                                 ["adm:cpDecorClear"] = "decorClear" }) do
+        page:on(event, function(p)
+            if type(p) == "table" then TriggerServerEvent("rp_checkpoints:" .. server, math.tointeger(tonumber(p.id))) end
+        end)
+    end
+    page:on("adm:npcSpawn", function(p)
+        if type(p) ~= "table" or type(p.record) ~= "string" then return end
+        local me = Open77.character.state()
+        if type(me) ~= "table" or not me.position then return end
+        local f = me.forward or { x = 0, y = 1 }
+        local len = math.sqrt((tonumber(f.x) or 0) ^ 2 + (tonumber(f.y) or 0) ^ 2)
+        if len < 0.01 then f, len = { x = 0, y = 1 }, 1 end
+        TriggerServerEvent("rp_admin:npcSpawn", p.record, { x = me.position.x + f.x / len * 6, y = me.position.y + f.y / len * 6,
+            z = me.position.z, yaw = ((tonumber(me.yaw) or 0) + 180) % 360 }, p.attack == true,
+            math.tointeger(tonumber(p.health)), math.tointeger(tonumber(p.armor)))
+    end)
+    page:on("adm:fxTry", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_admin:fxTry", tostring(p.name or ""), p.npcs == true, tonumber(p.seconds),
+            type(p.slot) == "string" and p.slot or nil) end
+    end)
+    page:on("adm:reflexTest", function(p)
+        if type(p) == "table" and type(p.action) == "string" then TriggerServerEvent("rp_admin:reflexTest", p.action) end
+    end)
+    page:on("adm:npcAttack", function(p) if type(p) == "table" then TriggerServerEvent("rp_admin:npcAttack", tostring(p.id)) end end)
+    page:on("adm:npcRemove", function(p)
+        TriggerServerEvent("rp_admin:npcRemove", type(p) == "table" and p.id and tostring(p.id) or nil)
+    end)
     -- Команда как из чата: { tokens = { "rp.kick", "3", "причина" } }.
     page:on("adm:run", function(p)
         if type(p) ~= "table" or type(p.tokens) ~= "table" or #p.tokens == 0 or #p.tokens > 32 then return end
@@ -139,5 +428,7 @@ end)
 AddEventHandler("open77:pauseKey", close)
 
 AddEventHandler("onClientResourceStop", function(name)
-    if name == GetCurrentResourceName() and page then page:setFocus(false, false) end
+    if name ~= GetCurrentResourceName() then return end
+    if page then page:setFocus(false, false) end
+    dropGizmo()
 end)

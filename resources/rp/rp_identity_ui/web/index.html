@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Личная щепка</title>
+<style>
+  :root {
+    --bg: rgba(8, 12, 18, 0.94);
+    --cyan: #5ef6ff;
+    --line: rgba(94, 246, 255, 0.28);
+    --ok: #4be38a;
+    --warn: #ff5e6c;
+    --gold: #e8c46a;
+    --text: #e8f1f2;
+    --muted: #8fa3a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 16px/1.35 "Segoe UI", Arial, sans-serif; user-select: none; pointer-events: none; }
+
+  /* Карточка справа, не мешает прицелу и чату. */
+  #card { position: absolute; right: 56px; top: 34%; width: 440px; opacity: 0; transform: translateX(40px);
+    transition: opacity .25s ease, transform .25s ease; }
+  #card.open { opacity: 1; transform: none; }
+  #caption { margin-bottom: 6px; font-size: 13px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+  #caption b { color: var(--cyan); font-weight: 600; }
+
+  .chip { position: relative; padding: 18px 20px 16px; background: var(--bg); border: 1px solid var(--line);
+    border-left: 4px solid var(--cyan);
+    clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%); }
+  .chip::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(94, 246, 255, 0.035) 0 1px, transparent 1px 4px); }
+  .head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  /* Контакты щепки — CSS, без картинки. */
+  .contacts { width: 46px; height: 36px; border-radius: 5px; flex: none;
+    background: linear-gradient(135deg, #f3d98b, #b98f35); position: relative; }
+  .contacts::after { content: ""; position: absolute; inset: 7px 6px;
+    background:
+      linear-gradient(90deg, transparent 45%, rgba(60, 40, 0, .55) 45% 55%, transparent 55%),
+      linear-gradient(0deg, transparent 30%, rgba(60, 40, 0, .55) 30% 38%, transparent 38% 62%, rgba(60, 40, 0, .55) 62% 70%, transparent 70%); }
+  .title { flex: 1; }
+  .title small { display: block; font-size: 11px; letter-spacing: 3px; color: var(--muted); }
+  .title span { font-size: 15px; letter-spacing: 2px; color: var(--cyan); font-weight: 600; }
+
+  #holder { font-size: 26px; font-weight: 600; letter-spacing: .5px; margin-bottom: 10px; overflow-wrap: anywhere; }
+  .row { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07); font-size: 15px; }
+  .row > span:first-child { color: var(--muted); }
+  #sin { font-family: Consolas, "Courier New", monospace; letter-spacing: 1.5px; color: var(--gold); }
+  #licenses { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .tag { padding: 1px 8px; border: 1px solid var(--line); color: var(--cyan); font-size: 13px; }
+  .none { color: var(--muted); }
+
+  #stamp { margin-top: 12px; padding: 6px 10px; text-align: center; font-size: 14px; font-weight: 700; letter-spacing: 3px;
+    border: 1px solid currentColor; }
+  #stamp.valid { color: var(--ok); background: rgba(75, 227, 138, 0.07); }
+  #stamp.bad { color: var(--warn); background: rgba(255, 94, 108, 0.09); }
+  #timer { height: 2px; margin-top: 10px; background: var(--cyan); transform-origin: left; }
+
+  /* Прогресс копирования личности: под прицелом, по центру. */
+  #progress { position: absolute; left: 50%; top: 64%; width: 420px; margin-left: -210px; opacity: 0;
+    transition: opacity .2s ease; }
+  #progress.open { opacity: 1; }
+  #progressLabel { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--cyan); text-shadow: 0 0 8px rgba(94, 246, 255, .45); }
+  #progressLabel small { color: var(--muted); letter-spacing: 1px; }
+  .bar { height: 8px; padding: 1px; background: var(--bg); border: 1px solid var(--line); }
+  #progressFill { height: 100%; background: linear-gradient(90deg, rgba(94, 246, 255, .55), var(--cyan));
+    transform-origin: left; transform: scaleX(0); }
+  #progress.fail #progressFill { background: var(--warn); }
+  #progress.fail #progressLabel { color: var(--warn); }
+</style>
+</head>
+<body>
+<div id="card">
+  <div id="caption"></div>
+  <div class="chip">
+    <div class="head">
+      <div class="contacts"></div>
+      <div class="title"><small>NIGHT CITY · NCPD REGISTRY</small><span>ЛИЧНАЯ ЩЕПКА</span></div>
+    </div>
+    <div id="holder"></div>
+    <div class="row"><span>Дата рождения</span><span id="birth"></span></div>
+    <div class="row"><span>SIN</span><span id="sin"></span></div>
+    <div class="row"><span>Лицензии</span><span id="licenses"></span></div>
+    <div id="stamp"></div>
+    <div id="timer"></div>
+  </div>
+</div>
+
+<div id="progress">
+  <div id="progressLabel"><span id="progressText"></span><small id="progressLeft"></small></div>
+  <div class="bar"><div id="progressFill"></div></div>
+</div>
+
+<script>
+  // Данные — только с сервера (rp_identity chipCard); страница рисует и гасит карточку.
+  const $ = id => document.getElementById(id);
+  const SHOW_MS = 10000;
+  const STATES = {
+    valid: ["ДЕЙСТВИТЕЛЬНА", "valid"],
+    annulled: ["ЩЕПКА АННУЛИРОВАНА", "bad"],
+    sin_void: ["SIN АННУЛИРОВАН", "bad"],
+  };
+  let hideTimer = null;
+
+  function show(card) {
+    const caption = $("caption");
+    caption.replaceChildren();
+    const who = document.createElement("b");
+    if (card.mode === "read") {
+      caption.append("Щепка в нейропорте");
+    } else if (card.mode === "shown") {
+      who.textContent = `[${card.to}]`;
+      caption.append("Вы показали щепку ", who);
+    } else {
+      who.textContent = `[${card.from}]`;
+      caption.append("Вам показывают щепку ", who);
+    }
+    $("holder").textContent = card.holder || "—";
+    $("birth").textContent = card.birth || "—";
+    $("sin").textContent = card.sin || "—";
+    const licenses = $("licenses");
+    licenses.replaceChildren();
+    const list = Array.isArray(card.licenses) ? card.licenses : [];
+    if (card.state === "annulled" || !list.length) {
+      const none = document.createElement("span");
+      none.className = "none";
+      none.textContent = card.state === "annulled" ? "не читается" : "нет";
+      licenses.append(none);
+    } else {
+      for (const text of list) {
+        const tag = document.createElement("span");
+        tag.className = "tag";
+        tag.textContent = text;
+        licenses.append(tag);
+      }
+    }
+    const [label, cls] = STATES[card.state] || STATES.valid;
+    $("stamp").textContent = label;
+    $("stamp").className = cls;
+
+    const timer = $("timer");
+    timer.style.transition = "none";
+    timer.style.transform = "scaleX(1)";
+    void timer.offsetWidth;
+    timer.style.transition = `transform ${SHOW_MS}ms linear`;
+    timer.style.transform = "scaleX(0)";
+    $("card").classList.add("open");
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => $("card").classList.remove("open"), SHOW_MS);
+  }
+
+  // Прогресс-бар: { label, ms } — начать; { cancel: true } — прервано (красный, гаснет).
+  let progressTimer = null, progressTick = null;
+  function progress(p) {
+    const box = $("progress"), fill = $("progressFill");
+    clearTimeout(progressTimer);
+    clearInterval(progressTick);
+    if (p.cancel) {
+      box.classList.add("fail");
+      $("progressLeft").textContent = "прервано";
+      const now = getComputedStyle(fill).transform; // остановить полосу там, где она есть
+      fill.style.transition = "none";
+      fill.style.transform = now;
+      progressTimer = setTimeout(() => box.classList.remove("open"), 900);
+      return;
+    }
+    const ms = Math.max(500, Math.min(60000, Number(p.ms) || 3000));
+    const ends = Date.now() + ms;
+    box.classList.remove("fail");
+    $("progressText").textContent = String(p.label || "");
+    const left = () => { $("progressLeft").textContent = `${Math.max(0, (ends - Date.now()) / 1000).toFixed(1)} с`; };
+    left();
+    progressTick = setInterval(left, 100);
+    fill.style.transition = "none";
+    fill.style.transform = "scaleX(0)";
+    void fill.offsetWidth;
+    fill.style.transition = `transform ${ms}ms linear`;
+    fill.style.transform = "scaleX(1)";
+    box.classList.add("open");
+    progressTimer = setTimeout(() => { clearInterval(progressTick); box.classList.remove("open"); }, ms + 250);
+  }
+
+  Open77.on("id:card", p => { if (p && typeof p === "object") show(p); });
+  Open77.on("id:progress", p => { if (p && typeof p === "object") progress(p); });
+  Open77.ready();
+</script>
+</body>
+</html>

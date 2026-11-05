@@ -159,6 +159,96 @@
   .acard input { flex: 1; padding: 6px 8px; background: rgba(255, 255, 255, 0.05); color: var(--text);
     border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; font-size: 13px; outline: none; user-select: text; }
   .acard input:focus { border-color: var(--cyan); }
+
+  /* Вкладка «Объекты» (rp_objects, 2026-11-04) — та же ячейка сетки */
+  #objects { grid-column: 2; grid-row: 2; display: none; flex-direction: column; min-height: 0; padding: 12px 16px; gap: 8px; }
+  #objects.open { display: flex; }
+  #oHead { display: flex; gap: 10px; align-items: center; }
+  #oHead .btn { padding: 5px 12px; font-size: 12px; }
+  #oStatus { flex: 1; color: var(--muted); font-size: 12px; }
+  #oStatus.err { color: var(--accent); }
+  #oBody { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .obox { display: flex; flex-direction: column; min-height: 0; gap: 6px; }
+  .obox label { color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  #oSearch { padding: 6px 8px; background: rgba(255, 255, 255, 0.05); color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; font-size: 13px; outline: none; user-select: text; }
+  #oSearch:focus { border-color: var(--cyan); }
+  #oCatalog, #oList { flex: 1; overflow-y: auto; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+  .omodel { display: block; width: 100%; text-align: left; padding: 6px 8px; margin: 0; background: none; color: var(--text);
+    border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font: inherit; font-size: 13px; cursor: pointer; }
+  .omodel:hover { background: var(--panel); color: var(--cyan); }
+  .ofam { padding: 8px 8px 2px; color: var(--cyan); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  .oempty { padding: 10px 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .ocard { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 8px; align-items: center; padding: 8px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 13px; }
+  .ocard .meta { grid-column: 1; color: var(--muted); font-size: 12px; }
+  .ocard .btn { grid-row: 1 / 3; padding: 5px 12px; font-size: 12px; }
+  .ocard > b { grid-column: 1; grid-row: 1; cursor: pointer; }
+  .ocard > .btn.cyan { grid-column: 2; }
+  .ocard > .btn:not(.cyan) { grid-column: 3; }
+  .ocard > .meta { grid-row: 2; }
+  .ocard > b:hover { color: var(--cyan); }
+  .onudge { grid-column: 1 / 4; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 6px; }
+  .onudge .btn { grid-row: auto; padding: 3px 8px; font-size: 12px; min-width: 38px; }
+  .onudge select { padding: 3px 4px; background: #0d1017; color: var(--text); border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; font-size: 12px; }
+  .onudge span { color: var(--muted); font-size: 11px; margin: 0 2px 0 6px; }
+
+  /* Вкладка «КПП» (rp_checkpoints, 2026-11-05) — та же ячейка сетки */
+  #cps { grid-column: 2; grid-row: 2; display: none; flex-direction: column; min-height: 0; padding: 12px 16px; gap: 10px; }
+  #cps.open { display: flex; }
+  #cStatus { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  #cStatus.err { color: var(--accent); }
+  #cForm { display: flex; gap: 10px; align-items: end; }
+  #cForm label { display: block; color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+  #cForm input { padding: 6px 8px; background: rgba(255, 255, 255, 0.05); color: var(--text); border: 1px solid rgba(255, 255, 255, 0.15);
+    font: inherit; font-size: 13px; outline: none; user-select: text; }
+  #cForm input:focus { border-color: var(--cyan); }
+  #cLabel { width: 220px; } #cRadius { width: 90px; }
+  #cForm .btn { padding: 6px 14px; font-size: 12px; }
+  #cList { flex: 1; overflow-y: auto; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+  .ccard { padding: 8px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 13px; }
+  .ccard .meta { color: var(--muted); font-size: 12px; margin: 2px 0 6px; }
+  .ccard .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ccard .btn { padding: 4px 10px; font-size: 12px; }
+  #cIllegal { color: var(--muted); font-size: 12px; }
+
+  /* Вкладка «NPC (тест)» (2026-11-04) — та же ячейка сетки */
+  #npcs { grid-column: 2; grid-row: 2; display: none; flex-direction: column; min-height: 0; padding: 12px 16px; gap: 10px; }
+  #npcs.open { display: flex; }
+  #nStatus { color: var(--muted); font-size: 12px; }
+  #nStatus.err { color: var(--accent); }
+  #nForm { display: grid; grid-template-columns: 1fr 120px 120px; gap: 8px 10px; align-items: end; }
+  #nForm label { display: block; color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+  #nForm input[type=text], #nForm input[type=number] { width: 100%; box-sizing: border-box; padding: 6px 8px; background: rgba(255, 255, 255, 0.05);
+    color: var(--text); border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; font-size: 13px; outline: none; user-select: text; }
+  #nForm input:focus { border-color: var(--cyan); }
+  #nForm .row { grid-column: 1 / 4; display: flex; gap: 10px; align-items: center; }
+  #nForm .row .btn { padding: 6px 14px; font-size: 12px; }
+  #nForm .row label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); display: flex; gap: 6px; align-items: center; }
+  #nPresets { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / 4; }
+  #nPresets .btn { padding: 3px 10px; font-size: 12px; }
+  #nList { flex: 1; overflow-y: auto; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+  #nFx { border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px; }
+  #nFx label { display: block; color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  #nFx .row { display: flex; gap: 8px; }
+  #nFx input { flex: 1; padding: 6px 8px; background: rgba(255, 255, 255, 0.05); color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; font-size: 13px; outline: none; user-select: text; }
+  #nFx .btn { padding: 5px 12px; font-size: 12px; }
+  #nFxNames { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  #nFxNames .btn { padding: 2px 8px; font-size: 11px; }
+  #nFxSlot { padding: 5px 6px; background: #0d1017; color: var(--text); border: 1px solid rgba(255, 255, 255, 0.15); font: inherit; font-size: 12px; }
+  #nReflex { border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px; }
+  #nReflex label { display: block; color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  #nReflex .row { display: flex; gap: 8px; }
+  #nReflex .btn { padding: 5px 12px; font-size: 12px; }
+  #nReflex small { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .ncard { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 8px; align-items: center; padding: 8px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 13px; }
+  .ncard .meta { grid-column: 1; color: var(--muted); font-size: 12px; }
+  .ncard .btn { grid-row: 1 / 3; padding: 5px 12px; font-size: 12px; }
+  .ncard > b { grid-column: 1; grid-row: 1; overflow-wrap: anywhere; }
+  .ncard > .btn.cyan { grid-column: 2; }
+  .ncard > .btn:not(.cyan) { grid-column: 3; }
 </style>
 </head>
 <body>
@@ -213,6 +303,76 @@
         <button class="btn ghost" id="aRefresh">Обновить список</button>
       </div>
       <div id="aList"></div>
+    </div>
+    <div id="objects">
+      <div id="oHead">
+        <span id="oStatus">Объекты в мире: ставятся, двигаются мышью и удаляются только здесь; сохраняются в БД.</span>
+        <button class="btn ghost" id="oRefresh">Обновить</button>
+        <button class="btn ghost" id="oProbe" title="Встаньте на открытом ровном месте: перед вами по очереди появятся все объекты">Проверить коллизию</button>
+      </div>
+      <div id="oBody">
+        <div class="obox">
+          <label>Поставить — объекты с коллизией (<span id="oCount">0</span>)</label>
+          <input id="oSearch" placeholder="Поиск: chair, crate, barrier…">
+          <div id="oCatalog"></div>
+        </div>
+        <div class="obox">
+          <label>Рядом</label>
+          <div id="oList"></div>
+        </div>
+      </div>
+    </div>
+    <div id="cps">
+      <span id="cStatus">КПП-сканер: скан идёт сам, когда игрок входит в зону. «Тестовый КПП здесь» — встаньте в центр прохода лицом по ходу движения: рамка, блоки, табличка и точка турели ставятся сами. «Поставить здесь» — только зона (турель и двери — кнопками в карточке).</span>
+      <div id="cForm">
+        <div><label>Название</label><input type="text" id="cLabel" placeholder="КПП" maxlength="48" spellcheck="false"></div>
+        <div><label>Радиус, м</label><input type="number" id="cRadius" value="3.5" min="1.5" max="20" step="0.5"></div>
+        <button class="btn cyan" id="cCreate">Поставить здесь</button>
+        <button class="btn cyan" id="cCreateTest">Тестовый КПП здесь</button>
+        <button class="btn" id="cStop">Убрать все турели</button>
+        <button class="btn ghost" id="cRefresh">Обновить</button>
+      </div>
+      <div id="cIllegal"></div>
+      <div id="cList"></div>
+    </div>
+    <div id="npcs">
+      <span id="nStatus">Тестовые NPC по записи игры Character.*: появятся в 6 м перед вами. Не сохраняются — уберите, когда закончите.</span>
+      <div id="nForm">
+        <div><label>Запись NPC</label><input type="text" id="nRecord" placeholder="Character.…" spellcheck="false"></div>
+        <div><label>Здоровье</label><input type="number" id="nHealth" placeholder="как в игре" min="1" max="100000"></div>
+        <div><label>Броня</label><input type="number" id="nArmor" placeholder="0" min="0" max="100000"></div>
+        <div id="nPresets"></div>
+        <div class="row">
+          <label><input type="checkbox" id="nAttack" checked> атаковать меня</label>
+          <button class="btn cyan" id="nSpawn">Создать</button>
+          <button class="btn" id="nClear">Убрать всех моих</button>
+          <button class="btn ghost" id="nRefresh">Обновить</button>
+        </div>
+      </div>
+      <div id="nList"></div>
+      <div id="nFx">
+        <label>Эффект тела (проба: файлы Сандевистана Смэшера на кость, 8 с)</label>
+        <div class="row">
+          <input type="text" id="nFxName" value="fx_sandevistan_left" spellcheck="false">
+          <select id="nFxSlot" title="Кость, на которую вешается файл эффекта">
+            <option>Chest</option><option>Spine3</option><option>Hips</option><option>Head</option>
+            <option>RightHand</option><option>LeftHand</option><option>RightFoot</option><option>LeftFoot</option>
+          </select>
+          <button class="btn cyan" id="nFxSelf">На себе</button>
+          <button class="btn ghost" id="nFxNpc">На моих NPC</button>
+        </div>
+        <div id="nFxNames"></div>
+      </div>
+      <div id="nReflex">
+        <label>Ускорение платформы (Open77.reflex, не наш Сандевистан) — F6, 15 с</label>
+        <div class="row">
+          <button class="btn cyan" data-reflex="reflex">Выдать обычное</button>
+          <button class="btn cyan" data-reflex="reflex_heavy">Выдать тяжёлое</button>
+          <button class="btn ghost" data-reflex="state">Состояние</button>
+          <button class="btn" data-reflex="revoke">Забрать</button>
+        </div>
+        <small>Обычное: атака ×1,15, бег ×1,25 · тяжёлое: атака ×1,40, бег ×1,55. Наш Сандевистан (X) в это время не включайте.</small>
+      </div>
     </div>
     <div id="players">
       <h2>В сети</h2>
@@ -273,6 +433,28 @@
       { title: "Предупреждения", desc: "История варнов", perm: "rp.view", fields: [opt(F.target())],
         cmd: v => ["rp.warns", v.target] },
       { title: "Состояние сервера", desc: "Схема БД, онлайн", perm: "rp.view", cmd: () => ["rp.status"] },
+    ]},
+    // Статусы персонажа (rp_identity, шаг 6): ответ — строкой в «Ответы сервера».
+    { id: "status", label: "Статусы", actions: [
+      { title: "Статусы игрока", desc: "SIN, лицензии, Trauma Team, судимости", perm: "rp.identity.manage", fields: [F.player()],
+        cmd: v => ["rp.identity", v.id] },
+      { title: "Лицензия", desc: "Выдать или отозвать", perm: "rp.identity.manage",
+        fields: [F.player(), F.select("kind", "Лицензия", [["weapon", "На оружие"], ["vehicle", "На транспорт"]]),
+                 F.select("on", "Действие", [["on", "Выдать"], ["off", "Отозвать"]])],
+        cmd: v => ["rp.license", v.id, v.kind, v.on] },
+      { title: "Trauma Team", desc: "Подписка: уровень и срок", perm: "rp.identity.manage",
+        fields: [F.player(), F.select("tier", "Уровень", [["silver", "Серебряная"], ["gold", "Золотая"],
+                 ["platinum", "Платиновая"], ["off", "Снять подписку"]]), opt(F.number("days", "Дней (1–365)"))],
+        cmd: v => ["rp.trauma", v.id, v.tier, v.days] },
+      { title: "Судимость", desc: "Добавить запись", perm: "rp.identity.manage",
+        fields: [F.player(), F.rest("note", "Статья и приговор")], cmd: v => ["rp.record", v.id, "add", ...v.note] },
+      { title: "Снять судимость", desc: "Номер — из «Статусы игрока»", perm: "rp.identity.manage",
+        fields: [F.player(), F.number("number", "Номер")], cmd: v => ["rp.record", v.id, "remove", v.number] },
+      { title: "SIN", desc: "Аннулировать или восстановить", perm: "rp.identity.manage",
+        fields: [F.player(), F.select("on", "Действие", [["off", "Аннулировать"], ["on", "Восстановить"]])],
+        cmd: v => ["rp.sin", v.id, v.on] },
+      { title: "Новая личная щепка", desc: "Бесплатно; прежняя аннулируется", perm: "rp.identity.manage", fields: [F.player()],
+        cmd: v => ["rp.idchip", v.id] },
     ]},
     { id: "tp", label: "Телепорты", actions: [
       { title: "К игроку", desc: "Перенестись к игроку", perm: "rp.teleport", fields: [F.player()], cmd: v => ["rp.tp", v.id] },
@@ -393,6 +575,12 @@
     { id: "frozen", label: "Замороженные", perm: "rp.frozen", view: "frozen", actions: [] },
     // Заявки новых персонажей (шаг 5.2): одобрить / отклонить, право rp.applications.
     { id: "apps", label: "Заявки", perm: "rp.applications", view: "apps", actions: [] },
+    // Объекты в мире (rp_objects): поставить, двигать мышью, удалить, право rp.objects.
+    { id: "objects", label: "Объекты", perm: "rp.objects", view: "objects", actions: [] },
+    // Тестовые NPC (rp_admin): создать по записи Character.*, натравить на себя, право rp.npcs.
+    { id: "npcs", label: "NPC (тест)", perm: "rp.npcs", view: "npcs", actions: [] },
+    // КПП-сканеры (rp_checkpoints): поставить, турель, двери, проверить на себе, право rp.checkpoints.
+    { id: "cps", label: "КПП", perm: "rp.checkpoints", view: "cps", actions: [] },
   ];
 
   function options(source) {
@@ -428,9 +616,15 @@
     $("journal").classList.toggle("open", view === "journal");
     $("frozen").classList.toggle("open", view === "frozen");
     $("apps").classList.toggle("open", view === "apps");
+    $("objects").classList.toggle("open", view === "objects");
+    $("npcs").classList.toggle("open", view === "npcs");
+    $("cps").classList.toggle("open", view === "cps");
     if (view === "journal") { if (!J.loaded) journalQuery(false); return; }
     if (view === "frozen") { frozenQuery(); return; }
     if (view === "apps") { appsQuery(); return; }
+    if (view === "objects") { objectsQuery(); return; }
+    if (view === "npcs") { npcsQuery(); return; }
+    if (view === "cps") { cpsQuery(); return; }
     $("actions").replaceChildren(...(current ? current.actions : []).map(a => {
       const el = document.createElement("div");
       el.className = "action";
@@ -629,7 +823,7 @@
     "rp_inventory:chip_read": "Считал денежную щепку", "rp_inventory:chip_write": "Записал денежную щепку", "rp_inventory:loot_take": "Изъято при обыске",
     "rp_inventory:loot_return": "Возвращено при обыске", "rp_inventory:item_give": "Предмет выдан (адм.)",
     "rp_inventory:item_take": "Предмет изъят (адм.)", "rp_inventory:instance": "Получил вещь",
-    "rp_inventory:instances": "Получил вещи", "rp_inventory:take": "Предмет забран системой",
+    "rp_inventory:instances": "Получил вещи", "rp_inventory:shard_write": "Записана щепка", "rp_inventory:take": "Предмет забран системой",
     "rp_inventory:issue": "Предмет выдан системой", "rp_inventory:pile": "Куча добычи",
     "rp_shops:buy": "Покупка в магазине", "rp_shops:shop_add": "Магазин поставлен", "rp_shops:shop_remove": "Магазин убран",
     "rp_vehicles:car_buy": "Покупка машины", "rp_vehicles:car_buy_failed": "СБОЙ: деньги списаны, машины нет",
@@ -663,8 +857,15 @@
     "application_reject": "Заявка отклонена",
     "rp_factions:start_kit": "Стартовый набор роли", "rp_money:start_kit_money": "Деньги стартового набора",
     "rp_vehicles:car_kit": "Машина стартового набора",
+    "rp_identity:id_issue": "Личная щепка выдана", "rp_identity:id_restore": "Личная щепка восстановлена",
+    "rp_identity:id_forge": "Подделана щепка (Фиксер)", "rp_identity:id_copy": "Скопирована чужая щепка (кража личности)", "rp_identity:license_buy": "Куплена лицензия",
+    "rp_identity:license_set": "Лицензия (адм.)", "rp_identity:sin_set": "SIN (адм.)",
+    "rp_identity:trauma_set": "Trauma Team (адм.)", "rp_identity:record_add": "Судимость добавлена",
+    "rp_identity:record_remove": "Судимость снята",
+    "rp_objects:object_spawn": "Объект поставлен", "rp_objects:object_move": "Объект перемещён",
+    "rp_objects:object_delete": "Объект удалён", "rp_checkpoints:alarm": "КПП: тревога", "rp_checkpoints:point_create": "КПП поставлен", "rp_checkpoints:point_delete": "КПП удалён", "rp_checkpoints:point_turret": "КПП: точка турели", "rp_checkpoints:point_doors": "КПП: двери", "rp_admin:npc_spawn": "Тестовый NPC создан", "rp_admin:npc_clear": "Тестовые NPC убраны", "rp_objects:object_collision": "Проверена коллизия объектов", "rp_shops:cityhall_failed": "СБОЙ: услуга оплачена, не выдана",
   };
-  const WARN_ACTIONS = new Set(["rp_vehicles:car_buy_failed", "corporate_key_fail", "rp_cyberware:psychosis",
+  const WARN_ACTIONS = new Set(["rp_vehicles:car_buy_failed", "rp_shops:cityhall_failed", "rp_identity:id_forge", "rp_identity:id_copy", "corporate_key_fail", "rp_cyberware:psychosis",
     "rp_medical:executed", "character_freeze", "character_restore",
     "rp_medical:downed", "ban", "kick"]);
 
@@ -860,6 +1061,293 @@
     fStatus(p.message ? `${p.message} ${tail}` : tail, p.message && p.message.startsWith("Не "));
   });
   $("fRefresh").addEventListener("click", frozenQuery);
+
+  // -- объекты в мире (rp_objects) -------------------------------------------------------------
+  // Каталог, список и все действия — сервер. «Двигать» закрывает панель: включается гизмо
+  // (стрелки — перенос, R — поворот, T — снова перенос, Shift — точно, Enter — сохранить, Esc — отмена).
+  let objCat = { models: [], solid: [], checked: 0 }, objList = [], objArmed = null, objProbing = false;
+  let objSel = null, objStep = 0.25, objTurn = 15; // выбранный объект — кнопки точного сдвига
+  const arr = v => Array.isArray(v) ? v : [];
+
+  function oStatus(text, err) { $("oStatus").textContent = text; $("oStatus").className = err ? "err" : ""; }
+  function objectsQuery() { objArmed = null; oStatus("Загрузка…"); Open77.emit("adm:objects", {}); }
+
+  function renderObjCatalog() {
+    const q = $("oSearch").value.trim().toLowerCase();
+    $("oCount").textContent = `${objCat.solid.length} из ${objCat.models.length}`;
+    const box = $("oCatalog");
+    box.replaceChildren();
+    if (!objCat.solid.length) {
+      const empty = document.createElement("div");
+      empty.className = "oempty";
+      empty.textContent = objCat.checked
+        ? "Ни у одного объекта коллизия не подтверждена."
+        : "Коллизия каталога ещё не проверена. Встаньте на открытом ровном месте и нажмите «Проверить коллизию» (несколько минут).";
+      box.append(empty);
+      return;
+    }
+    let family = null;
+    for (const alias of objCat.solid.filter(a => !q || a.includes(q))) {
+      const fam = alias.split(".")[0];
+      if (fam !== family) {
+        family = fam;
+        const head = document.createElement("div");
+        head.className = "ofam";
+        head.textContent = fam;
+        box.append(head);
+      }
+      const b = document.createElement("button");
+      b.className = "omodel";
+      b.textContent = alias;
+      b.title = "Поставить в 3 м перед собой и сразу двигать";
+      b.addEventListener("click", () => { oStatus(`Ставим ${alias}…`); Open77.emit("adm:objSpawn", { model: alias }); });
+      box.append(b);
+    }
+  }
+
+  function objCard(o) {
+    const el = document.createElement("div");
+    el.className = "ocard";
+    const title = document.createElement("b");
+    title.textContent = `#${o.id} ${o.model}`;
+    const move = document.createElement("button");
+    move.className = "btn cyan";
+    move.textContent = "Двигать";
+    move.addEventListener("click", () => Open77.emit("adm:objEdit", { id: o.id }));
+    const del = document.createElement("button");
+    del.className = "btn";
+    del.textContent = objArmed === o.id ? "Подтвердить" : "Удалить";
+    del.addEventListener("click", () => {
+      if (objArmed !== o.id) { objArmed = o.id; renderObjList(); return; }
+      objArmed = null;
+      oStatus(`Удаление #${o.id}…`);
+      Open77.emit("adm:objDelete", { id: o.id });
+    });
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${o.d} м · поставил ${o.by || "?"}`;
+    title.title = "Точный сдвиг кнопками";
+    title.addEventListener("click", () => { objSel = objSel === o.id ? null : o.id; renderObjList(); });
+    el.append(title, move, del, meta);
+    if (objSel === o.id) el.append(nudgeRow(o));
+    return el;
+  }
+
+  // Точный сдвиг: оси мира, шаг — метры; поворот — градусы. Каждое нажатие сервер сохраняет.
+  function nudgeRow(o) {
+    const row = document.createElement("div");
+    row.className = "onudge";
+    const step = document.createElement("select");
+    for (const v of [0.05, 0.25, 0.5, 1, 2]) step.append(new Option(`${v} м`, v, false, v === objStep));
+    step.addEventListener("change", () => { objStep = Number(step.value); });
+    const turn = document.createElement("select");
+    for (const v of [5, 15, 45, 90]) turn.append(new Option(`${v}°`, v, false, v === objTurn));
+    turn.addEventListener("change", () => { objTurn = Number(turn.value); });
+    const btn = (label, d) => {
+      const b = document.createElement("button");
+      b.className = "btn ghost";
+      b.textContent = label;
+      b.addEventListener("click", () => Open77.emit("adm:objNudge", { id: o.id, dx: (d.x || 0) * objStep,
+        dy: (d.y || 0) * objStep, dz: (d.z || 0) * objStep, dyaw: (d.r || 0) * objTurn }));
+      return b;
+    };
+    const label = t => { const s = document.createElement("span"); s.textContent = t; return s; };
+    row.append(label("шаг"), step, btn("X−", { x: -1 }), btn("X+", { x: 1 }), btn("Y−", { y: -1 }), btn("Y+", { y: 1 }),
+      btn("Z−", { z: -1 }), btn("Z+", { z: 1 }), label("поворот"), turn, btn("⟲", { r: -1 }), btn("⟳", { r: 1 }));
+    return row;
+  }
+
+  function renderObjList() {
+    const box = $("oList");
+    if (!objList.length) {
+      const empty = document.createElement("div");
+      empty.className = "oempty";
+      empty.textContent = "Рядом объектов нет.";
+      box.replaceChildren(empty);
+      return;
+    }
+    box.replaceChildren(...objList.map(objCard));
+  }
+
+  Open77.on("adm:objCatalog", p => {
+    if (!p) return;
+    objCat = { models: arr(p.models), solid: arr(p.solid), checked: p.checked || 0 };
+    renderObjCatalog();
+  });
+  Open77.on("adm:objects", p => {
+    if (!p) return;
+    objList = arr(p.objects);
+    renderObjList();
+    if (!objProbing) oStatus(p.message || `Объектов рядом: ${objList.length}.`, p.failed);
+  });
+  Open77.on("adm:objProbe", p => {
+    if (!p) return;
+    if (p.error) { objProbing = false; $("oProbe").textContent = "Проверить коллизию"; oStatus(p.error, true); return; }
+    if (p.finished) {
+      objProbing = false;
+      $("oProbe").textContent = "Проверить коллизию";
+      oStatus(`Проверено: ${p.total}, с коллизией: ${p.solid}${p.skipped ? `, не загрузилось: ${p.skipped}` : ""}. Сохраняется…`);
+      return;
+    }
+    oStatus(`Проверка коллизии: ${p.done} из ${p.total} (с коллизией: ${p.solid}) · ${p.alias}. Не двигайтесь.`);
+  });
+  $("oRefresh").addEventListener("click", objectsQuery);
+  $("oSearch").addEventListener("input", renderObjCatalog);
+  $("oProbe").addEventListener("click", () => {
+    if (objProbing) { Open77.emit("adm:objProbeStop", {}); return; }
+    objProbing = true;
+    $("oProbe").textContent = "Остановить";
+    oStatus("Проверка коллизии: начинаем…");
+    Open77.emit("adm:objProbe", {});
+  });
+
+  // -- КПП-сканеры (rp_checkpoints) ----------------------------------------------------------
+  function cStatus(text, err) { $("cStatus").textContent = text; $("cStatus").className = err ? "err" : ""; }
+  function cpsQuery() { Open77.emit("adm:cps", {}); }
+  function cButton(label, cls, event, id) {
+    const b = document.createElement("button");
+    b.className = "btn" + (cls ? " " + cls : "");
+    b.textContent = label;
+    b.addEventListener("click", () => { cStatus("…"); Open77.emit(event, { id }); });
+    return b;
+  }
+  function cpCard(c) {
+    const el = document.createElement("div");
+    el.className = "ccard";
+    const title = document.createElement("b");
+    title.textContent = `#${c.id} ${c.label}`;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `радиус ${c.radius} м · ${c.x}, ${c.y}, ${c.z} · турель: ${c.turret ? "задана" : "нет"} · дверей: ${c.doors} · декор: ${c.decor || "нет"}`;
+    const row = document.createElement("div");
+    row.className = "row";
+    row.append(cButton("Турель — здесь", "cyan", "adm:cpTurret", c.id), cButton("Двери рядом", "", "adm:cpDoors", c.id),
+      cButton("Отпустить двери", "ghost", "adm:cpDoorsClear", c.id), cButton("Проверить на себе", "cyan", "adm:cpTest", c.id),
+      cButton("Повернуть декор", "ghost", "adm:cpRotate", c.id), cButton("Убрать декор", "ghost", "adm:cpDecorClear", c.id),
+      cButton("Удалить", "", "adm:cpDelete", c.id));
+    el.append(title, meta, row);
+    return el;
+  }
+  Open77.on("adm:cps", p => {
+    if (!p) return;
+    const list = Array.isArray(p.list) ? p.list : [];
+    $("cList").replaceChildren(...list.map(cpCard));
+    const illegal = p.illegal ? Object.keys(p.illegal) : [];
+    $("cIllegal").textContent = `Незаконные импланты (тестовый список): ${illegal.join(", ") || "нет"} · турелей сейчас: ${p.turrets || 0}`;
+    if (p.message) cStatus(p.message, p.failed);
+    else cStatus(list.length ? `КПП: ${list.length}.` : "КПП нет.");
+  });
+  $("cCreate").addEventListener("click", () => {
+    cStatus("…");
+    Open77.emit("adm:cpCreate", { label: $("cLabel").value.trim(), radius: Number($("cRadius").value) || null });
+  });
+  $("cCreateTest").addEventListener("click", () => {
+    cStatus("…");
+    Open77.emit("adm:cpCreateTest", { label: $("cLabel").value.trim(), radius: Number($("cRadius").value) || null });
+  });
+  $("cStop").addEventListener("click", () => Open77.emit("adm:cpStop", {}));
+  $("cRefresh").addEventListener("click", cpsQuery);
+
+  // -- тестовые NPC (rp_admin) -----------------------------------------------------------------
+  // Запись проверяет сервер по каталогу игры. Квестовые персонажи (боссы) могут не появиться,
+  // не драться или быть неуязвимыми — это ограничение игры, не ошибка панели.
+  const NPC_PRESETS = [
+    ["Character.main_boss_adam_smasher", "Адам Смэшер (босс, может не работать)"],
+    ["Character.cpz_maelstrom_grunt1_ranged1_lexington_wa", "Мальстрём, обычный боец"],
+  ];
+  let npcData = [];
+  function nStatus(text, err) { $("nStatus").textContent = text; $("nStatus").className = err ? "err" : ""; }
+  function npcsQuery() { Open77.emit("adm:npcs", {}); }
+
+  $("nPresets").replaceChildren(...NPC_PRESETS.map(([record, label]) => {
+    const b = document.createElement("button");
+    b.className = "btn ghost";
+    b.textContent = label;
+    b.title = record;
+    b.addEventListener("click", () => { $("nRecord").value = record; });
+    return b;
+  }));
+
+  function npcCard(n) {
+    const el = document.createElement("div");
+    el.className = "ncard";
+    const title = document.createElement("b");
+    title.textContent = n.record;
+    const attack = document.createElement("button");
+    attack.className = "btn cyan";
+    attack.textContent = "Атаковать меня";
+    attack.addEventListener("click", () => Open77.emit("adm:npcAttack", { id: n.id }));
+    const remove = document.createElement("button");
+    remove.className = "btn";
+    remove.textContent = "Убрать";
+    remove.addEventListener("click", () => Open77.emit("adm:npcRemove", { id: n.id }));
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = n.dead ? "мёртв" : (n.health != null ? `здоровье ${n.health}` : "");
+    el.append(title, attack, remove, meta);
+    return el;
+  }
+
+  Open77.on("adm:npcs", p => {
+    if (!p) return;
+    npcData = Array.isArray(p.list) ? p.list : [];
+    $("nList").replaceChildren(...npcData.map(npcCard));
+    if (p.message) nStatus(p.message, p.failed);
+    else nStatus(npcData.length ? `Ваших NPC: ${npcData.length}.` : "Ваших NPC нет.");
+  });
+  $("nSpawn").addEventListener("click", () => {
+    const record = $("nRecord").value.trim();
+    if (!record) { nStatus("Впишите запись Character.… или выберите из подсказок.", true); return; }
+    nStatus(`Создаём ${record}…`);
+    Open77.emit("adm:npcSpawn", { record, attack: $("nAttack").checked,
+      health: Number($("nHealth").value) || null, armor: Number($("nArmor").value) || null });
+  });
+  $("nClear").addEventListener("click", () => Open77.emit("adm:npcRemove", {}));
+  // Файлы эффектов Сандевистана Адама Смэшера (из его шаблона adam_smasher.ent, 2026-11-05):
+  // путь + кость → Open77.effects.playOn со слотом. Смотреть со второго ПК; «На моих NPC» — для сравнения.
+  const FX_SMASHER = "base\\fx\\characters\\boss_adam_shasher\\";
+  const FX_NPC = "base\\fx\\characters\\npc\\abilities\\";
+  // Первыми — имена, которые уже есть в шаблонах копий игрока (cyberm\entities\player_proxy_*.ent):
+  // playOn по имени, без кости (кость не нужна). Файлы-пути ниже клиент платформы отклоняет
+  // (not_found: их нет в её списке эффектов) — оставлены для сравнения.
+  const FX_NAMES = [
+    ["Имя: рывок влево", "fx_sandevistan_left"],
+    ["Имя: рывок вправо", "fx_sandevistan_right"],
+    ["Имя: Керензиков", "kerenzikov_center"],
+    ["Имя: выход из маскировки Оды", "fx_sandevistan_versus_start"],
+    ["Имя: петля Оды", "fx_sandevistan_versus_loop"],
+    ["Шлейф Смэшера", FX_NPC + "ch_npc_sandevistan_trail.effect"],
+    ["Шлейф слева", FX_NPC + "ch_npc_sandevistan_trail_left.effect"],
+    ["Шлейф справа", FX_NPC + "ch_npc_sandevistan_trail_right.effect"],
+    ["Сандевистан слабый", FX_SMASHER + "ch_smasher_sandevistan_low.effect"],
+    ["Сандевистан средний", FX_SMASHER + "ch_smasher_sandevistan_medium.effect"],
+    ["Сандевистан сильный", FX_SMASHER + "ch_smasher_sandevistan_high.effect"],
+    ["Вспышка: начало", FX_SMASHER + "ch_adam_smasher_sandevistan_teleport_start.effect"],
+    ["Вспышка: конец", FX_SMASHER + "ch_adam_smasher_sandevistan_teleport_end.effect"],
+    ["Центр", FX_NPC + "ch_npc_sandevistan_center.effect"],
+    ["Петля Оды", "base\\fx\\characters\\boss_cyberninja\\sandevistan\\ch_oda_sandevistan_loop.effect"],
+  ];
+  $("nFxNames").replaceChildren(...FX_NAMES.map(([label, name]) => {
+    const b = document.createElement("button");
+    b.className = "btn ghost";
+    b.textContent = label;
+    b.title = name;
+    b.addEventListener("click", () => { $("nFxName").value = name; });
+    return b;
+  }));
+  const fxTry = npcs => {
+    const name = $("nFxName").value.trim();
+    if (!name) return;
+    nStatus(`Эффект ${name}…`);
+    Open77.emit("adm:fxTry", { name, npcs, seconds: 8, slot: $("nFxSlot").value });
+  };
+  $("nFxSelf").addEventListener("click", () => fxTry(false));
+  document.querySelectorAll("#nReflex [data-reflex]").forEach(b => b.addEventListener("click", () => {
+    nStatus("Ускорение платформы…");
+    Open77.emit("adm:reflexTest", { action: b.dataset.reflex });
+  }));
+  $("nFxNpc").addEventListener("click", () => fxTry(true));
+  $("nRefresh").addEventListener("click", npcsQuery);
 
   // -- заявки новых персонажей ----------------------------------------------------------------
   // Данные и решение — сервер (rp_admin → rp_core applications_list / application_review).

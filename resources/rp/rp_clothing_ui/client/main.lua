@@ -1,17 +1,18 @@
--- Примерочная магазина одежды: окно, манекен и камера. Что примерить и купить, решает
--- сервер (rp_clothing); здесь — только показ и передача выбора.
+-- Примерочная магазина одежды: окно и камера. Что примерить и купить, решает сервер
+-- (rp_clothing); здесь — только показ и передача выбора.
 --
--- Примеряет манекен, как на экране выбора персонажа (rp_charselect): локальный
--- puppets.createLocal с телом персонажа, его бельём и примеряемыми вещами. Сам персонаж
--- стоит одетым и заморожен; скриптовая камера у его головы смотрит на манекен в 3 м
--- впереди — персонаж за кадром (своё тело скриптовая камера рисует от первого лица, без
--- головы), манекен целиком и по центру. Направление — свободное от стен (world.raycast).
--- Примерка и поворот (Q / E, мышь) пересоздают манекен: новый готовится, пока виден
--- прежний, — без мигания. Манекен локальный: другие игроки видят персонажа как обычно.
+-- Манекен — серверный NPC с телом персонажа (rp_clothing): создаётся один раз, примерка его
+-- переодевает, поворот поворачивает — без пересоздания. На время примерки игрок и манекен — в
+-- отдельном измерении: другие их не видят (2026-11-04; раньше — локальный puppets.createLocal,
+-- пересоздавался на каждое действие, и на сборке op77.184 прежние тела оставались на экране).
+-- Клиент выбирает место манекена (в 3 м впереди, свободное от стен — world.raycast) и шлёт
+-- его серверу. Сам персонаж стоит одетым и заморожен; скриптовая камера у его головы смотрит
+-- на манекен — персонаж за кадром (своё тело скриптовая камера рисует от первого лица).
 
 local page, pageReady, isOpen = nil, false, false
 local SPOT, CAM_FORWARD, CAM_HEIGHT, AIM_HEIGHT, FOV = 3.0, 0.6, 1.45, 0.95, 42
--- { origin, dir, baseYaw, camera, puppet, look = { body, underwear }, trial, turn, dirty, building, frozen }
+local ROTATE_SEND_MS = 100 -- поворот мышью — серверу не чаще
+-- { origin, dir, baseYaw, camera, turn, sentTurn, frozen }
 local scene = nil
 
 local function send(event, payload)
@@ -47,46 +48,6 @@ local function spotOf(s)
     return { x = s.origin.x + s.dir.x * SPOT, y = s.origin.y + s.dir.y * SPOT, z = s.origin.z }
 end
 
--- -- манекен ----------------------------------------------------------------------------
-
-local function equipmentOf(s)
-    local out = {}
-    for slot, record in pairs(s.look.underwear or {}) do out[slot] = record end
-    for slot, record in pairs(s.trial) do out[slot] = record end
-    return out
-end
-
-local function removePuppet(handle)
-    if handle then pcall(Open77.puppets.removeLocal, handle) end
-end
-
--- Собрать манекен по текущему набору и углу; показать, когда готов, и убрать прежний.
-local function buildPuppet(s)
-    local handle, why = Open77.puppets.createLocal({
-        body = s.look.body, equipment = equipmentOf(s), position = spotOf(s),
-        yaw = (s.baseYaw + 180 + s.turn) % 360,
-    })
-    if not handle then return trace("манекен: %s", tostring(why)) end
-    for _ = 1, 100 do
-        Wait(100)
-        if scene ~= s then return removePuppet(handle) end
-        local ok, st = pcall(Open77.puppets.getLocal, handle)
-        if ok and type(st) == "table" then
-            if st.ready then
-                removePuppet(s.puppet)
-                s.puppet = handle
-                return
-            end
-            if st.status == "failed" then
-                removePuppet(handle)
-                return trace("манекен не собран: %s", tostring(st.reason))
-            end
-        end
-    end
-    removePuppet(handle)
-    trace("манекен не собрался за 10 с")
-end
-
 -- -- камера -----------------------------------------------------------------------------
 
 local function startCamera(s)
@@ -114,7 +75,6 @@ local function stopScene()
     local s = scene
     scene = nil
     if not s then return end
-    removePuppet(s.puppet)
     if s.camera then
         pcall(Open77.camera.deactivate, { blendMs = 400 })
         pcall(Open77.camera.destroy, s.camera)
@@ -122,7 +82,7 @@ local function stopScene()
     if s.frozen then pcall(Open77.character.setFrozen, false) end
 end
 
-local function startScene(look)
+local function startScene()
     stopScene()
     local me = Open77.character.state()
     if type(me) ~= "table" or not me.position then return trace("нет положения персонажа") end
@@ -132,19 +92,21 @@ local function startScene(look)
     local origin = { x = me.position.x, y = me.position.y, z = me.position.z }
     local dx, dy, degrees = freeDirection(origin, f.x / length, f.y / length)
     local s = { origin = origin, dir = { x = dx, y = dy }, baseYaw = (tonumber(me.yaw) or 0) + degrees,
-                look = look, trial = {}, turn = 0, dirty = true, building = false }
+                turn = 0, sentTurn = 0 }
     scene = s
     s.frozen = pcall(Open77.character.setFrozen, true)
+    -- Манекен — лицом к камере: место и угол серверу (он создаёт NPC и переносит в измерение).
+    local spot = spotOf(s)
+    TriggerServerEvent("rp_clothing:stage", { x = spot.x, y = spot.y, z = spot.z, yaw = (s.baseYaw + 180) % 360 })
     CreateThread(function() startCamera(s) end)
-    -- Пересборка манекена: изменения за время сборки сливаются в одну следующую.
+    -- Поворот: последний угол — серверу, не чаще ROTATE_SEND_MS.
     CreateThread(function()
         while scene == s do
-            if s.dirty then
-                s.dirty = false
-                buildPuppet(s)
-            else
-                Wait(50)
+            if s.turn ~= s.sentTurn then
+                s.sentTurn = s.turn
+                TriggerServerEvent("rp_clothing:rotate", s.turn)
             end
+            Wait(ROTATE_SEND_MS)
         end
     end)
 end
@@ -166,28 +128,16 @@ end
 
 RegisterNetEvent("rp_clothing:open", function(payload)
     if type(payload) ~= "table" or not page then return end
-    if type(payload.body) ~= "table" then return trace("нет тела для манекена") end
-    local look = { body = payload.body, underwear = type(payload.underwear) == "table" and payload.underwear or {} }
-    payload.body, payload.underwear = nil, nil   -- странице не нужны
     isOpen = true
     send("cl:open", payload)
     page:setFocus(true, true)
-    startScene(look)
+    startScene()
 end)
 
+-- Корзина и подписи — окну; манекен переодевает сервер.
 RegisterNetEvent("rp_clothing:trial", function(payload)
     if type(payload) ~= "table" then return end
     send("cl:trial", payload)
-    -- Корзина = что на манекене: { slot, record, … } по слоту.
-    if scene then
-        local trial = {}
-        for _, line in pairs(type(payload.cart) == "table" and payload.cart or {}) do
-            if type(line) == "table" and type(line.slot) == "string" and type(line.record) == "string" then
-                trial[line.slot] = line.record
-            end
-        end
-        scene.trial, scene.dirty = trial, true
-    end
 end)
 
 RegisterNetEvent("rp_clothing:closed", function() closeLocal() end)
@@ -209,7 +159,7 @@ AddEventHandler("onClientResourceStart", function(name)
     page:on("cl:close", requestClose)
     page:on("cl:rotate", function(p)
         if isOpen and scene and type(p) == "table" and tonumber(p.yaw) then
-            scene.turn, scene.dirty = tonumber(p.yaw) % 360, true
+            scene.turn = tonumber(p.yaw) % 360
         end
     end)
 end)

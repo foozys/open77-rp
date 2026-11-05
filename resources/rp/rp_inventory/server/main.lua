@@ -84,6 +84,10 @@ local function nearbyPlayers(playerId)
     return result
 end
 
+-- Нейропорт личности (слот "nid", 2026-11-04): настоящая личная щепка, ставит и меняет только
+-- сервер (rp_identity — выдача, восстановление). Вынуть, передать, выбросить, изъять нельзя.
+IDENTITY_SLOT = "nid"
+
 -- -- состояние ------------------------------------------------------------------------
 
 local function catalog()
@@ -91,12 +95,13 @@ local function catalog()
     for id, def in pairs(InvConfig.items) do
         items[id] = { label = def.label, w = def.w, h = def.h, weightG = def.weightG, stack = def.stack,
                       color = def.color, usable = def.use ~= nil,
-                      useLabel = def.useLabel or (def.use == "chip" and "Вставить в нейропорт") or "Использовать",
+                      useLabel = def.useLabel or (def.use == "chip" and "Считать щепку") or "Использовать",
                       -- снаряжение: оружие (в слоты), калибр, магазин (устаревший), можно ли на пояс
                       weapon = def.weapon ~= nil, melee = def.weapon ~= nil and def.weapon.ammo == nil,
                       caliber = def.weapon and def.weapon.ammo or nil,
                       mag = def.mag and def.mag.capacity or nil, ammo = def.ammo,
                       wear = def.wear, -- одежда: слот cl_<wear>
+                      shard = def.shard == true, -- щепка: в нейропорт n1..n2
                       belt = def.weapon == nil and def.wear == nil and def.w * def.h <= InvConfig.gear.beltMaxCells }
     end
     return items
@@ -118,7 +123,9 @@ local function windowStacks(state, revealed, readsShards)
             local meta = record and record.meta or {}
             stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r, c = stack.c,
                               a = readsShards and tonumber(meta.amount) or nil,
-                              t = type(meta.plate) == "string" and meta.plate or nil,
+                              -- подпись: номер ключа машины, имя на личной щепке
+                              t = type(meta.plate) == "string" and meta.plate
+                                  or stack.i == "id_chip" and type(meta.holder) == "string" and meta.holder or nil,
                               -- одежда: название конкретной вещи вместо общего «Верхняя одежда»
                               l = InvConfig.items[stack.i] and InvConfig.items[stack.i].wear
                                   and type(meta.label) == "string" and meta.label or nil,
@@ -137,7 +144,9 @@ local function push(playerId, withCatalog)
     local other = session and inv[session.target]
     local current = session and session.current
     local readsShards = Store.hasOs(playerId)
-    local ok, reason = TriggerClientEvent("rp_inventory:state", playerId, {
+    state.seq = (state.seq or 0) + 1
+    local payload = {
+        seq = state.seq, -- номер обновления: латентное (с каталогом) может прийти позже следующих
         cols = InvConfig.grid.cols, rows = InvConfig.grid.rows,
         capacityG = InvConfig.capacityG, weightG = state.weightG,
         stacks = windowStacks(state, nil, readsShards), nearby = nearbyPlayers(playerId),
@@ -148,7 +157,15 @@ local function push(playerId, withCatalog)
                            -- что обыскивается сейчас: клетка и сколько осталось (для полоски)
                            searching = current and { x = current.stack.x, y = current.stack.y,
                                ms = math.max(0, current.endsAt - Open77.time.monotonic()) } or false } or false,
-    })
+    }
+    local ok, reason
+    if withCatalog then
+        -- С каталогом сообщение ~25–30 КБ (кириллица в JSON тяжёлая) и у клиента терялось молча —
+        -- окно открывалось пустым (2026-11-04, второй ПК). Латентно: частями, до 4 МиБ, то же событие.
+        ok, reason = TriggerLatentClientEvent("rp_inventory:state", playerId, 256 * 1024, payload)
+    else
+        ok, reason = TriggerClientEvent("rp_inventory:state", playerId, payload)
+    end
     if not ok then log("warn", "окно игроку %d не обновлено: %s", playerId, tostring(reason)) end
 end
 
@@ -346,8 +363,9 @@ local function useItem(playerId, index, itemId)
         end
         if def.use == "event" then
             -- Предмет не тратится: действие решает другой ресурс (ключ — rp_vehicles).
+            -- 5-й аргумент — слот стопки (c): "n1" — нейропорт, nil — сетка.
             local record = stack.u and state.instances and state.instances[stack.u]
-            return TriggerEvent("rp_inventory:used", playerId, itemId, state.characterId, record and record.meta or {})
+            return TriggerEvent("rp_inventory:used", playerId, itemId, state.characterId, record and record.meta or {}, stack.c)
         end
         if def.use ~= "consume" then return notify(playerId, "%s нельзя использовать.", def.label) end
         local life = Open77.players.getLifeState(playerId)
@@ -382,6 +400,7 @@ RegisterNetEvent("rp_inventory:use", function(index, itemId) useItem(tonumber(so
 RegisterNetEvent("rp_inventory:give", function(index, itemId, count, targetId)
     local playerId = tonumber(source)
     actStack(playerId, index, itemId, function(state, stack, at)
+        if stack.c == IDENTITY_SLOT then return notify(playerId, "Щепка в нейропорте личности не вынимается.") end
         count = clampCount(count, stack)
         local target = math.tointeger(tonumber(targetId))
         local me, them = positionOf(playerId), target and positionOf(target)
@@ -414,6 +433,7 @@ end)
 RegisterNetEvent("rp_inventory:drop", function(index, itemId, count)
     local playerId = tonumber(source)
     actStack(playerId, index, itemId, function(state, stack, at)
+        if stack.c == IDENTITY_SLOT then return notify(playerId, "Щепка в нейропорте личности не вынимается.") end
         count = clampCount(count, stack)
         local def = InvConfig.items[stack.i]
         local pos = positionOf(playerId)
@@ -538,29 +558,57 @@ end)
 
 -- Выдать персонажу игрока уникальный предмет с данными meta (ключ от машины), только
 -- для rp_*-ресурсов. price > 0 — в той же операции списать столько со счёта (деньги
--- сгорают в sys:rp.money). Ждёт: вызывать через Open77.exports.call.
--- id экземпляра, или nil, reason ("no_space", "insufficient_funds", …).
-exports("give_instance", function(playerId, itemId, meta, price)
+-- сгорают в sys:rp.money). burn — список id экземпляров того же предмета у игрока: сгорают в той
+-- же операции (восстановление личной щепки — старая уходит), новый встаёт в слот первого из них.
+-- toSlot = "nid" — новый сразу в нейропорт личности (только id_chip; место в сетке не нужно).
+-- Ждёт: вызывать через Open77.exports.call.
+-- id экземпляра, или nil, reason ("no_space", "insufficient_funds", "slot_taken", …).
+exports("give_instance", function(playerId, itemId, meta, price, burn, toSlot)
     local caller = GetInvokingResource()
     if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
     playerId = math.tointeger(tonumber(playerId))
     local def = InvConfig.items[itemId]
     price = math.tointeger(tonumber(price)) or 0
-    if not playerId or not def or not def.unique or type(meta) ~= "table" or price < 0 then
+    if not playerId or not def or not def.unique or type(meta) ~= "table" or price < 0
+        or (toSlot ~= nil and (toSlot ~= IDENTITY_SLOT or itemId ~= "id_chip")) then
         return nil, "invalid_argument"
     end
     local state, problem = ensure(playerId)
     if not state then return nil, problem end
     if state.busy then return nil, "busy" end
-    if not Grid.fits(state.stacks, itemId, 1) then return nil, "no_space" end
+    -- Сжигаемые: только свои стопки этого предмета; слот первого (нейропорт) — новому.
+    local burnLines, slot = {}, nil
+    for _, u in ipairs(type(burn) == "table" and burn or {}) do
+        for _, stack in ipairs(state.stacks) do
+            if stack.u == u and stack.i == itemId then
+                burnLines[#burnLines + 1] = { instance = u, from = state.account, to = SOURCE }
+                slot = slot or stack.c
+                break
+            end
+        end
+    end
+    if toSlot then
+        -- Слот должен освободиться: занят только тем, что сгорает.
+        for _, stack in ipairs(state.stacks) do
+            if stack.c == toSlot then
+                local burning = false
+                for _, line in ipairs(burnLines) do if line.instance == stack.u then burning = true end end
+                if not burning then return nil, "slot_taken" end
+            end
+        end
+        slot = toSlot
+    elseif #burnLines == 0 and not Grid.fits(state.stacks, itemId, 1) then
+        return nil, "no_space"
+    end
     local opId = Store.newOpId("rpinst")
     if not opId then return nil, "store_unavailable" end
     local lines = { { instance = itemId .. "." .. opId:gsub("^rpinst:", ""), item = itemId, from = SOURCE,
                       to = state.account, meta = meta } }
+    for _, line in ipairs(burnLines) do lines[#lines + 1] = line end
     if price > 0 then
         local bank = Store.bank(playerId)
         if not bank then return nil, "no_bank" end
-        lines[2] = { money = price, from = bank, to = "sys:rp.money" }
+        lines[#lines + 1] = { money = price, from = bank, to = "sys:rp.money" }
     end
     state.busy = true
     local spec = { opId = opId, kind = "rp.instance", reason = caller, lines = lines }
@@ -578,7 +626,15 @@ exports("give_instance", function(playerId, itemId, meta, price)
     end
     state.busy = false
     if not receipt then return nil, why or "busy" end
-    journal("instance", nil, playerId, { item = itemId, instance = lines[1].instance, price = price, by = caller }, opId)
+    journal("instance", nil, playerId, { item = itemId, instance = lines[1].instance, price = price, by = caller,
+        burned = #burnLines > 0 and #burnLines or nil }, opId)
+    local gone = {}
+    for _, line in ipairs(burnLines) do gone[line.instance] = true end
+    for index = #state.stacks, 1, -1 do
+        if gone[state.stacks[index].u] then table.remove(state.stacks, index) end
+    end
+    -- Новый — в слот (нейропорт личности или прежнего); из сетки — сверка найдёт место.
+    if slot then state.stacks[#state.stacks + 1] = { i = itemId, n = 1, u = lines[1].instance, c = slot } end
     refresh(playerId)
     return lines[1].instance
 end)
@@ -660,6 +716,111 @@ exports("counts", function(playerId)
     local counts = {}
     for _, stack in ipairs(state.stacks) do counts[stack.i] = (counts[stack.i] or 0) + stack.n end
     return counts
+end)
+
+-- Уникальные предметы itemId в карманах и слотах игрока: { { meta, slot, u }, … } (slot — c стопки:
+-- "n1" — нейропорт, nil — сетка) — сканер Kiroshi и восстановление щепки (rp_identity). Не ждёт; не загружен — nil.
+exports("instances_of", function(playerId, itemId)
+    playerId = math.tointeger(tonumber(playerId))
+    if not playerId or type(itemId) ~= "string" then return nil, "invalid_argument" end
+    local character, state = characterOf(playerId), inv[playerId]
+    if not character or not state or state.characterId ~= character.id then return nil, "not_loaded" end
+    local list = {}
+    for _, stack in ipairs(state.stacks) do
+        if stack.i == itemId and stack.u then
+            local record = state.instances and state.instances[stack.u]
+            list[#list + 1] = { meta = record and record.meta or {}, slot = stack.c, u = stack.u }
+        end
+    end
+    return list
+end)
+
+-- Переставить свою личную щепку u (карманы, нейропорт) в нейропорт личности, если он свободен
+-- (персонажи до 2026-11-04). Только rp_*. true, или nil, reason. Не ждёт.
+exports("seat_identity", function(playerId, u)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    playerId = math.tointeger(tonumber(playerId))
+    local state = playerId and inv[playerId]
+    local character = playerId and characterOf(playerId)
+    if not state or not character or state.characterId ~= character.id then return nil, "not_loaded" end
+    if state.busy then return nil, "busy" end
+    local found
+    for _, stack in ipairs(state.stacks) do
+        if stack.c == IDENTITY_SLOT then return nil, "slot_taken" end
+        if stack.u == u and stack.i == "id_chip" then found = stack end
+    end
+    if not found then return nil, "not_found" end
+    found.c, found.x, found.y, found.r = IDENTITY_SLOT, nil, nil, nil
+    Store.saveLayout(state.characterId, state.stacks)
+    push(playerId)
+    return true
+end)
+
+-- Заняты ли обычные нейропорты игрока (n1, n2; не нейропорт личности): { true, false }, или nil —
+-- не загружен. Скан Netwatch (rp_cyberware). Не ждёт.
+exports("neuro_busy", function(playerId)
+    playerId = math.tointeger(tonumber(playerId))
+    local state = playerId and inv[playerId]
+    local character = playerId and characterOf(playerId)
+    if not state or not character or state.characterId ~= character.id then return nil end
+    local busy = {}
+    for n = 1, InvConfig.gear.neuroSlots or 0 do busy[n] = false end
+    for _, stack in ipairs(state.stacks) do
+        local n = type(stack.c) == "string" and math.tointeger(tonumber(stack.c:match("^n(%d)$")))
+        if n and busy[n] ~= nil then busy[n] = true end
+    end
+    return busy
+end)
+
+-- Слот нейропорта ("n1"/"n2") с предметом itemId у игрока, или nil. Не ждёт.
+local function neuroSlotOf(state, itemId)
+    for index, stack in ipairs(state.stacks) do
+        if stack.i == itemId and type(stack.c) == "string" and stack.c:match("^n%d$") then return stack.c, index end
+    end
+end
+
+exports("neuroport_has", function(playerId, itemId)
+    playerId = math.tointeger(tonumber(playerId))
+    local state = playerId and inv[playerId]
+    local character = playerId and characterOf(playerId)
+    if not state or not character or state.characterId ~= character.id or type(itemId) ~= "string" then return false end
+    return neuroSlotOf(state, itemId) ~= nil
+end)
+
+-- Записать щепку: blankId в нейропорте (пустая щепка) сгорает, на её место — новый уникальный
+-- itemId с данными meta, одной операцией. Только rp_* (rp_identity: копия личности). Ждёт.
+-- id экземпляра, или nil, reason ("no_blank", "busy", …).
+exports("write_shard", function(playerId, blankId, itemId, meta)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    playerId = math.tointeger(tonumber(playerId))
+    local blank, def = InvConfig.items[blankId], InvConfig.items[itemId]
+    if not playerId or not blank or blank.unique or not def or not def.unique or not def.shard or type(meta) ~= "table" then
+        return nil, "invalid_argument"
+    end
+    local state, problem = ensure(playerId)
+    if not state then return nil, problem end
+    if state.busy then return nil, "busy" end
+    local slot = neuroSlotOf(state, blankId)
+    if not slot then return nil, "no_blank" end
+    local opId = Store.newOpId("rpwrite")
+    if not opId then return nil, "store_unavailable" end
+    local instance = itemId .. "." .. opId:gsub("^rpwrite:", "")
+    state.busy = true
+    local receipt, why = Store.transfer({ opId = opId, kind = "rp.write", reason = caller, lines = {
+        { item = blankId, count = 1, from = state.account, to = SOURCE },
+        { instance = instance, item = itemId, from = SOURCE, to = state.account, meta = meta },
+    } })
+    state.busy = false
+    if not receipt then return nil, why or "busy" end
+    journal("shard_write", nil, playerId, { blank = blankId, item = itemId, instance = instance, by = caller }, opId)
+    -- Новая щепка — в тот же слот нейропорта (иначе сверка положит её в сетку).
+    local _, index = neuroSlotOf(state, blankId)
+    if index then takeFrom(state, index, 1) end
+    state.stacks[#state.stacks + 1] = { i = itemId, n = 1, u = instance, c = slot }
+    refresh(playerId)
+    return instance
 end)
 
 -- Забрать у игрока count штук предмета itemId (сгорают в SOURCE), только rp_*: имплант
@@ -873,6 +1034,7 @@ RegisterNetEvent("rp_inventory:lootMove", function(from, index, itemId, x, y, ro
     if from == "loot" then src, dst = other, mine end
     index = math.tointeger(tonumber(index))
     local stack = index and src.stacks[index]
+    if stack and stack.c == IDENTITY_SLOT then return push(officer) end
     if not stack or stack.i ~= itemId then return push(officer) end
     if from == "loot" and not session.revealed[stack] then
         notify(officer, "Сначала обыщите.")

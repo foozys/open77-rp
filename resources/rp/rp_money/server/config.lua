@@ -7,6 +7,7 @@
 MoneyConfig = {
     source = "sys:rp.money", -- откуда выпускаются и куда сгорают деньги
     currency = "€$",
+    payEyesMs = 3000,        -- /pay: сколько светятся глаза отправителя (перевод через нейропорт)
 
     tunables = {
         startBank = {

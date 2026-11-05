@@ -43,6 +43,13 @@
     font: inherit; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
   button:hover { background: rgba(120, 220, 140, 0.12); }
   button:disabled { opacity: 0.4; cursor: default; }
+  /* Вкладки и категории (магазин имплантов): товары с полями tab и group. */
+  #tabs { display: none; gap: 6px; margin: -4px 0 12px; border-bottom: 1px solid var(--line); }
+  #tabs.on { display: flex; }
+  #tabs button { border: 1px solid transparent; border-bottom: none; margin-bottom: -1px; color: var(--muted); }
+  #tabs button.sel { color: var(--accent); border-color: var(--line); background: rgba(120, 220, 140, 0.08); }
+  .group { grid-column: 1 / -1; margin: 6px 0 6px; padding-bottom: 3px; font-size: 12px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--accent); border-bottom: 1px solid rgba(120, 220, 140, 0.15); }
   #message { min-height: 22px; margin-top: 14px; font-size: 14px; }
   #message.ok { color: var(--accent); }
   #message.bad { color: var(--warn); }
@@ -56,6 +63,7 @@
       <h1 id="title"></h1>
       <div id="wallet">На счёте <b id="bank"></b></div>
     </header>
+    <div id="tabs"></div>
     <div id="items"></div>
     <div id="message"></div>
     <div class="hint">Оплата со счёта · Esc — закрыть</div>
@@ -78,18 +86,49 @@
     node.className = text ? (ok ? "ok" : "bad") : "";
   }
 
-  function renderItems(items) {
+  let allItems = [], tab = null, shopTitle = null;
+
+  // Вкладки, если у товаров есть tab (порядок — как пришли с сервера).
+  function renderTabs() {
+    const tabs = [...new Set(allItems.filter(i => i.tab).map(i => i.tab))];
+    const bar = $("tabs");
+    bar.replaceChildren();
+    bar.classList.toggle("on", tabs.length > 1);
+    if (!tabs.includes(tab)) tab = tabs[0] || null;
+    if (tabs.length < 2) return;
+    for (const name of tabs) {
+      const b = document.createElement("button");
+      b.textContent = name;
+      b.className = name === tab ? "sel" : "";
+      b.addEventListener("click", () => { tab = name; renderTabs(); renderItems(); });
+      bar.append(b);
+    }
+  }
+
+  function renderItems() {
+    const items = tab ? allItems.filter(i => (i.tab || null) === tab) : allItems;
     const list = $("items");
     list.replaceChildren();
     // Большой ассортимент — в две колонки, чтобы меньше прокручивать.
-    $("panel").classList.toggle("wide", (items || []).length > 8);
-    for (const item of items || []) {
+    $("panel").classList.toggle("wide", allItems.length > 8);
+    let group = null;
+    for (const item of items) {
+      if (item.group && item.group !== group) {
+        group = item.group;
+        const head = document.createElement("div");
+        head.className = "group";
+        head.textContent = group;
+        list.append(head);
+      }
       const row = document.createElement("div");
       row.className = "item";
       row.innerHTML = `<div class="name"><span></span><small></small></div><div class="price"></div>
         <input type="number" min="1" max="20" value="1"><button>Купить</button>`;
       row.querySelector(".name span").textContent = item.label;
-      row.querySelector(".name small").textContent = `${(item.weightG / 1000).toFixed(2)} кг · ${item.w}×${item.h} клеток`;
+      // Услуга (Городская служба): подпись вместо веса, количество — всегда 1.
+      row.querySelector(".name small").textContent = item.note
+        || `${(item.weightG / 1000).toFixed(2)} кг · ${item.w}×${item.h} клеток`;
+      if (item.single) row.querySelector("input").style.visibility = "hidden";
       row.querySelector(".price").textContent = money(item.price);
       const input = row.querySelector("input");
       row.querySelector("button").addEventListener("click", () => {
@@ -111,7 +150,11 @@
   Open77.on("shop:show", p => {
     $("title").textContent = p.title || "";
     $("bank").textContent = money(p.bank || 0);
-    renderItems(Array.isArray(p.items) ? p.items : []);
+    allItems = Array.isArray(p.items) ? p.items : [];
+    // Другой магазин — с первой вкладки; тот же (повторное открытие) — на прежней.
+    if (p.title !== shopTitle) { tab = null; shopTitle = p.title; }
+    renderTabs();
+    renderItems();
     message("");
     setBusy(false);
     $("root").classList.add("open");

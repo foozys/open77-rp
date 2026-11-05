@@ -27,6 +27,8 @@ dependency "open77_hacking"
 permissions {
     "players.cyberware.define", "players.cyberware.read", "players.cyberware.manage",
     "players.hacking.define", "players.hacking.read", "players.hacking.cancel", "players.statuses.apply",
+    -- players.holocall.control: подсветка глаз, пока включён сканер Kiroshi
+    "players.holocall.control",
     "players.dash.define", "players.dash.manage", "players.dash.read",
     "players.abilities.define", "players.abilities.manage", "players.abilities.read",
     "players.stats.apply", "players.damage.apply", "players.stats.read", "players.damage.read",

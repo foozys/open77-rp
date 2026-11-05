@@ -688,6 +688,14 @@
           <div class="bslot" data-target="b4"><span class="slotKey">7</span></div>
           <div class="bslot" data-target="b5"><span class="slotKey">8</span></div>
         </div>
+        <!-- Нейропорт (шаг 6): щепки. Денежная считывается и пропадает, остальные — содержимое на экране.
+             nid — нейропорт личности (2026-11-04): настоящая личная щепка, ставит и меняет только сервер. -->
+        <div class="neuroRow">
+          <div class="neuroLabel"><b>Нейропорт</b><small>личность · щепки</small></div>
+          <div class="bslot nslot idslot" data-target="nid" title="Нейропорт личности: настоящая личная щепка, вынуть нельзя"><span class="idTag">ID</span></div>
+          <div class="bslot nslot" data-target="n1"></div>
+          <div class="bslot nslot" data-target="n2"></div>
+        </div>
         <div class="hint" style="margin-top: 8px">Патроны на поясе — запас оружия, R — перезарядка · 4–8 — применить с пояса</div>
       </div>
       <div id="lootBox">
@@ -818,9 +826,9 @@
   // Только изображение предмета: размеры и свойства остаются серверными.
   function inventoryIllustration(key, d) {
     const implantSlot = {
-      implant_kiroshi: "eyes", implant_deck: "os", implant_deck_pro: "os", implant_sandevistan: "os", implant_civil_os: "os",
+      implant_kiroshi: "eyes", implant_deck: "os", implant_deck_pro: "os", implant_sandevistan: "os", implant_sandevistan_mk2: "os", implant_civil_os: "os",
       implant_gorilla: "arms", implant_slam: "skeleton", implant_dash: "tendons",
-      implant_subdermal: "skin", implant_heart: "heart", implant_biomonitor: "blood",
+      implant_subdermal: "skin", implant_chameleon: "skin", implant_heart: "heart", implant_biomonitor: "blood",
       implant_metabolic: "metabolism", implant_ice: "ice", implant_purge: "purge", implant_legs: "legs"
     }[key];
     if (d.wear) return clothingIllustration(d.wear);
@@ -989,7 +997,7 @@
   // -- перетаскивание --------------------------------------------------------------
 
   function startDrag(e, index, stack, el, side) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || stack.c === "nid") return; // нейропорт личности не перетаскивается
     closeMenu();
     hideTooltip();
     const rect = el.getBoundingClientRect();
@@ -1056,6 +1064,8 @@
   function gearAllows(stack, target) {
     const d = def(stack);
     if (target.startsWith("cl_")) return d.wear === target.slice(3);
+    if (target === "nid") return false; // нейропорт личности меняет только сервер
+    if (target[0] === "n") return !!d.shard;
     return target[0] === "w" ? !!d.weapon : !!d.belt;
   }
   function markGear(e) {
@@ -1178,6 +1188,11 @@
     menu.replaceChildren();
     const base = { index, item: stack.i };
     if (d.usable) addButton(menu, d.useLabel || "Использовать", () => emit("inv:use", base));
+    if (stack.c === "nid") { // нейропорт личности: только «Показать»
+      menu.style.display = "block";
+      positionPopup(menu, e.clientX, e.clientY);
+      return;
+    }
     if ((d.mag && stack.m > 0) || (d.weapon && !d.melee && stack.wr > 0)) addButton(menu, "Разрядить", () => emit("inv:unload", base));
     if (stack.c) {
       addButton(menu, d.wear ? "Снять" : "Снять в рюкзак", () => emit("inv:gear", { ...base, target: "grid" }));
@@ -1190,6 +1205,7 @@
       const free = prefix => [1, 2, 3, 4, 5].map(n => prefix + n).find(t => document.querySelector(`#gearBox [data-target="${t}"]`) && !taken.has(t));
       if (d.weapon && free("w")) addButton(menu, "В слот оружия", () => emit("inv:gear", { ...base, target: free("w") }));
       if (d.belt && free("b")) addButton(menu, "На пояс", () => emit("inv:gear", { ...base, target: free("b") }));
+      if (d.shard && free("n")) addButton(menu, "В нейропорт", () => emit("inv:gear", { ...base, target: free("n") }));
     }
     if (stack.n > 1 && stack.x) {
       addButton(menu, "Разделить", () => askCount(e, "Сколько отделить", stack.n - 1,

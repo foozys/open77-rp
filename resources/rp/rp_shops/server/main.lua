@@ -205,13 +205,37 @@ local function validSession(playerId)
     return session
 end
 
+local LICENSE_TEXT = { weapon = "на оружие", vehicle = "на транспорт" }
+
+-- Нет нужной лицензии (rp_identity) — текст отказа, иначе nil.
+local function licenseMissing(playerId, def)
+    if not def.license or sync("rp_identity", "has_license", playerId, def.license) == true then return nil end
+    return string.format("Без лицензии %s здесь не продают. Лицензия — в «Городской службе».",
+        LICENSE_TEXT[def.license] or def.license)
+end
+
+-- Услуги «Городской службы»: { [id] = { label, price } }.
+local function servicesOf()
+    local map = {}
+    for _, s in ipairs(sync("rp_identity", "services") or {}) do map[s.id] = s end
+    return map
+end
+
 local function show(playerId, session)
     local acc = accounts(playerId)
     if not acc then return notify(playerId, "Сначала выберите персонажа.") end
     local def = catalogFor(session)
     if not def then return end
+    local missing = licenseMissing(playerId, def)
+    if missing then return notify(playerId, missing) end
     local catalog = sync("rp_inventory", "catalog") or {}
     local payload = { title = def.label, bank = balance(acc.bank) or 0, items = {} }
+    if def.services then
+        for id, s in pairs(servicesOf()) do
+            payload.items[#payload.items + 1] = { id = id, label = s.label, price = s.price, single = true,
+                                                  note = id == "id_restore" and "прежняя щепка аннулируется" or "нужен SIN" }
+        end
+    end
     for itemId, price in pairs(def.items) do
         local item = catalog[itemId]
         if item then
@@ -220,6 +244,25 @@ local function show(playerId, session)
         end
     end
     table.sort(payload.items, function(a, b) return a.price < b.price end)
+    -- Вкладки и категории (ShopsConfig.types.<тип>.sections): у товара tab, group, order.
+    if type(def.sections) == "table" then
+        local place = {}
+        for index, section in ipairs(def.sections) do
+            for position, itemId in ipairs(section.items or {}) do
+                place[itemId] = { tab = section.tab, group = section.label, order = index * 100 + position }
+            end
+        end
+        for _, item in ipairs(payload.items) do
+            local p = place[item.id]
+            item.tab = p and p.tab or "Прочее"
+            item.group = p and p.group or "Другое"
+            item.order = p and p.order or 99999
+        end
+        table.sort(payload.items, function(a, b)
+            if a.order ~= b.order then return a.order < b.order end
+            return a.price < b.price
+        end)
+    end
     sessions[playerId] = session
     local ok, reason = TriggerClientEvent("rp_shops:show", playerId, payload)
     if not ok then log("warn", "окно игроку %d не отправлено: %s", playerId, tostring(reason)) end
@@ -250,6 +293,47 @@ local function result(playerId, ok, text)
     TriggerClientEvent("rp_shops:result", playerId, { ok = ok, text = text, bank = acc and balance(acc.bank) or 0 })
 end
 
+-- Услуга «Городской службы» (rp_identity): проверка до списания; восстановление щепки —
+-- одной операцией в rp_inventory (цена и предмет); лицензия — списание, затем выдача.
+local function buyService(playerId, session, serviceId)
+    local service = type(serviceId) == "string" and servicesOf()[serviceId]
+    if not service then return result(playerId, false, "Неверная услуга.") end
+    local ok, why = sync("rp_identity", "service_check", playerId, serviceId)
+    if not ok then return result(playerId, false, why or "Служба недоступна.") end
+    local acc = accounts(playerId)
+    if not acc then return result(playerId, false, "Сначала выберите персонажа.") end
+    session.busy = true
+    if serviceId == "id_restore" then
+        local done, restoreWhy = await("rp_identity", "service_restore", playerId)
+        session.busy = false
+        if not done then
+            return result(playerId, false, restoreWhy == "insufficient_funds" and "Недостаточно денег на счёте."
+                or ("Не получилось: " .. explain(restoreWhy or "busy") .. "."))
+        end
+        log("info", "услуга %d: id_restore за %d", playerId, service.price)
+        return result(playerId, true, string.format("Новая личная щепка — в карманах, прежняя аннулирована. Списано %d €$.",
+            service.price))
+    end
+    local opId = newOpId("rpcity")
+    local receipt, payWhy = opId and transfer({ opId = opId, kind = "rp.cityhall", reason = "cityhall", lines = {
+        { money = service.price, from = acc.bank, to = MONEY_SINK },
+    } })
+    if not receipt then
+        session.busy = false
+        return result(playerId, false, "Не получилось: " .. explain(payWhy or "busy") .. ".")
+    end
+    local granted, grantWhy = await("rp_identity", "service_grant", playerId, serviceId, opId)
+    session.busy = false
+    if not granted then
+        -- Деньги списаны, а лицензия не записалась: в журнал для ручного возврата (как car_buy_failed).
+        log("error", "УСЛУГА БЕЗ ВЫДАЧИ: игрок %d, %s за %d (%s): %s", playerId, serviceId, service.price, opId, tostring(grantWhy))
+        journal("cityhall_failed", playerId, nil, { service = serviceId, price = service.price, error = tostring(grantWhy) }, opId)
+        return result(playerId, false, "Ошибка службы. Деньги списаны — обратитесь к администрации (/report).")
+    end
+    log("info", "услуга %d: %s за %d (%s)", playerId, serviceId, service.price, opId)
+    return result(playerId, true, string.format("Оформлено: %s за %d €$.", service.label, service.price))
+end
+
 -- Покупка itemId × count со счёта.
 RegisterNetEvent("rp_shops:buy", function(itemId, count)
     local playerId = tonumber(source)
@@ -261,6 +345,9 @@ RegisterNetEvent("rp_shops:buy", function(itemId, count)
     local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
     if not okAct or allowed ~= true then return result(playerId, false, text or "Сейчас нельзя.") end
     local def = catalogFor(session)
+    if def and def.services then return buyService(playerId, session, itemId) end
+    local missing = def and licenseMissing(playerId, def)
+    if missing then return result(playerId, false, missing) end
     local price = def and def.items[itemId]
     count = math.tointeger(tonumber(count))
     if not price or not count or count < 1 or count > ShopsConfig.maxPerPurchase then

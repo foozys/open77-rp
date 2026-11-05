@@ -12,7 +12,9 @@ dependency "rp_medical"
 -- network.events: окно телефона (rp_phone_ui); voice.manage: канал звонка;
 -- players.life.read: звонок обрывается при смерти; http.serve: кадры и аватары по HTTP
 -- (Open77.http.listen; работает, только если в server.jsonc включены httpHandlers).
-permissions { "database.access", "network.events", "voice.manage", "players.life.read", "http.serve" }
+-- players.holocall.control: подсветка глаз во время разговора
+permissions { "database.access", "network.events", "voice.manage", "players.life.read", "http.serve",
+    "players.holocall.control" }
 
 server_script "server/config.lua"
 server_script "server/main.lua"

@@ -29,6 +29,12 @@ RpConfig = {
     --   rp.staff.manage      — назначать роли ниже своей
     --   rp.tune              — менять настройки ядра
     --   rp.applications      — рассматривать заявки новых персонажей (F3 → «Заявки»)
+    -- rp_identity:
+    --   rp.identity.manage   — SIN, лицензии, подписка Trauma Team, судимости, новая личная щепка (F3 → «Статусы»)
+    -- rp_objects:
+    --   rp.objects           — объекты в мире: поставить, двигать, удалить, проверить коллизию (F3 → «Объекты»)
+    -- rp_checkpoints:
+    --   rp.checkpoints       — КПП-сканеры: поставить, турель, двери, проверить на себе (F3 → «КПП»)
     -- rp_admin:
     --   rp.teleport          — телепорт к игроку, игрока к себе, по координатам
     --   rp.spectate          — наблюдение за игроком
@@ -36,6 +42,7 @@ RpConfig = {
     --   rp.warn              — выдать предупреждение
     --   rp.heal              — вылечить, воскресить
     --   rp.unwarn            — снять предупреждение
+    --   rp.npcs              — тестовые NPC: создать по записи Character.*, натравить на себя (F3 → «NPC (тест)»)
     --   rp.announce          — объявление на весь сервер
     -- rp_shops:
     --   rp.shops             — ставить и убирать магазины
@@ -51,7 +58,7 @@ RpConfig = {
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
                           "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber",
-                          "rp.frozen" } },
+                          "rp.frozen", "rp.identity.manage", "rp.objects", "rp.npcs", "rp.checkpoints" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 

@@ -168,7 +168,7 @@ exports("faction", function(playerIdArg)
     if not faction then return nil end
     local rank = faction.ranks[member.grade]
     return {
-        id = member.faction, label = faction.label, grade = member.grade,
+        id = member.faction, label = faction.label, group = faction.group, grade = member.grade,
         rank = rank and rank.label or "?", characterId = member.characterId,
         society = faction.society, deathRule = faction.deathRule,
     }

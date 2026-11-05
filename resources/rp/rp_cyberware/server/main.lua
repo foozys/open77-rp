@@ -344,6 +344,7 @@ local ABILITY = {
 local function ensureAbilities(playerId)
     local s = state[playerId]
     if not s or not Open77.players.get(playerId) or Open77.players.isDead(playerId) then return end
+    if (s.cpUntil or 0) > GetGameTimer() then return end -- сканер КПП: способности отобраны на время скана
     for _, implantId in pairs(s.slots) do
         local def = CyberConfig.implants[implantId]
         local ability = def and ABILITY[def.kind]
@@ -433,6 +434,9 @@ local function load(playerId, characterId)
     applyPassives(playerId, character and character.health or 1)
     ensureAbilities(playerId)
     pushPanel(playerId)
+    -- Перезапуск ресурса посреди маскировки: кожа выключена — вернуть свою внешность.
+    if sync("rp_identity", "masked", playerId) == true then await("rp_identity", "mask_off", playerId) end
+    send(playerId, "rp_cyberware:chameleon", { on = false })
     -- Дека могла остаться прошитой скриптом (или старой версией) — вернуть в пустой режим.
     Arm(playerId)
     -- На платформе могло остаться то, чего у персонажа уже нет (сорвалось снятие).
@@ -1085,6 +1089,21 @@ local function odBody(playerId, s, def)
     end
 end
 
+-- Двойники Сандевистана (мод ESDE, пакет rp_sandy_fx): эффекты, заданные в описании тела игрока
+-- (компонент fx_esde, добавлен в патч тела мода): sgt_ghost_loop_b1…b4 — следы, пока включён,
+-- sgt_ghost_dash_b1…b4 — вспышка при включении. Повторяются короткими отрезками: остановить
+-- эффект шаблона сервер не может, поэтому после выключения след гаснет за ~3 с.
+local GHOST_REPEAT_SECONDS, GHOST_SECONDS = 2, 3
+local function ghostLevel(def)
+    return def.overdrive.ghost or (def.overdrive.tier == "reflex_heavy" and "b4" or "b2")
+end
+local function odGhost(playerId, def, dash)
+    local target = { kind = "player", id = tostring(playerId) }
+    local level = ghostLevel(def)
+    if dash then Open77.effects.playOn(target, "sgt_ghost_dash_" .. level, { duration = 1.5 }) end
+    Open77.effects.playOn(target, "sgt_ghost_loop_" .. level, { duration = GHOST_SECONDS })
+end
+
 local function setOverdrive(playerId, on, text)
     local s = state[playerId]
     if not s then return end
@@ -1099,6 +1118,7 @@ local function setOverdrive(playerId, on, text)
         present(odBurst, playerId, "sparks.burst.large", 900)
         present(odSound, playerId, "w_cyb_berserker_activate")
         present(odBody, playerId, s, def)
+        present(odGhost, playerId, def, true)
     elseif was and not s.overdrive then
         present(odClearBody, s)
         if Open77.players.get(playerId) and not Open77.players.isDead(playerId) then
@@ -1112,6 +1132,9 @@ end
 -- Импланты выведены из строя: эффект disableCyberwareMs, скрипт «Сбой имплантов»
 -- (malfunctionMs) или «Сбой движения» (crippledMs).
 local function implantsSuspended(playerId)
+    -- Сканер КПП (rp_checkpoints, 2026-11-05): на время скана наши импланты не работают.
+    local s = state[playerId]
+    if s and (s.cpUntil or 0) > GetGameTimer() then return true end
     local h = Open77.hacking.state(playerId)
     if type(h) ~= "table" then return false end
     for _, key in ipairs({ "cyberwareSuspendedMs", "malfunctionMs", "crippledMs" }) do
@@ -1171,8 +1194,168 @@ CreateThread(function()
                 else
                     s.overdriveSeconds = s.overdriveSeconds + 1
                     if s.overdriveSeconds % 55 == 0 then present(odBody, playerId, s, def) end
+                    if s.overdriveSeconds % GHOST_REPEAT_SECONDS == 0 then present(odGhost, playerId, def, false) end
                     if s.overdriveSeconds % def.overdrive.sanitySeconds == 0 then
                         s.psychosis = math.min(100, s.psychosis + def.overdrive.sanityAmount)
+                        pushPanel(playerId)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- -- Кожа хамелеона (2026-11-05) -------------------------------------------------------------
+-- Переключатель (J), как Сандевистан: внешность и одежду надевает rp_identity (mask_on/mask_off)
+-- со щепки подмены в нейропорте. Пока включена — activationSanity за включение и sanityAmount
+-- каждые sanitySeconds. «Сбой имплантов» (статус malfunction) её не выключает: идёт мерцание —
+-- на миг проступает настоящая одежда, искры на теле, у самого игрока мигает экран; выключить
+-- кожу на время сбоя нельзя. «Снятие маскировки» (rp_identity unmasked) гасит её до конца
+-- действия скрипта (рассудок не тратится), потом она включается сама.
+
+local function chameleonDef(s)
+    local def = s and s.slots.skin and CyberConfig.implants[s.slots.skin]
+    return def and def.kind == "chameleon" and def or nil
+end
+
+local function malfunctioning(playerId)
+    local h = Open77.hacking.state(playerId)
+    return type(h) == "table" and (tonumber(h.malfunctionMs) or 0) > 0
+end
+
+local function chamSend(playerId, s)
+    send(playerId, "rp_cyberware:chameleon", { on = s.chameleon == true, suspended = s.chamSuspended == true,
+        flicker = s.chamFlicker == true })
+end
+
+-- Искры и дуга на теле, пока проступает настоящая одежда (видят все рядом).
+local function chamSparks(playerId, ms)
+    local target = { kind = "player", id = tostring(playerId) }
+    Open77.effects.attach(target, "electric.arc", { slot = "Chest", ttlMs = ms + 200 })
+    Open77.effects.attach(target, "sparks.burst.small", { slot = "Chest", ttlMs = 700 })
+    Open77.effects.attach(target, "electric.arc", { slot = "RightHand", ttlMs = ms + 200 })
+end
+
+-- Выключить кожу (вернуть свою внешность). Ждёт. text — сообщение игроку.
+local function chameleonOff(playerId, s, text)
+    if not s.chameleon then return end
+    s.chameleon, s.chamSuspended, s.chamFlicker = false, false, false
+    s.chamBusy = true
+    await("rp_identity", "mask_off", playerId)
+    s.chamBusy = false
+    if state[playerId] ~= s then return end
+    chamSend(playerId, s)
+    if text then notify(playerId, "%s", text) end
+end
+
+local function chamRandom(range) return math.random(range[1], range[2]) end
+
+-- Мерцание, пока у цели статус «Сбой имплантов».
+local function chameleonFlicker(playerId, s)
+    if s.chamFlicker then return end
+    s.chamFlicker = true
+    chamSend(playerId, s)
+    CreateThread(function()
+        local cfg = CyberConfig.chameleonFlicker
+        while state[playerId] == s and s.chameleon and not s.chamSuspended and malfunctioning(playerId) do
+            local flash = chamRandom(cfg.flashMs)
+            sync("rp_identity", "mask_flash", playerId, true)
+            present(chamSparks, playerId, flash)
+            Wait(flash)
+            sync("rp_identity", "mask_flash", playerId, false)
+            Wait(chamRandom(cfg.gapMs))
+        end
+        sync("rp_identity", "mask_flash", playerId, false)
+        if state[playerId] ~= s then return end
+        s.chamFlicker = false
+        chamSend(playerId, s)
+    end)
+end
+
+RegisterNetEvent("rp_cyberware:chameleon", function(on)
+    local playerId = tonumber(source)
+    local s = playerId and state[playerId]
+    if not s or s.chamBusy then return end
+    if not on then
+        if not s.chameleon then return chamSend(playerId, s) end
+        if malfunctioning(playerId) then
+            chamSend(playerId, s)
+            return notify(playerId, "Сбой имплантов: кожа не отключается.")
+        end
+        return CreateThread(function() chameleonOff(playerId, s) end)
+    end
+    if s.chameleon then return chamSend(playerId, s) end
+    local reply = function(text) chamSend(playerId, s) notify(playerId, "%s", text) end
+    local def = chameleonDef(s)
+    if not def then return reply("Кожа хамелеона не установлена.") end
+    if Open77.players.isDead(playerId) or isDowned(playerId) then return chamSend(playerId, s) end
+    if implantsSuspended(playerId) then return reply("Импланты выведены из строя.") end
+    local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "overdrive")
+    if not okAct or allowed ~= true then return reply(text or "Сейчас нельзя.") end
+    local ready, why = sync("rp_identity", "mask_ready", playerId)
+    if ready ~= true then return reply(why or "Нет щепки подмены со снятой внешностью.") end
+    s.chamBusy = true
+    CreateThread(function()
+        local ok, whyOn = await("rp_identity", "mask_on", playerId)
+        s.chamBusy = false
+        if state[playerId] ~= s then
+            if ok then await("rp_identity", "mask_off", playerId) end
+            return
+        end
+        if ok ~= true then return reply(tostring(whyOn or "Кожа не отвечает.")) end
+        if whyOn then notify(playerId, "%s", tostring(whyOn)) end -- включилась частично (только одежда)
+        s.chameleon, s.chamSuspended, s.chamSeconds = true, false, 0
+        s.psychosis = math.min(100, s.psychosis + (def.chameleon.activationSanity or 0))
+        pushPanel(playerId)
+        present(odBurst, playerId, "sparks.burst.small", 700)
+        chamSend(playerId, s)
+    end)
+end)
+
+-- Раз в секунду: рассудок, сбой, подавление, снятые имплант или щепка.
+CreateThread(function()
+    while true do
+        Wait(1000)
+        for playerId, s in pairs(state) do
+            if s.chameleon and not s.chamBusy then
+                local def = chameleonDef(s)
+                local unmasked = sync("rp_identity", "unmasked", playerId) == true
+                if not def then
+                    CreateThread(function() chameleonOff(playerId, s, "Кожа хамелеона снята.") end)
+                elseif Open77.players.isDead(playerId) or isDowned(playerId) then
+                    CreateThread(function() chameleonOff(playerId, s) end)
+                elseif unmasked and not s.chamSuspended then
+                    -- «Снятие маскировки»: своя внешность до конца действия скрипта.
+                    s.chamSuspended, s.chamBusy = true, true
+                    chamSend(playerId, s)
+                    CreateThread(function()
+                        await("rp_identity", "mask_off", playerId)
+                        s.chamBusy = false
+                        notify(playerId, "Маскировка подавлена: кожа и щепка подмены не отвечают.")
+                    end)
+                elseif s.chamSuspended and not unmasked then
+                    s.chamBusy = true
+                    CreateThread(function()
+                        local ok, why = await("rp_identity", "mask_on", playerId)
+                        s.chamBusy = false
+                        if state[playerId] ~= s then return end
+                        if ok == true then
+                            s.chamSuspended = false
+                            chamSend(playerId, s)
+                            notify(playerId, "Кожа хамелеона снова работает.")
+                        else
+                            s.chameleon, s.chamSuspended = false, false
+                            chamSend(playerId, s)
+                            notify(playerId, "Кожа хамелеона не восстановилась: %s", tostring(why))
+                        end
+                    end)
+                elseif not s.chamSuspended and sync("rp_identity", "mask_ready", playerId) ~= true then
+                    CreateThread(function() chameleonOff(playerId, s, "Щепка подмены вынута: маскировка снята.") end)
+                elseif not s.chamSuspended then
+                    if malfunctioning(playerId) then chameleonFlicker(playerId, s) end
+                    s.chamSeconds = (s.chamSeconds or 0) + 1
+                    if s.chamSeconds % def.chameleon.sanitySeconds == 0 then
+                        s.psychosis = math.min(100, s.psychosis + def.chameleon.sanityAmount)
                         pushPanel(playerId)
                     end
                 end
@@ -1500,6 +1683,20 @@ local function scanPayload(playerId, target, distanceValue)
         revealed = revealed == true,
         accessLeft = left or 0,
     }
+    -- Статусы личности (rp_identity, шаг 6.3): открытые (SIN, розыск) — всем с Kiroshi;
+    -- остальное — только после взлома данных, как имя и работа (иначе подпись без значения).
+    local identity = sync("rp_identity", "scan_lines", target, tier)
+    if type(identity) == "table" then
+        local list = {}
+        for _, line in ipairs(identity) do
+            if type(line) == "table" then
+                local open = line.level == "public" or revealed == true
+                list[#list + 1] = { level = line.level, label = tostring(line.label),
+                                    value = open and tostring(line.value) or nil, cls = open and line.cls or nil }
+            end
+        end
+        payload.identity = list
+    end
     -- Контрактные метки остаются частью того же 5-минутного data_breach,
     -- а обычная оптика показывает только предварительное совпадение примет.
     local contract = sync("rp_contracts","kiroshi_contract",playerId,target,
@@ -1512,18 +1709,28 @@ local function scanPayload(playerId, target, distanceValue)
             else payload.contractApproach = true end
         end
     end
+    -- Netwatch: занятость обычных нейропортов цели видна сразу, без взлома (просьба владельца 2026-11-04).
+    if tier == "netwatch" then
+        local busy = sync("rp_inventory", "neuro_busy", target)
+        if type(busy) == "table" then payload.neuroports = busy end
+        -- Кожа хамелеона у цели работает — лёгкие помехи на карточке (2026-11-05), тоже без взлома.
+        if t.chameleon and not t.chamSuspended then payload.interference = true end
+    end
     if tier == "public" or not revealed then return payload end
 
-    local character = characterOf(target)
     local job = sync("rp_jobs", "job", target)
     local faction = sync("rp_factions", "faction", target)
     local wanted = sync("rp_police", "wanted", target)
-    payload.name = character and ((character.firstName or "") .. " " .. (character.lastName or "")) or "Неизвестно"
+    -- Имя — со щепки в нейропорте цели (rp_identity), не из реестра: чужая/поддельная щепка — чужое имя.
+    local chipName = sync("rp_identity", "scan_name", target)
+    payload.name = type(chipName) == "string" and chipName or "Щепка не вставлена"
     payload.wanted = type(wanted) == "table" and true or false
     payload.job = type(job) == "table" and job.label or "Официально не трудоустроен"
     payload.faction = type(faction) == "table" and faction.label or "Не состоит"
 
     if tier == "netwatch" then
+        -- Щепка подмены в нейропорте цели — красный «!» у имени.
+        payload.substituted = sync("rp_identity", "substituted", target) == true
         local osId = t.slots.os
         payload.operatingSystem = osId and labelOf(osId):gsub("^Имплант: ", "") or "Не установлена"
         local implants = {}
@@ -1643,13 +1850,30 @@ RegisterNetEvent("rp_cyberware:deckEject", function(index)
 end)
 
 -- TAB зажат / отпущен. open = true повторяется раз в пару секунд (новые цели рядом, RAM).
+-- Сканер включён — светятся глаза (ванильная синяя подсветка, видят все рядом; просьба владельца
+-- 2026-11-04). Сверка раз в секунду ловит и выключения сканера из других мест (снята ОС, смерть).
+local function scanEyes(playerId, s)
+    local want = s.scanning == true
+    if s.eyesLit == want then return end
+    local ok, why = Open77.players.setHoloCallEyes(playerId, want)
+    if ok or not want then s.eyesLit = want
+    else log("debug", "подсветка глаз игроку %d: %s", playerId, tostring(why)) end
+end
+
+CreateThread(function()
+    while true do
+        Wait(1000)
+        for playerId, s in pairs(state) do scanEyes(playerId, s) end
+    end
+end)
+
 RegisterNetEvent("rp_cyberware:scan", function(open)
     local playerId = tonumber(source)
     local s = playerId and state[playerId]
     if not s then return end
     if not open then
         s.scanning = false
-        return
+        return scanEyes(playerId, s)
     end
     if not s.slots.eyes then
         s.scanning = false
@@ -1668,7 +1892,12 @@ RegisterNetEvent("rp_cyberware:scan", function(open)
         s.scanning = false
         return send(playerId, "rp_cyberware:scanState", { open = false, text = "Оптика перезагружается." })
     end
+    if (s.cpUntil or 0) > GetGameTimer() then
+        s.scanning = false
+        return send(playerId, "rp_cyberware:scanState", { open = false, text = "Сканер КПП глушит импланты." })
+    end
     s.scanning = true
+    scanEyes(playerId, s)
     pushScan(playerId)
 end)
 
@@ -1694,6 +1923,9 @@ RegisterNetEvent("rp_cyberware:scanInfo", function(targetArg)
     if d > CyberConfig.scanRange then return end
     local payload = scanPayload(playerId, target, d)
     if payload then send(playerId, "rp_cyberware:scanInfo", payload) end
+    -- Netwatch видит сбои маскировки на самой цели: мелькает настоящее тело, искры (rp_identity).
+    -- Запрос повторяется раз в ~2 с, пока цель в сканере, — срок 3 с с запасом.
+    if payload and payload.interference then sync("rp_identity", "scan_glitch", playerId, target, 3000) end
 end)
 
 local function healthOf(playerId)
@@ -1712,8 +1944,9 @@ local function finishUpload(attacker, ok, why, outcome)
     outcome = ok and "impact" or outcome or "cancel"
     send(attacker, "rp_cyberware:upload", { phase = "end", ok = ok, id = u.id, kind = u.q.grade.kind, outcome = outcome,
         text = ok and ("«" .. label .. "» загружен.") or why })
-    send(u.target, "rp_cyberware:incoming", { phase = "end", ok = ok, id = u.id, kind = u.q.grade.kind, outcome = outcome,
-        text = ok and ("Взлом прошёл: " .. label) or ("Взлом сорван: " .. tostring(why)) })
+    -- Скрытый скрипт (stealth): цель о загрузке не знает.
+    if not u.q.stealth then send(u.target, "rp_cyberware:incoming", { phase = "end", ok = ok, id = u.id, kind = u.q.grade.kind, outcome = outcome,
+        text = ok and ("Взлом прошёл: " .. label) or ("Взлом сорван: " .. tostring(why)) }) end
     if state[attacker] and state[attacker].scanning then pushScan(attacker) end
     if not ok then return end
     CreateThread(function() applyHack(attacker, u, t) end)
@@ -1726,6 +1959,27 @@ applyHack = function(attacker, u, t)
         if not state[attacker] or state[u.target] ~= t then return end
         dataAccess[attacker] = dataAccess[attacker] or {}
         dataAccess[attacker][u.target] = nowMs() + (CyberConfig.dataBreachSeconds or 300) * 1000
+        local mine, theirs = placeOf(attacker), placeOf(u.target)
+        if mine and theirs and mine.bucket == theirs.bucket then
+            local payload = scanPayload(attacker, u.target, distance(mine, theirs))
+            if payload then send(attacker, "rp_cyberware:scanInfo", payload) end
+        end
+        if t then t.hackedUntil = nowMs() + (tonumber(u.q.grade.recoveryMs) or 0) end
+        return
+    end
+    if u.q.effect == "identity_copy" then
+        if not state[attacker] or state[u.target] ~= t then return end
+        local ok, result = await("rp_identity", "deck_copy", attacker, u.target)
+        send(attacker, "rp_cyberware:upload", { phase = "end", ok = ok == true,
+            text = ok == true and ("Личность скопирована: " .. tostring(result)) or tostring(result or "Невозможно прочитать данные") })
+        if t then t.hackedUntil = nowMs() + (tonumber(u.q.grade.recoveryMs) or 0) end
+        return
+    end
+    if u.q.effect == "unmask" then
+        if not state[attacker] or state[u.target] ~= t then return end
+        local ok, why = sync("rp_identity", "unmask", u.target, u.q.unmaskSeconds or 30)
+        if ok ~= true then log("warn", "снятие маскировки игроку %d: %s", u.target, tostring(why)) end
+        -- Сканер хакера сразу видит настоящую личность (кожа гаснет на ближайшем такте).
         local mine, theirs = placeOf(attacker), placeOf(u.target)
         if mine and theirs and mine.bucket == theirs.bucket then
             local payload = scanPayload(attacker, u.target, distance(mine, theirs))
@@ -1774,13 +2028,22 @@ RegisterNetEvent("rp_cyberware:hack", function(targetArg)
     if (s.cooldowns[scriptId] or 0) > nowMs() then
         return reply(("Скрипт перезаряжается: %d с."):format(math.ceil((s.cooldowns[scriptId] - nowMs()) / 1000)))
     end
+    if q.needsBreach and not hasDataAccess(playerId, target) then
+        -- Копирование личности без «Взлома данных»: перезарядка, ошибка на экране (RAM не тратится).
+        s.cooldowns[scriptId] = nowMs() + (tonumber(q.grade.cooldownMs) or 0)
+        send(playerId, "rp_cyberware:upload", { phase = "end", ok = false, text = "Невозможно прочитать данные" })
+        return pushScan(playerId)
+    end
+    if q.effect == "identity_copy" and sync("rp_inventory", "neuroport_has", playerId, "blank_shard") ~= true then
+        return reply("Вставьте пустую щепку в нейропорт.")
+    end
     if ramOf(s) < q.ram then return reply(("Мало RAM: нужно %d."):format(q.ram)) end
     local mine, theirs = placeOf(playerId), placeOf(target)
     if not mine or not theirs or mine.bucket ~= theirs.bucket or distance(mine, theirs) > q.grade.range then
         return reply(("Цель дальше %d м."):format(q.grade.range))
     end
     if Open77.players.isDead(target) or isDowned(target) then return reply("Цель без сознания.") end
-    if t.incoming then return reply("Цель уже взламывают.") end
+    if t.incoming and not q.stealth then return reply("Цель уже взламывают.") end
     if s.armed ~= scriptId and (s.statusUntil or 0) > nowMs() then
         return reply(("Дека занята: прошлый скрипт ещё действует %d с."):format(math.ceil((s.statusUntil - nowMs()) / 1000)))
     end
@@ -1791,7 +2054,7 @@ RegisterNetEvent("rp_cyberware:hack", function(targetArg)
     local label = labelOf(scriptId):gsub("^Скрипт: ", "")
 
     -- Self-ICE отражает загрузку сразу (RAM и перезарядка уже потрачены).
-    local ice = t.slots.ice and CyberConfig.implants[t.slots.ice]
+    local ice = not q.stealth and t.slots.ice and CyberConfig.implants[t.slots.ice]
     if ice and (t.iceReadyAt or 0) <= nowMs() then
         t.iceReadyAt = nowMs() + (ice.platform and ice.platform.ice and ice.platform.ice.rechargeMs or 30000)
         reply("Отражено: у цели Self-ICE.")
@@ -1806,12 +2069,15 @@ RegisterNetEvent("rp_cyberware:hack", function(targetArg)
     local upload = { id = uploadSeq, target = target, scriptId = scriptId, q = q, startedAt = nowMs(),
                      endsAt = nowMs() + (tonumber(q.grade.uploadMs) or 2000), seenAt = nowMs(), hp = hp, armor = armor }
     uploads[playerId] = upload
-    t.incoming = playerId
+    -- Скрытый скрипт цели не занимает (её Purge его не видит) и ей не показывается.
+    if not q.stealth then t.incoming = playerId end
     CreateThread(function() armTo(playerId, scriptId) end) -- успеть за время загрузки
     local ms = upload.endsAt - upload.startedAt
     send(playerId, "rp_cyberware:upload", { phase = "start", id = upload.id, kind = q.grade.kind, target = target, label = label, ms = ms })
-    send(target, "rp_cyberware:incoming", { phase = "start", id = upload.id, kind = q.grade.kind, label = label, ms = ms,
-                                            purge = t.slots.purge ~= nil })
+    if not q.stealth then
+        send(target, "rp_cyberware:incoming", { phase = "start", id = upload.id, kind = q.grade.kind, label = label, ms = ms,
+                                                purge = t.slots.purge ~= nil })
+    end
     pushScan(playerId)
 end)
 
@@ -1852,8 +2118,13 @@ CreateThread(function()
                 finishUpload(attacker, false, "связь потеряна")
             elseif Open77.players.isDead(attacker) or isDowned(attacker) then
                 finishUpload(attacker, false, "хакер выведен из строя")
-            elseif Open77.players.isDead(u.target) or isDowned(u.target) then
+            elseif not u.q.stealth and (Open77.players.isDead(u.target) or isDowned(u.target)) then
                 finishUpload(attacker, false, "цель без сознания")
+            elseif u.q.stealth and now >= u.endsAt then
+                -- Скрытый скрипт не срывается ни дальностью, ни оптикой, ни уроном, ни потерей из вида.
+                finishUpload(attacker, true)
+            elseif u.q.stealth then
+                -- ждёт конца загрузки
             elseif not mine or not theirs or mine.bucket ~= theirs.bucket
                 or distance(mine, theirs) > u.q.grade.range * RANGE_SLACK then
                 finishUpload(attacker, false, "цель вне дальности")
@@ -1973,6 +2244,39 @@ end)
 exports("humanity", function(playerId)
     local s = state[math.tointeger(tonumber(playerId)) or 0]
     return s and humanityOf(s) or nil
+end)
+
+-- Сканер КПП (rp_checkpoints, 2026-11-05; решение владельца — только наши импланты): на ms
+-- выключить Сандевистан, кожу хамелеона и сканер Kiroshi, не давать включать их и слать скрипты
+-- (implantsSuspended), забрать рывок и удар о землю (вернутся после скана). Платформенные
+-- импланты (руки Gorilla, ноги) не трогаем. Не ждёт.
+-- { masked = кожа хамелеона работала, implants = { id импланта, … } } или nil, причина.
+exports("checkpoint_suspend", function(playerId, ms)
+    if GetInvokingResource() ~= "rp_checkpoints" then return nil, "caller_denied" end
+    playerId = math.tointeger(tonumber(playerId))
+    local s = playerId and state[playerId]
+    if not s then return nil, "no_state" end
+    ms = math.max(500, math.min(math.floor(tonumber(ms) or 0), 60000))
+    local masked = s.chameleon == true and not s.chamSuspended
+    local implants = {}
+    for _, implantId in pairs(s.slots) do implants[#implants + 1] = implantId end
+    table.sort(implants)
+    s.cpUntil = GetGameTimer() + ms
+    if s.overdrive and not s.psycho then setOverdrive(playerId, false, "Сканер КПП отключил импланты.") end
+    if s.chameleon then CreateThread(function() chameleonOff(playerId, s, "Сканер КПП: кожа хамелеона отключена.") end) end
+    if s.scanning then
+        s.scanning = false
+        send(playerId, "rp_cyberware:scanState", { open = false, text = "Сканер КПП глушит импланты." })
+    end
+    for _, implantId in pairs(s.slots) do
+        local def = CyberConfig.implants[implantId]
+        local ability = def and ABILITY[def.kind]
+        if ability then ability.revoke(playerId) end
+    end
+    SetTimeout(ms + 250, function()
+        if state[playerId] == s then ensureAbilities(playerId) end
+    end)
+    return { masked = masked, implants = implants }
 end)
 
 RpCyber = { install = install, remove = remove, state = state, humanityOf = humanityOf, labelOf = labelOf,

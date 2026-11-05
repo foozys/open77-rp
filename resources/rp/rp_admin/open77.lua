@@ -14,6 +14,11 @@ dependency "rp_core"
 permissions {
     "database.access", "network.events", "players.teleport", "players.spectate", "players.life.read", "players.life.freeze",
     "players.life.revive", "players.stats.apply", "players.damage.apply",
+    -- world.npcs: вкладка «NPC (тест)» — тестовые NPC, натравить на себя;
+    -- world.effects: там же — проба именованных эффектов тела (двойники Сандевистана)
+    "world.npcs", "world.effects",
+    -- players.reflex.*: там же — тест ускорения платформы (Open77.reflex, F6)
+    "players.reflex.define", "players.reflex.manage", "players.reflex.read",
 }
 
 server_script "server/config.lua"

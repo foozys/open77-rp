@@ -6,9 +6,12 @@
 -- платформа отклоняет переодевание с клиента (родной инвентарь игры, гардероб, F2): одежда
 -- вне предметов не работает. Нижнее бельё платформа в наряде не принимает — оно остаётся.
 --
--- Примерочная (точка rp_shops типа clothes): примеряет локальный манекен у клиента
--- (rp_clothing_ui) — тело персонажа, его бельё и примеряемые вещи; сам персонаж остаётся
--- одетым. Сервер проверяет вещи (в продаже, подходят фигуре) и ведёт корзину.
+-- Примерочная (точка rp_shops типа clothes): примеряет манекен — серверный NPC с телом персонажа,
+-- его бельём и примеряемыми вещами; сам персонаж остаётся одетым. На время примерки игрок и
+-- манекен — в отдельном измерении (C.bucketBase + игрок): другие их не видят. Манекен создаётся
+-- один раз, примерка — setEquipment, поворот — setTransform (2026-11-04: локальный манекен
+-- пересоздавался на каждое действие, и на сборке op77.184 прежние тела оставались на экране).
+-- Сервер проверяет вещи (в продаже, подходят фигуре) и ведёт корзину.
 -- Купленное ложится в сетку инвентаря одной операцией с оплатой.
 --
 -- Перенос: при первом входе персонажа после внедрения его прежняя экипировка
@@ -97,17 +100,24 @@ local function setOutfit(p, set)
     return false, why
 end
 
--- Показать на персонаже вещи из слотов инвентаря.
+-- Маскировка (кожа хамелеона, rp_identity, 2026-11-05): вместо вещей из инвентаря — одежда со
+-- щепки подмены; reveal — мерцание под «Сбоем имплантов» (на миг проступает настоящая одежда).
+-- Инвентарь при этом живёт как обычно: переодевание запоминается и видно после маскировки.
+local disguises = {} -- [playerId] = { set, reveal }
+
+-- Показать на персонаже вещи из слотов инвентаря (или наряд маскировки).
 local function showWorn(p)
-    local last = latest[p]
-    if not last then return end
-    local ok, why = setOutfit(p, last.worn)
+    local last, d = latest[p], disguises[p]
+    local set = d and not d.reveal and d.set or (last and last.worn)
+    if not set then return end
+    local ok, why = setOutfit(p, set)
     if ok then pending[p] = nil; return end
     if why == "invalid_outfit_items" then
         -- Платформа отвергла набор целиком: убираем вещи, которые не подходят телу или
         -- неизвестны каталогу, и пробуем ещё раз.
-        local family, clean = familyOf(last.characterId), {}
-        for slot, record in pairs(last.worn) do
+        local c = last or character(p)
+        local family, clean = familyOf(last and last.characterId or (c and c.id) or 0), {}
+        for slot, record in pairs(set) do
             if record and entryOf(record, slot) and fitsBody(record, family) then clean[slot] = record end
         end
         ok, why = setOutfit(p, clean)
@@ -214,7 +224,7 @@ local function placeOf(p)
 end
 local function within(p, shop, radius)
     local place = placeOf(p)
-    if not place or place.bucket ~= shop.bucket then return false end
+    if not place or (place.bucket ~= shop.bucket and place.bucket ~= C.bucketBase + p) then return false end
     local dx, dy, dz = place.x - shop.x, place.y - shop.y, place.z - shop.z
     return dx * dx + dy * dy + dz * dz <= radius * radius
 end
@@ -260,10 +270,37 @@ local function mannequinLook(characterId)
     return look.body, underwear
 end
 
+-- Набор на манекене: бельё персонажа + примеряемое.
+local function mannequinSet(session)
+    local set = {}
+    for slot, record in pairs(session.underwear or {}) do set[slot] = record end
+    for slot, record in pairs(session.trial) do set[slot] = record end
+    return set
+end
+
+-- Убрать манекен и вернуть игрока в прежнее измерение (online = false — игрок уже вышел).
+local function release(p, session, online)
+    if session.npc then
+        local ok, why = Open77.npcs.remove(session.npc)
+        if not ok then log("warn", "манекен игрока %d не удалён: %s", p, tostring(why)) end
+        session.npc = nil
+    end
+    if online ~= false and session.staged then
+        session.staged = false
+        if Open77.routingBuckets.getPlayer(p) == C.bucketBase + p then
+            if not Open77.routingBuckets.setPlayer(p, session.originBucket or 0) then
+                log("warn", "игрок %d не возвращён из примерочной в измерение %d", p, session.originBucket or 0)
+            end
+        end
+    end
+end
+
 -- Закончить примерку: окно закрыть, на персонаже — снова вещи из инвентаря.
 local function endSession(p, text)
-    if not sessions[p] then return end
+    local session = sessions[p]
+    if not session then return end
     sessions[p] = nil
+    release(p, session)
     TriggerClientEvent("rp_clothing:closed", p, {})
     if text then notify(p, text) end
     CreateThread(function() showWorn(p) end)
@@ -287,16 +324,17 @@ AddEventHandler("rp_clothing:openShop", function(playerArg, shopArg)
             -- Примеряет манекен (у клиента), сам персонаж остаётся одетым.
             local body, underwear = mannequinLook(c.id)
             if not body then return notify(p, "Примерочная недоступна: внешность персонажа не найдена.") end
-            local session = { shop = shop, trial = {}, at = now(), lastTry = 0,
-                              family = type(body.family) == "string" and body.family or nil }
+            local place = placeOf(p)
+            local session = { shop = shop, trial = {}, at = now(), lastTry = 0, lastRotate = 0,
+                              family = type(body.family) == "string" and body.family or nil,
+                              body = body, underwear = underwear, originBucket = place and place.bucket or 0 }
             sessions[p] = session
             local prices = {}
             for record, price in pairs(C.prices) do prices[record] = price end
             local exclude = {}
             for record in pairs(C.exclude) do exclude[#exclude + 1] = record end
             TriggerClientEvent("rp_clothing:open", p, { title = shop.label, bank = bankBalance(p), slots = SLOTS,
-                tierPrice = C.tierPrice, slotFactor = C.slotFactor, prices = prices, exclude = exclude,
-                body = body, underwear = underwear })
+                tierPrice = C.tierPrice, slotFactor = C.slotFactor, prices = prices, exclude = exclude })
             log("info", "примерочная: игрок %d у точки #%d", p, shop.id)
         end)
         opening[p] = nil
@@ -318,8 +356,53 @@ RegisterNetEvent("rp_clothing:try", function(slot, record)
         if not fitsBody(record, session.family) then return sendTrial(p, session, "Эта вещь не подходит фигуре персонажа.", true) end
         session.trial[slot] = record
     end
-    -- Показывает манекен у клиента (rp_clothing_ui) по корзине из этого ответа.
+    if session.npc then
+        local ok, why = Open77.npcs.setEquipment(session.npc, mannequinSet(session))
+        if not ok then log("warn", "манекен игрока %d не одет: %s", p, tostring(why)) end
+    end
     sendTrial(p, session)
+end)
+
+-- Клиент выбрал место манекена (свободное от стен, перед камерой): создать манекен и
+-- перенести игрока в измерение примерочной. Один раз за сессию.
+RegisterNetEvent("rp_clothing:stage", function(spot)
+    local p = playerOf(source)
+    local session = p and sessions[p]
+    if not session or session.staged or session.npc or type(spot) ~= "table" then return end
+    local x, y, z, yaw = tonumber(spot.x), tonumber(spot.y), tonumber(spot.z), tonumber(spot.yaw)
+    local place = placeOf(p)
+    if not x or not y or not z or not yaw or not place or x ~= x or y ~= y or z ~= z or yaw ~= yaw then return end
+    local dx, dy, dz = x - place.x, y - place.y, z - place.z
+    if dx * dx + dy * dy > C.stageDistance * C.stageDistance or math.abs(dz) > 3 then return end
+    local bucket = C.bucketBase + p
+    session.spot, session.baseYaw = { x = x, y = y, z = z }, yaw % 360
+    local npc, why = Open77.npcs.create({
+        body = session.body, equipment = mannequinSet(session), position = session.spot, yaw = session.baseYaw,
+        bucket = bucket, aiMode = 1, damagePolicy = 2, -- Open77.npcs.ai.frozen, Open77.npcs.damage.invulnerable (как rp_taxi)
+        persistent = false, despawnWhenUnobserved = false,
+    })
+    if not npc then
+        log("warn", "манекен игроку %d не создан: %s", p, tostring(why))
+        return endSession(p, "Примерочная недоступна: манекен не создан.")
+    end
+    session.npc = npc
+    if not Open77.routingBuckets.setPlayer(p, bucket) then
+        log("warn", "игрок %d не перенесён в примерочную (измерение %d)", p, bucket)
+        return endSession(p, "Примерочная недоступна.")
+    end
+    session.staged = true
+end)
+
+-- Поворот манекена (Q / E, мышь): угол от исходного, градусы.
+RegisterNetEvent("rp_clothing:rotate", function(turn)
+    local p = playerOf(source)
+    local session = p and sessions[p]
+    turn = tonumber(turn)
+    if not session or not session.npc or not turn or turn ~= turn then return end
+    if now() - session.lastRotate < C.rotateCooldownMs then return end
+    session.lastRotate = now()
+    local ok, why = Open77.npcs.setTransform(session.npc, { position = session.spot, yaw = (session.baseYaw + turn) % 360 })
+    if not ok then log("debug", "поворот манекена игрока %d: %s", p, tostring(why)) end
 end)
 
 local function explain(why)
@@ -372,6 +455,7 @@ CreateThread(function()
             if not session.busy then
                 if not character(p) then
                     sessions[p] = nil
+                    release(p, session)
                 elseif Open77.players.isDead(p) then
                     endSession(p, "Примерка прервана.")
                 elseif not within(p, session.shop, C.fittingDistance) then
@@ -388,18 +472,60 @@ AddEventHandler("rp_core:characterLoaded", function(playerArg)
     local p = playerOf(playerArg)
     if not p then return end
     -- Смена персонажа: open77_appearance сам снимает наряд; новый набор придёт от инвентаря.
-    sessions[p], latest[p], pending[p] = nil, nil, nil
+    if sessions[p] then release(p, sessions[p]) end
+    sessions[p], latest[p], pending[p], disguises[p] = nil, nil, nil, nil
 end)
 
 AddEventHandler("onPlayerDisconnected", function(playerArg)
     local p = playerOf(playerArg)
-    if p then sessions[p], latest[p], pending[p] = nil, nil, nil end
+    if not p then return end
+    if sessions[p] then release(p, sessions[p], false) end
+    sessions[p], latest[p], pending[p], disguises[p] = nil, nil, nil, nil
+end)
+
+-- Перезапуск ресурса: манекены убрать, игроков вернуть из примерочной.
+AddEventHandler("onResourceStop", function(name)
+    if name ~= GetCurrentResourceName() then return end
+    for p, session in pairs(sessions) do release(p, session) end
 end)
 
 -- Что сейчас надето на игроке (для других ресурсов): { Head = "Items.…" | false, … } или nil.
 exports("worn", function(playerId)
     local last = latest[playerOf(playerId) or 0]
     return last and full(last.worn) or nil
+end)
+
+-- Маскировка (только rp_identity): set — наряд { слот = запись | false }, nil — снять. Не ждёт.
+exports("disguise", function(playerId, set)
+    if GetInvokingResource() ~= "rp_identity" then return nil, "caller_denied" end
+    local p = playerOf(playerId)
+    if not p then return nil, "invalid_player" end
+    if type(set) == "table" then
+        local clean = {}
+        for _, slot in ipairs(SLOTS) do
+            local record = set[slot]
+            clean[slot] = type(record) == "string" and entryOf(record, slot) and record or false
+        end
+        disguises[p] = { set = clean, reveal = false }
+    else
+        if not disguises[p] then return true end
+        disguises[p] = nil
+    end
+    CreateThread(function() showWorn(p) end)
+    return true
+end)
+
+-- Мерцание маскировки (только rp_identity): true — показать настоящую одежду, false — наряд. Не ждёт.
+exports("disguise_reveal", function(playerId, reveal)
+    if GetInvokingResource() ~= "rp_identity" then return nil, "caller_denied" end
+    local d = disguises[playerOf(playerId) or 0]
+    if not d then return nil, "not_disguised" end
+    reveal = reveal == true
+    if d.reveal == reveal then return true end
+    d.reveal = reveal
+    local p = playerOf(playerId)
+    CreateThread(function() showWorn(p) end)
+    return true
 end)
 
 -- Схема БД — версионные миграции rp_core (rp_schema_version, модуль = имя ресурса).

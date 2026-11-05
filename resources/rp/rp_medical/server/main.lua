@@ -184,6 +184,8 @@ local function finish(playerId, keepMark)
     if not d then return end
     downed[playerId] = nil
     if d.finishable then pushFinishable() end
+    -- Другим серверным ресурсам (rp_identity: копирование щепки у раненого — ALT-меню).
+    TriggerEvent("rp_medical:downed_changed", playerId, false)
     if not keepMark then
         -- Без ожидания: finish вызывается из raise, а raise — из синхронных экспортов
         -- (rp_admin rp.heal, rp_cyberware). Ожидание БД там даёт export_yielded.
@@ -232,6 +234,7 @@ local function startDowned(playerId)
         x = math.floor(place.x), y = math.floor(place.y), z = math.floor(place.z) })
     downed[playerId].finishable = finishable(playerId)
     if downed[playerId].finishable then pushFinishable() end
+    TriggerEvent("rp_medical:downed_changed", playerId, true)
     db("update", "INSERT IGNORE INTO rp_medical_downed (character_id) VALUES (?)", { character.id })
     log("info", "игрок %d (#%d) ранен", playerId, character.id)
     status(playerId)

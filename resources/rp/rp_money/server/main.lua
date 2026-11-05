@@ -353,6 +353,9 @@ RegisterCommand("pay", function(source, args)
     end
     log("info", "pay %d -> %d: %d (%s)", playerId, target, amount, opId)
     journal("pay", playerId, target, { amount = amount }, opId)
+    -- Перевод идёт через нейропорт: у отправителя на пару секунд светятся глаза (как в игре).
+    local lit, whyLit = Open77.players.setHoloCallEyes(playerId, true, { durationMs = MoneyConfig.payEyesMs })
+    if not lit then log("warn", "подсветка глаз игроку %d: %s", playerId, tostring(whyLit)) end
     reply(playerId, "Перевод %s [%d]: %s.", nameOf(target), target, formatMoney(amount))
     reply(target, "Перевод от %s [%d]: +%s на счёт.", nameOf(playerId), playerId, formatMoney(amount))
 end, false)

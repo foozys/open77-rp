@@ -25,6 +25,7 @@
 /resources/*
 !/resources/rp/
 /resources/rp/rp_clothes/dist/
+/resources/rp/rp_sandy_fx/dist/
 
 # Claude Code local sessions, credentials and machine-specific settings.
 /.claude/settings.local.json

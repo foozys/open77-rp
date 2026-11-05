@@ -581,6 +581,10 @@ RegisterNetEvent("rp_vehicles:buy", function(model)
     -- Раненым и в наручниках не покупают (rp_core can_act, шаг 3.3).
     local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
     if not okAct or allowed ~= true then return result(playerId, false, text or "Сейчас нельзя.") end
+    -- Без лицензии на транспорт не продают (rp_identity, шаг 6.6).
+    if sync("rp_identity", "has_license", playerId, "vehicle") ~= true then
+        return result(playerId, false, "Без лицензии на транспорт машину не продадут. Лицензия — в «Городской службе».")
+    end
     session.busy = true
     -- Купленная машина ждёт в ближайшем к автосалону гараже.
     local home, homeDistance

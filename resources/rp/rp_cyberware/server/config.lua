@@ -105,11 +105,25 @@ CyberConfig = {
         -- Переключаемый (X — вкл/выкл), без перезарядки. Пока включён — ускорение рефлексов
         -- (tier: reflex или reflex_heavy) и каждые sanitySeconds секунд +sanityAmount психоза;
         -- каждое включение — ещё +activationSanity (чтобы не щёлкали X чаще, чем раз в 5 с).
+        -- Два уровня (решение владельца 2026-11-04): обычный — tier reflex (атака ×1,15, бег ×1,25),
+        -- Mk.2 — reflex_heavy (атака ×1,40, бег ×1,55, перезарядка +40 %; предел платформы ×1,5).
+        -- Скорость атаки — ближний бой; темп стрельбы платформа не меняет.
         implant_sandevistan = { slot = "os", humanity = 25, price = 5000, kind = "overdrive",
-            description = "Ускорение рефлексов, X — включить / выключить. Тяжёлый: −1 рассудка за включение и каждые 5 с работы. Не нейро-ОС: без телефона и щепок",
+            description = "Ускорение рефлексов (атака ×1,15, бег ×1,25), X — включить / выключить. −1 рассудка за включение и каждые 5 с работы. Нейро-ОС",
             overdrive = { tier = "reflex", sanitySeconds = 5, sanityAmount = 1, activationSanity = 1 } },
+        implant_sandevistan_mk2 = { slot = "os", humanity = 35, price = 9000, kind = "overdrive",
+            description = "Боевое ускорение рефлексов (атака в ближнем бою ×1,40, бег ×1,55, перезарядка +40 %), X — включить / выключить. −2 рассудка за включение и каждые 5 с работы. Нейро-ОС",
+            overdrive = { tier = "reflex_heavy", sanitySeconds = 5, sanityAmount = 2, activationSanity = 2 } },
         implant_subdermal = { slot = "skin", humanity = 8, price = 1500, kind = "passive",
             description = "Броня 50, восстанавливается вне боя", passive = { armor = 50 } },
+        -- Кожа хамелеона (2026-11-05): переключатель (J), как Сандевистан. Включается, только если в
+        -- обычном нейропорте щепка подмены со снятой внешностью (копия rp_identity) — на себе
+        -- внешность и одежда того, с кого снята копия (тот же тип тела). Рассудок: activationSanity
+        -- за включение и sanityAmount каждые sanitySeconds работы. «Сбой имплантов» не выключает её,
+        -- а заставляет мерцать (видна настоящая одежда); «Снятие маскировки» гасит на время.
+        implant_chameleon = { slot = "skin", humanity = 12, price = 3000, kind = "chameleon",
+            description = "Внешность и одежда со скопированной щепки в нейропорте, J — включить / выключить. −0,5 рассудка за включение и каждые 5 с работы",
+            chameleon = { sanitySeconds = 5, sanityAmount = 0.5, activationSanity = 0.5 } },
         implant_heart = { slot = "heart", humanity = 10, price = 2500, kind = "passive",
             description = "Здоровье 150 вместо 100", passive = { maxHealth = 150 } },
         implant_biomonitor = { slot = "blood", humanity = 5, price = 1200, kind = "passive",
@@ -129,7 +143,7 @@ CyberConfig = {
             grade = { kind = "overheat", range = 20, uploadMs = 2500, staminaCost = 10, cooldownMs = 15000,
                       damage = 10, recoveryMs = 6000, nonlethal = true,
                       burn = { totalDamage = 30, durationMs = 5000, tickMs = 500 } } },
-        qh_malfunction = { ram = 4, description = "8 с не работают рывок, удар о землю, руки и взлом",
+        qh_malfunction = { ram = 4, description = "8 с не работают рывок, удар о землю, руки и взлом; кожа хамелеона мерцает",
             grade = { kind = "malfunction", range = 20, uploadMs = 3000, staminaCost = 10, cooldownMs = 20000,
                       damage = 0, recoveryMs = 9000, nonlethal = true, malfunction = { durationMs = 8000 } } },
         qh_cripple = { ram = 3, description = "6 с цель медленнее, без рывков и двойного прыжка",
@@ -145,7 +159,25 @@ CyberConfig = {
             effect = "data_breach",
             grade = { kind = "short_circuit", range = 20, uploadMs = 4000, staminaCost = 10, cooldownMs = 30000,
                       damage = 0, statusMs = 0, recoveryMs = 5000, nonlethal = true, cosmetic = true } },
+        -- Кража личности (2026-11-04): копия щепки из нейропорта цели (rp_identity deck_copy) на
+        -- пустую щепку в своём нейропорте. needsBreach — только после «Взлома данных» по этой цели;
+        -- без него скрипт уходит на перезарядку с ошибкой «Невозможно прочитать данные».
+        -- stealth (2026-11-04): цель загрузку не видит, Self-ICE не отражает, Purge и действия цели
+        -- (уйти из поля зрения, отойти, сбить хакера уроном) не срывают.
+        qh_identity_copy = { ram = 6, description = "Копирует личную щепку из нейропорта цели незаметно для неё. Нужны «Взлом данных» и пустая щепка в нейропорте",
+            effect = "identity_copy", needsBreach = true, stealth = true,
+            grade = { kind = "short_circuit", range = 20, uploadMs = 5000, staminaCost = 10, cooldownMs = 60000,
+                      damage = 0, statusMs = 0, recoveryMs = 5000, nonlethal = true, cosmetic = true } },
+        -- Снятие маскировки (2026-11-05): на unmaskSeconds у цели не работают щепка подмены (сканер
+        -- видит настоящую личность) и кожа хамелеона; потом всё возвращается само.
+        qh_unmask = { ram = 5, description = "30 с у цели не работают поддельная щепка и кожа хамелеона: сканер видит настоящую личность",
+            effect = "unmask", unmaskSeconds = 30,
+            grade = { kind = "short_circuit", range = 20, uploadMs = 3500, staminaCost = 10, cooldownMs = 45000,
+                      damage = 0, statusMs = 0, recoveryMs = 5000, nonlethal = true, cosmetic = true } },
     },
+    -- Кожа хамелеона под «Сбоем имплантов» (статус malfunction у цели): мерцание — на flashMs
+    -- проступает настоящая одежда, между вспышками gapMs (случайно в пределах), искры на теле.
+    chameleonFlicker = { flashMs = { 350, 800 }, gapMs = { 500, 1400 } },
     scanRange = 50,          -- кого Kiroshi видит как цель (м)
     scanYear = 2077,         -- год, относительно которого публичное досье оценивает возраст
     dataBreachSeconds = 300, -- полный доступ после «Взлома данных»

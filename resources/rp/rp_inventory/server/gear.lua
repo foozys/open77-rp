@@ -17,6 +17,7 @@ local pending = {} -- [requestId] = { player, slot, u, kind } — ждём от�
 
 local function slotOf(c) return type(c) == "string" and c:match("^w(%d)$") and tonumber(c:sub(2)) or nil end
 local function beltOf(c) return type(c) == "string" and c:match("^b(%d)$") and tonumber(c:sub(2)) or nil end
+local function neuroOf(c) return type(c) == "string" and c:match("^n(%d)$") and tonumber(c:sub(2)) or nil end
 -- Слот одежды "cl_<слот платформы>" (cl_Head, cl_OuterChest…) → имя слота, если он есть в конфиге.
 local CLOTHING = {}
 for _, name in ipairs(G.clothingSlots or {}) do CLOTHING[name] = true end
@@ -278,15 +279,42 @@ local function fitsTarget(def, target)
     if wearOf(target) then return def.wear == wearOf(target) end
     if slotOf(target) then return def.weapon ~= nil end
     if beltOf(target) then return def.weapon == nil and def.w * def.h <= G.beltMaxCells end
+    if neuroOf(target) then return def.shard == true end
     return false
 end
 
--- Перенос стопки: target — "w1".."w3", "b1".."b5" или "grid" (тогда x, y, rotated; без x —
+-- Номер ячейки в пределах своего ряда (w1..w3, b1..b5, n1..n2); одежда — всегда.
+local function inRange(target)
+    if wearOf(target) then return true end
+    local n, max = slotOf(target), G.weaponSlots
+    if not n then n, max = beltOf(target), G.beltSlots end
+    if not n then n, max = neuroOf(target), G.neuroSlots or 0 end
+    return n ~= nil and n >= 1 and n <= max
+end
+
+-- Щепка в нейропорте: денежная — считывается и пропадает (как «Вставить в нейропорт»),
+-- остальные — содержимое на экране (rp_inventory:read: досье — rp_contracts, личная — rp_identity).
+local function readInserted(playerId, u, itemId)
+    local state = C.inv[playerId]
+    if not state then return end
+    local stack, index = stackByU(state, u)
+    if not stack or not neuroOf(stack.c) then return end
+    local def = InvConfig.items[itemId]
+    if def.use == "chip" then return C.useItem(playerId, index, itemId) end
+    TriggerEvent("rp_inventory:read", playerId, itemId, state.characterId, metaOf(state, stack))
+end
+
+-- Перенос стопки: target — "w1".."w3", "b1".."b5", "n1".."n2" или "grid" (тогда x, y, rotated; без x —
 -- первое свободное место). Занятая ячейка — предметы меняются местами (или занявший уходит в сетку).
 RegisterNetEvent("rp_inventory:gear", function(index, itemId, target, x, y, rotated)
     local playerId = tonumber(source)
+    local inserted -- щепка ушла в нейропорт: прочитать после переноса (вне блокировки стопки)
     C.actStack(playerId, index, itemId, function(state, stack, at)
         local def = InvConfig.items[stack.i]
+        if stack.c == IDENTITY_SLOT or target == IDENTITY_SLOT then
+            C.notify(playerId, "Нейропорт личности меняет только служба (восстановление щепки).")
+            return C.push(playerId)
+        end
         if target == "grid" then
             x, y = math.tointeger(tonumber(x)), math.tointeger(tonumber(y))
             local r = rotated == true and def.w ~= def.h
@@ -302,12 +330,15 @@ RegisterNetEvent("rp_inventory:gear", function(index, itemId, target, x, y, rota
             if not Grid.free(state.stacks, x, y, w, h, at) then return C.push(playerId) end
             stack.c, stack.x, stack.y, stack.r = nil, x, y, r or nil
         else
-            if type(target) ~= "string" or not fitsTarget(def, target)
-                or (not wearOf(target) and (slotOf(target) or beltOf(target) or 99) > (slotOf(target) and G.weaponSlots or G.beltSlots)) then
+            if type(target) ~= "string" or not fitsTarget(def, target) or not inRange(target) then
                 C.notify(playerId, "%s сюда не помещается.", def.label)
                 return C.push(playerId)
             end
             if stack.c == target then return C.push(playerId) end
+            if neuroOf(target) and not Store.hasOs(playerId) then
+                C.notify(playerId, "Нейропорту нужна ОС (гражданская ОС, кибердека или Сандевистан).")
+                return C.push(playerId)
+            end
             -- Перемещения запоминаются: не нашлось места — всё возвращается как было.
             local undo = {}
             local function move(s, c, mx, my, mr)
@@ -350,11 +381,13 @@ RegisterNetEvent("rp_inventory:gear", function(index, itemId, target, x, y, rota
                 end
             end
             if removed then C.notify(playerId, "Снято в рюкзак: %s.", removed) end
+            if neuroOf(target) then inserted = { u = stack.u, i = stack.i } end
         end
         Store.saveLayout(state.characterId, state.stacks)
         Gear.sync(playerId, state)
         C.push(playerId)
     end)
+    if inserted and inserted.u then readInserted(playerId, inserted.u, inserted.i) end
 end)
 
 -- Разрядить: оружие или старый магазин — патроны из него в рюкзак.

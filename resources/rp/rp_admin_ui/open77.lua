@@ -9,8 +9,10 @@ reload_policy "reconnect"
 -- с такой зависимостью не запускается.
 
 -- network.events: связь с rp_admin и отправка команд панели;
--- map.read: метка на карте для rp.tpm; input.actions: клавиша F3
-permissions { "network.events", "map.read", "input.actions" }
+-- map.read: метка на карте для rp.tpm; input.actions: клавиша F3;
+-- вкладка «Объекты» (rp_objects): gizmos.edit — перемещение мышью, world.props — локальные
+-- объекты для проверки коллизии, world.query — лучи этой проверки
+permissions { "network.events", "map.read", "input.actions", "gizmos.edit", "world.props", "world.query" }
 
 client_script "client/main.lua"
 web_file "web/index.html"

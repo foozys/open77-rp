@@ -15,8 +15,10 @@ dependency "rp_shops"
 -- database.access: отметка переноса и надетый набор (rp_clothing_state), чтение
 -- open77_character_presentation и тела персонажа (rp_characters.look);
 -- network.events: окно примерочной (rp_clothing_ui);
--- players.life.read: позиция и смерть игрока в примерочной
-permissions { "database.access", "network.events", "players.life.read" }
+-- players.life.read: позиция и смерть игрока в примерочной;
+-- world.npcs: манекен примерочной — серверный NPC с телом персонажа (одевается и поворачивается
+-- без пересоздания), в отдельном измерении игрока
+permissions { "database.access", "network.events", "players.life.read", "world.npcs" }
 
 server_script "server/config.lua"
 server_script "server/catalog.lua"

@@ -126,6 +126,18 @@
 #gearBox .bslot .item .name { top:22px; font-size:9px; }
 #gearBox .bslot .itemArt { inset:38px 1px 16px; }
 #gearBox > .hint { color:var(--muted); font-size:11px; line-height:1.6; }
+/* Нейропорт: строка под поясом — подпись и две ячейки шириной как ячейка пояса (5 в ряд, зазор 7px). */
+#gearBox .neuroRow { display:flex; width:100%; gap:7px; height:56px; margin-top:6px; }
+#gearBox .neuroLabel { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; }
+#gearBox .neuroLabel b { font:600 15px/1.3 "Segoe UI",sans-serif; color:var(--red); letter-spacing:1.5px; text-transform:uppercase; }
+#gearBox .neuroLabel small { color:var(--muted); font-size:11px; }
+#gearBox .neuroRow .bslot { flex:0 0 calc((100% - 28px) / 5); height:56px; }
+#gearBox .neuroRow .bslot .item .name { display:none; }
+#gearBox .neuroRow .bslot .itemArt { inset:8px 4px 6px; }
+/* Нейропорт личности: золотая рамка, метка ID; щепка в нём не перетаскивается. */
+#gearBox .neuroRow .idslot { border-color:#e8c46a; box-shadow:inset 0 0 0 1px rgba(232,196,106,.25); }
+#gearBox .neuroRow .idslot .idTag { position:absolute; top:3px; right:5px; z-index:3; font-size:10px; font-weight:700; letter-spacing:1px; color:#e8c46a; }
+#gearBox .neuroRow .idslot .item { cursor:default; }
 #overflow { margin-top:18px; }
 #overflow .title { color:var(--red); font-size:12px; }
 #overflowList { margin-top:8px; }
