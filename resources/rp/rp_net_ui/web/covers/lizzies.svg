@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid slice">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#25062e"/><stop offset="1" stop-color="#07020c"/></linearGradient></defs>
+<rect width="640" height="360" fill="url(#g)"/>
+<path d="M0 80C120 40 220 120 320 80S520 40 640 80" fill="none" stroke="#b06cff" stroke-width="1.5" stroke-opacity="0.4"/>
+<path d="M0 106C120 66 220 146 320 106S520 66 640 106" fill="none" stroke="#ff3df2" stroke-width="1.5" stroke-opacity="0.4"/>
+<path d="M0 132C120 92 220 172 320 132S520 92 640 132" fill="none" stroke="#b06cff" stroke-width="1.5" stroke-opacity="0.4"/>
+<path d="M0 158C120 118 220 198 320 158S520 118 640 158" fill="none" stroke="#ff3df2" stroke-width="1.5" stroke-opacity="0.4"/>
+<path d="M0 184C120 144 220 224 320 184S520 144 640 184" fill="none" stroke="#b06cff" stroke-width="3" stroke-opacity="0.9"/>
+<path d="M0 210C120 170 220 250 320 210S520 170 640 210" fill="none" stroke="#ff3df2" stroke-width="1.5" stroke-opacity="0.4"/>
+<path d="M0 236C120 196 220 276 320 236S520 196 640 236" fill="none" stroke="#b06cff" stroke-width="1.5" stroke-opacity="0.4"/>
+<path d="M0 262C120 222 220 302 320 262S520 222 640 262" fill="none" stroke="#ff3df2" stroke-width="1.5" stroke-opacity="0.4"/>
+<path d="M0 288C120 248 220 328 320 288S520 248 640 288" fill="none" stroke="#b06cff" stroke-width="1.5" stroke-opacity="0.4"/>
+<circle cx="320" cy="184" r="54" fill="none" stroke="#ff3df2" stroke-width="4"/><circle cx="320" cy="184" r="18" fill="#ff3df2" fill-opacity="0.6"/>
+</svg>

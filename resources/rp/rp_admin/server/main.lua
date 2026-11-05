@@ -499,6 +499,7 @@ local PANEL_PERMS = {
     "rp.announce", "rp.kick", "rp.ban", "rp.ban.permanent", "rp.unban", "rp.whitelist.add", "rp.whitelist.remove",
     "rp.staff.manage", "rp.tune", "rp.money", "rp.items", "rp.jobs", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber",
     "rp.audit.view", "rp.frozen", "rp.applications", "rp.identity.manage", "rp.objects", "rp.npcs", "rp.checkpoints",
+    "rp.net.moderate",
 }
 
 -- Экспорт другого ресурса или пустой список, если ресурс не запущен.
@@ -618,6 +619,51 @@ end)
 AddEventHandler("onPlayerDisconnected", function(playerIdStr)
     local playerId = tonumber(playerIdStr)
     if playerId then frozenBusy[playerId] = nil end
+end)
+
+-- Вкладка «Сеть» (2026-11-05): посты «НайтКом» и сайты игроков — скрыть / вернуть.
+-- Право rp.net.moderate и всё остальное проверяет rp_net (moderation_list / moderation_set).
+local netBusy = {}
+
+local function sendNet(playerId, message)
+    local pending, why = Open77.exports.call("rp_net", "moderation_list", playerId)
+    local data
+    if pending then data, why = pending:await() end
+    local payload = type(data) == "table" and { posts = data.posts, sites = data.sites, message = message }
+        or { error = why == "no_permission" and "Нет права rp.net.moderate." or "Сеть недоступна (rp_net)." }
+    local id, sendWhy = TriggerLatentClientEvent("rp_admin:net", playerId, 256 * 1024, payload)
+    if not id then log("warn", "сеть для %d не отправлена: %s", playerId, tostring(sendWhy)) end
+end
+
+local function netRequest(playerId, fn)
+    if not playerId or netBusy[playerId] then return end
+    netBusy[playerId] = true
+    CreateThread(function()
+        local ok, err = pcall(fn)
+        netBusy[playerId] = nil
+        if not ok then log("error", "сеть для %d: %s", playerId, tostring(err)) end
+    end)
+end
+
+RegisterNetEvent("rp_admin:net", function()
+    local playerId = tonumber(source)
+    netRequest(playerId, function() sendNet(playerId) end)
+end)
+
+RegisterNetEvent("rp_admin:netSet", function(kind, id, hidden)
+    local playerId = tonumber(source)
+    if kind ~= "post" and kind ~= "site" then return end
+    netRequest(playerId, function()
+        local pending = Open77.exports.call("rp_net", "moderation_set", playerId, kind, math.tointeger(tonumber(id)), hidden == true)
+        local ok, why
+        if pending then ok, why = pending:await() end
+        sendNet(playerId, ok and (hidden == true and "Скрыто." or "Возвращено.") or ("Не получилось: " .. tostring(why)))
+    end)
+end)
+
+AddEventHandler("onPlayerDisconnected", function(playerIdStr)
+    local playerId = tonumber(playerIdStr)
+    if playerId then netBusy[playerId] = nil end
 end)
 
 -- Вкладка «Заявки» (шаг 5.2): заявки новых персонажей — одобрить / отклонить с причиной.

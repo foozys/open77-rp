@@ -306,6 +306,23 @@ local function messageAllowed(p)
     return true
 end
 
+-- Записать сообщение и известить получателя. Сообщение, или nil, текст отказа.
+local function deliver(p, c, line, number, body)
+    local peer = charByNumber(number)
+    if not peer then return nil, "Номер " .. number .. " не обслуживается." end
+    if peer == c.id then return nil, "Нельзя писать самому себе." end
+    local messageId = sql("insert", "INSERT INTO rp_phone_messages (sender_id, recipient_id, body) VALUES (?, ?, ?)", { c.id, peer, body })
+    if not messageId then return nil, "Сообщение не отправлено: сеть недоступна." end
+    local message = { id = messageId, mine = true, body = body, at = Open77.time.unix() }
+    send(p, "rp_phone:sent", { number = number, message = message })
+    local target = onlineByChar(peer)
+    if target then
+        send(target, "rp_phone:message", { number = line.number, name = contactName(peer, line.number),
+            message = { id = messageId, mine = false, body = body, at = message.at }, unread = unreadTotal(peer) })
+    end
+    return message
+end
+
 RegisterNetEvent("rp_phone:send", function(number, text)
     local p = id(source); if not p or not ready then return end
     if not isNumber(number) then return end
@@ -315,19 +332,59 @@ RegisterNetEvent("rp_phone:send", function(number, text)
     if not allowed then return notice(p, why) end
     CreateThread(function()
         local c, line = session(p); if not c then return end
-        local peer = charByNumber(number)
-        if not peer then return notice(p, "Номер " .. number .. " не обслуживается.") end
-        if peer == c.id then return notice(p, "Нельзя писать самому себе.") end
-        local messageId = sql("insert", "INSERT INTO rp_phone_messages (sender_id, recipient_id, body) VALUES (?, ?, ?)", { c.id, peer, body })
-        if not messageId then return notice(p, "Сообщение не отправлено: сеть недоступна.") end
-        local at = Open77.time.unix()
-        send(p, "rp_phone:sent", { number = number, message = { id = messageId, mine = true, body = body, at = at } })
-        local target = onlineByChar(peer)
-        if target then
-            send(target, "rp_phone:message", { number = line.number, name = contactName(peer, line.number),
-                message = { id = messageId, mine = false, body = body, at = at }, unread = unreadTotal(peer) })
-        end
+        local _, failed = deliver(p, c, line, number, body)
+        if failed then notice(p, failed) end
     end)
+end)
+
+-- ---------- мессенджер компьютера (rp_net, 2026-11-05) ----------
+-- Та же переписка, что в телефоне (по номеру персонажа), но с компьютера: нейро-ОС не нужна.
+-- Только для rp_net; ждут БД — вызывать через Open77.exports.call.
+local function pcSession(p)
+    if GetInvokingResource() ~= "rp_net" or not ready then return nil, "Сеть недоступна." end
+    local c = person(id(p))
+    if not c then return nil, "Нет персонажа." end
+    local line = ensureLine(c.id)
+    if not line then return nil, "Сеть недоступна." end
+    return c, line
+end
+
+exports("pc_state", function(p)
+    local c, line = pcSession(p)
+    if not c then return nil, line end
+    local state = stateFor(c, line)
+    return { number = state.number, contacts = state.contacts, conversations = state.conversations }
+end)
+
+exports("pc_thread", function(p, number)
+    local c, line = pcSession(p)
+    if not c then return nil, line end
+    if not isNumber(number) then return nil, "Неверный номер." end
+    local peer = charByNumber(number)
+    local messages = {}
+    if peer then
+        local rows = sql("query", [[SELECT id, sender_id, body, UNIX_TIMESTAMP(sent_at) AS at FROM rp_phone_messages
+            WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
+            ORDER BY id DESC LIMIT ?]], { c.id, peer, peer, c.id, C.threadLimit }) or {}
+        for i = #rows, 1, -1 do
+            local row = rows[i]
+            messages[#messages + 1] = { id = tonumber(row.id), mine = id(row.sender_id) == c.id, body = row.body, at = tonumber(row.at) }
+        end
+        sql("update", "UPDATE rp_phone_messages SET read_at = NOW() WHERE recipient_id = ? AND sender_id = ? AND read_at IS NULL", { c.id, peer })
+    end
+    return { number = number, name = contactName(c.id, number), known = peer ~= nil, messages = messages, own = line.number }
+end)
+
+exports("pc_send", function(p, number, text)
+    local c, line = pcSession(p)
+    if not c then return nil, line end
+    p = id(p)
+    if not isNumber(number) then return nil, "Неверный номер." end
+    local body = cleanText(text, C.messageMaxChars, true)
+    if not body then return nil, "Сообщение пустое или длиннее " .. C.messageMaxChars .. " символов." end
+    local allowed, why = messageAllowed(p)
+    if not allowed then return nil, why end
+    return deliver(p, c, line, number, body)
 end)
 
 -- ---------- контакты ----------

@@ -35,6 +35,8 @@ RpConfig = {
     --   rp.objects           — объекты в мире: поставить, двигать, удалить, проверить коллизию (F3 → «Объекты»)
     -- rp_checkpoints:
     --   rp.checkpoints       — КПП-сканеры: поставить, турель, двери, проверить на себе (F3 → «КПП»)
+    -- rp_net:
+    --   rp.net.moderate      — скрыть/вернуть посты «НайтКом» и сайты игроков (F3 → «Сеть»)
     -- rp_admin:
     --   rp.teleport          — телепорт к игроку, игрока к себе, по координатам
     --   rp.spectate          — наблюдение за игроком
@@ -53,7 +55,7 @@ RpConfig = {
         { id = "helper", label = "Хелпер", permissions = { "rp.staff", "rp.whitelist.bypass", "rp.view", "rp.teleport" } },
         { id = "moderator", label = "Модератор",
           permissions = { "rp.kick", "rp.ban", "rp.whitelist.add", "rp.spectate", "rp.freeze", "rp.warn", "rp.audit.view",
-                          "rp.applications" },
+                          "rp.applications", "rp.net.moderate" },
           maxBanSeconds = 7 * 86400 },
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",

@@ -36,6 +36,11 @@ RegisterNetEvent("rp_admin:frozen", function(payload)
     if type(payload) == "table" and isOpen then send("adm:frozen", payload) end
 end)
 
+-- Вкладка «Сеть»: посты «НайтКом» и сайты игроков (данные и права — сервер, rp_net).
+RegisterNetEvent("rp_admin:net", function(payload)
+    if type(payload) == "table" and isOpen then send("adm:net", payload) end
+end)
+
 -- Вкладка «Заявки»: заявки новых персонажей (данные и права — сервер). Странице — по одной
 -- заявке: истории длинные, размер сообщения WebUI ограничен. Первая пачка заменяет список.
 RegisterNetEvent("rp_admin:applications", function(payload)
@@ -329,6 +334,10 @@ AddEventHandler("onClientResourceStart", function(name)
     page:on("adm:close", close)
     page:on("adm:refresh", function() TriggerServerEvent("rp_admin:panel") end)
     page:on("adm:frozen", function() TriggerServerEvent("rp_admin:frozen") end)
+    page:on("adm:net", function() TriggerServerEvent("rp_admin:net") end)
+    page:on("adm:netSet", function(p)
+        if type(p) == "table" then TriggerServerEvent("rp_admin:netSet", tostring(p.kind), math.tointeger(tonumber(p.id)), p.hidden == true) end
+    end)
     page:on("adm:applications", function() TriggerServerEvent("rp_admin:applications") end)
     page:on("adm:applicationReview", function(p)
         if type(p) ~= "table" then return end

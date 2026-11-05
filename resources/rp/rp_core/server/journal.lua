@@ -75,12 +75,13 @@ end)
 -- Категории фильтра панели: шаблоны LIKE по действию.
 local CATEGORIES = {
     money = { "rp_money:%", "rp_medical:charge", "rp_shops:buy", "rp_vehicles:car_buy%", "rp_inventory:chip_%",
-              "rp_identity:license_buy", "rp_identity:id_restore", "rp_identity:id_forge", "rp_shops:cityhall_failed" },
-    items = { "rp_inventory:%", "rp_shops:buy", "rp_vehicles:car_buy%", "rp_vehicles:car_kit" },
+              "rp_identity:license_buy", "rp_identity:id_restore", "rp_identity:id_forge", "rp_shops:cityhall_failed",
+              "rp_net:order%", "rp_net:site_%", "rp_net:ad" },
+    items = { "rp_inventory:%", "rp_shops:buy", "rp_vehicles:car_buy%", "rp_vehicles:car_kit", "rp_net:order_pickup" },
     admin = { "rp_admin:%", "ban", "unban", "kick", "whitelist_%", "staff_%", "tune", "audit_view",
               "rp_money:money_%", "rp_inventory:item_%", "rp_vehicles:car_give", "rp_vehicles:car_tow",
               "rp_jobs:job_%", "rp_needs:%", "rp_shops:shop_%", "rp_identity:%_set", "rp_identity:record_%",
-              "rp_objects:%", "rp_checkpoints:%" },
+              "rp_objects:%", "rp_checkpoints:%", "rp_net:net_%" },
     medical = { "rp_medical:%" },
     surgery = { "rp_surgery:%", "rp_cyberware:implant_%" },
     contracts = { "rp_contracts:%", "rp_money:contract_%" },

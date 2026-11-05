@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid slice">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a1a08"/><stop offset="1" stop-color="#0a0503"/></linearGradient></defs>
+<rect width="640" height="360" fill="url(#g)"/>
+<rect x="0" y="160" width="79" height="360" fill="#000" fill-opacity="0.25"/>
+<rect x="70" y="146" width="58" height="360" fill="#000" fill-opacity="0.35"/>
+<rect x="140" y="178" width="57" height="360" fill="#000" fill-opacity="0.45"/>
+<rect x="210" y="113" width="69" height="360" fill="#000" fill-opacity="0.25"/>
+<rect x="280" y="88" width="41" height="360" fill="#000" fill-opacity="0.35"/>
+<rect x="350" y="164" width="44" height="360" fill="#000" fill-opacity="0.45"/>
+<rect x="420" y="49" width="41" height="360" fill="#000" fill-opacity="0.25"/>
+<rect x="490" y="76" width="40" height="360" fill="#000" fill-opacity="0.35"/>
+<rect x="560" y="63" width="82" height="360" fill="#000" fill-opacity="0.45"/>
+<rect x="630" y="67" width="72" height="360" fill="#000" fill-opacity="0.25"/>
+<rect x="230" y="120" width="180" height="130" rx="10" fill="none" stroke="#ff9a3d" stroke-width="4"/>
+<path d="M285 165H345V215A20 20 0 0 1 325 235H305A20 20 0 0 1 285 215Z" fill="none" stroke="#ffd27a" stroke-width="4"/><path d="M345 180A14 14 0 0 1 345 208" fill="none" stroke="#ffd27a" stroke-width="4"/>
+<path d="M300 150Q306 140 300 130M318 150Q324 140 318 130" fill="none" stroke="#ffd27a" stroke-width="2" stroke-opacity="0.7"/>
+<rect y="300" width="640" height="60" fill="#1a0d04"/><path d="M0 300H640" stroke="#ff9a3d" stroke-opacity="0.6"/>
+</svg>

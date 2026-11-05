@@ -194,6 +194,17 @@
   .onudge span { color: var(--muted); font-size: 11px; margin: 0 2px 0 6px; }
 
   /* Вкладка «КПП» (rp_checkpoints, 2026-11-05) — та же ячейка сетки */
+  #net { grid-column: 2; grid-row: 2; display: none; flex-direction: column; min-height: 0; padding: 12px 16px; gap: 8px; overflow: auto; }
+  #net.open { display: flex; }
+  #nHead { display: flex; gap: 10px; align-items: center; }
+  #nHead .btn { padding: 5px 12px; font-size: 12px; }
+  #netStatus { flex: 1; color: var(--muted); font-size: 12px; }
+  #netStatus.err { color: var(--accent); }
+  #net h4 { margin: 8px 0 2px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.7; }
+  #net .ncard { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.1); }
+  #net .ncard.hid { opacity: 0.5; }
+  #net .ncard .meta { grid-column: 1 / -1; font-size: 12px; opacity: 0.7; }
+  #net .ncard .txt { grid-column: 1 / -1; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
   #cps { grid-column: 2; grid-row: 2; display: none; flex-direction: column; min-height: 0; padding: 12px 16px; gap: 10px; }
   #cps.open { display: flex; }
   #cStatus { color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -289,6 +300,14 @@
       <div id="jTx"></div>
       <div id="jTable"></div>
       <button class="btn ghost" id="jMore" style="display:none">Ещё (старше)</button>
+    </div>
+    <div id="net">
+      <div id="nHead">
+        <span id="netStatus">Посты «НайтКом» и сайты жителей (последние 40). Скрытое не видят игроки; автор сайта видит пометку.</span>
+        <button class="btn ghost" id="netRefresh">Обновить</button>
+      </div>
+      <h4>Посты</h4><div id="netPosts"></div>
+      <h4>Сайты</h4><div id="netSites"></div>
     </div>
     <div id="frozen">
       <div id="fHead">
@@ -573,6 +592,8 @@
     { id: "journal", label: "Журнал", perm: "rp.audit.view", view: "journal", actions: [] },
     // Погибшие окончательно (шаг 4.7): список и восстановление, право rp.frozen.
     { id: "frozen", label: "Замороженные", perm: "rp.frozen", view: "frozen", actions: [] },
+    // Компьютер NetOS (rp_net): скрыть / вернуть посты «НайтКом» и сайты, право rp.net.moderate.
+    { id: "net", label: "Сеть", perm: "rp.net.moderate", view: "net", actions: [] },
     // Заявки новых персонажей (шаг 5.2): одобрить / отклонить, право rp.applications.
     { id: "apps", label: "Заявки", perm: "rp.applications", view: "apps", actions: [] },
     // Объекты в мире (rp_objects): поставить, двигать мышью, удалить, право rp.objects.
@@ -615,12 +636,14 @@
     $("actions").classList.toggle("hidden", !!view);
     $("journal").classList.toggle("open", view === "journal");
     $("frozen").classList.toggle("open", view === "frozen");
+    $("net").classList.toggle("open", view === "net");
     $("apps").classList.toggle("open", view === "apps");
     $("objects").classList.toggle("open", view === "objects");
     $("npcs").classList.toggle("open", view === "npcs");
     $("cps").classList.toggle("open", view === "cps");
     if (view === "journal") { if (!J.loaded) journalQuery(false); return; }
     if (view === "frozen") { frozenQuery(); return; }
+    if (view === "net") { netQuery(); return; }
     if (view === "apps") { appsQuery(); return; }
     if (view === "objects") { objectsQuery(); return; }
     if (view === "npcs") { npcsQuery(); return; }
@@ -1061,6 +1084,32 @@
     fStatus(p.message ? `${p.message} ${tail}` : tail, p.message && p.message.startsWith("Не "));
   });
   $("fRefresh").addEventListener("click", frozenQuery);
+
+  // -- сеть NetOS (rp_net) -------------------------------------------------------------------
+  function netStatus(text, err) { $("netStatus").textContent = text; $("netStatus").className = err ? "err" : ""; }
+  function netQuery() { netStatus("Загрузка…"); Open77.emit("adm:net", {}); }
+  function netCard(kind, x) {
+    const el = document.createElement("div");
+    el.className = "ncard" + (x.hidden ? " hid" : "");
+    const title = document.createElement("b");
+    title.textContent = kind === "post" ? `#${x.id} ${x.author}` : `${x.domain} — ${x.title}`;
+    const btn = document.createElement("button");
+    btn.className = "btn" + (x.hidden ? "" : " ghost");
+    btn.textContent = x.hidden ? "Вернуть" : "Скрыть";
+    btn.addEventListener("click", () => { netStatus("…"); Open77.emit("adm:netSet", { kind, id: x.id, hidden: !x.hidden }); });
+    const meta = document.createElement("div");
+    meta.className = kind === "post" ? "txt" : "meta";
+    meta.textContent = kind === "post" ? x.body : `Владелец: ${x.owner}${x.hidden ? " · скрыт" : ""}`;
+    el.append(title, btn, meta);
+    return el;
+  }
+  Open77.on("adm:net", p => {
+    if (!p || p.error) { netStatus(p && p.error ? p.error : "Недоступно.", true); return; }
+    $("netPosts").replaceChildren(...(p.posts || []).map(x => netCard("post", x)));
+    $("netSites").replaceChildren(...(p.sites || []).map(x => netCard("site", x)));
+    netStatus(p.message || `Постов: ${(p.posts || []).length}, сайтов: ${(p.sites || []).length}.`, p.message && p.message.startsWith("Не "));
+  });
+  $("netRefresh").addEventListener("click", netQuery);
 
   // -- объекты в мире (rp_objects) -------------------------------------------------------------
   // Каталог, список и все действия — сервер. «Двигать» закрывает панель: включается гизмо

@@ -214,10 +214,18 @@ local function licenseMissing(playerId, def)
         LICENSE_TEXT[def.license] or def.license)
 end
 
--- Услуги «Городской службы»: { [id] = { label, price } }.
-local function servicesOf()
+-- Услуги «Городской службы»: { [id] = { label, price, note?, resource } }. rp_identity —
+-- лицензии и щепка; rp_net (2026-11-05) — размещение своих сайтов в каталоге NetOS (свои
+-- для игрока, через await: экспорт читает базу). Нет rp_net — его услуг просто нет.
+local function servicesOf(playerId)
     local map = {}
-    for _, s in ipairs(sync("rp_identity", "services") or {}) do map[s.id] = s end
+    for _, s in ipairs(sync("rp_identity", "services") or {}) do s.resource = "rp_identity"; map[s.id] = s end
+    if playerId and GetResourceState("rp_net") == "running" then
+        local list = await("rp_net", "cityhall_services", playerId)
+        for _, s in ipairs(type(list) == "table" and list or {}) do
+            if type(s.id) == "string" and s.id:match("^listing:%d+$") then s.resource = "rp_net"; map[s.id] = s end
+        end
+    end
     return map
 end
 
@@ -231,9 +239,9 @@ local function show(playerId, session)
     local catalog = sync("rp_inventory", "catalog") or {}
     local payload = { title = def.label, bank = balance(acc.bank) or 0, items = {} }
     if def.services then
-        for id, s in pairs(servicesOf()) do
+        for id, s in pairs(servicesOf(playerId)) do
             payload.items[#payload.items + 1] = { id = id, label = s.label, price = s.price, single = true,
-                                                  note = id == "id_restore" and "прежняя щепка аннулируется" or "нужен SIN" }
+                                                  note = s.note or (id == "id_restore" and "прежняя щепка аннулируется" or "нужен SIN") }
         end
     end
     for itemId, price in pairs(def.items) do
@@ -296,9 +304,12 @@ end
 -- Услуга «Городской службы» (rp_identity): проверка до списания; восстановление щепки —
 -- одной операцией в rp_inventory (цена и предмет); лицензия — списание, затем выдача.
 local function buyService(playerId, session, serviceId)
-    local service = type(serviceId) == "string" and servicesOf()[serviceId]
+    local service = type(serviceId) == "string" and servicesOf(playerId)[serviceId]
     if not service then return result(playerId, false, "Неверная услуга.") end
-    local ok, why = sync("rp_identity", "service_check", playerId, serviceId)
+    local owner = service.resource
+    local ok, why
+    if owner == "rp_net" then ok, why = await(owner, "service_check", playerId, serviceId)
+    else ok, why = sync("rp_identity", "service_check", playerId, serviceId) end
     if not ok then return result(playerId, false, why or "Служба недоступна.") end
     local acc = accounts(playerId)
     if not acc then return result(playerId, false, "Сначала выберите персонажа.") end
@@ -322,7 +333,7 @@ local function buyService(playerId, session, serviceId)
         session.busy = false
         return result(playerId, false, "Не получилось: " .. explain(payWhy or "busy") .. ".")
     end
-    local granted, grantWhy = await("rp_identity", "service_grant", playerId, serviceId, opId)
+    local granted, grantWhy = await(owner, "service_grant", playerId, serviceId, opId)
     session.busy = false
     if not granted then
         -- Деньги списаны, а лицензия не записалась: в журнал для ручного возврата (как car_buy_failed).
@@ -331,6 +342,9 @@ local function buyService(playerId, session, serviceId)
         return result(playerId, false, "Ошибка службы. Деньги списаны — обратитесь к администрации (/report).")
     end
     log("info", "услуга %d: %s за %d (%s)", playerId, serviceId, service.price, opId)
+    if owner == "rp_net" then
+        return result(playerId, true, string.format("Оформлено: %s. Списано %d €$.", tostring(grantWhy), service.price))
+    end
     return result(playerId, true, string.format("Оформлено: %s за %d €$.", service.label, service.price))
 end
 
@@ -345,7 +359,14 @@ RegisterNetEvent("rp_shops:buy", function(itemId, count)
     local okAct, allowed, _, text = pcall(Open77.exports.callSync, "rp_core", "can_act", playerId, "money")
     if not okAct or allowed ~= true then return result(playerId, false, text or "Сейчас нельзя.") end
     local def = catalogFor(session)
-    if def and def.services then return buyService(playerId, session, itemId) end
+    if def and def.services then
+        -- Занято с первого шага: проверки rp_net ждут базу, повторный клик не должен пройти.
+        session.busy = true
+        local okCall, err = pcall(buyService, playerId, session, itemId)
+        session.busy = false
+        if not okCall then log("error", "услуга %d: %s", playerId, tostring(err)); result(playerId, false, "Служба недоступна.") end
+        return
+    end
     local missing = def and licenseMissing(playerId, def)
     if missing then return result(playerId, false, missing) end
     local price = def and def.items[itemId]

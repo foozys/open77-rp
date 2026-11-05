@@ -161,6 +161,8 @@
       "rp/rp_contracts_ui",
       "rp/rp_phone",
       "rp/rp_phone_ui",
+      "rp/rp_net",
+      "rp/rp_net_ui",
       "rp/rp_taxi",
       "rp/rp_taxi_ui"
     ],
