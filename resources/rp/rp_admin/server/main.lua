@@ -499,7 +499,7 @@ local PANEL_PERMS = {
     "rp.announce", "rp.kick", "rp.ban", "rp.ban.permanent", "rp.unban", "rp.whitelist.add", "rp.whitelist.remove",
     "rp.staff.manage", "rp.tune", "rp.money", "rp.items", "rp.jobs", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber",
     "rp.audit.view", "rp.frozen", "rp.applications", "rp.identity.manage", "rp.objects", "rp.npcs", "rp.checkpoints",
-    "rp.net.moderate",
+    "rp.net.moderate", "rp.housing",
 }
 
 -- Экспорт другого ресурса или пустой список, если ресурс не запущен.

@@ -28,7 +28,7 @@ ShopsConfig = {
         },
         hardware = {
             label = "Хозтовары", labelEn = "Hardware Store",
-            items = { toolbox = 450, lighter = 5, notebook = 15 },
+            items = { toolbox = 450, lighter = 5, notebook = 15, lockpick = 250 },
         },
         -- Импланты — предметы; ставит рипердок (rp_cyberware), установка оплачивается отдельно.
         -- license — без этой лицензии (rp_identity, шаг 6.6) магазин не продаёт.

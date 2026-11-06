@@ -271,6 +271,11 @@ RegisterNetEvent("rp_checkpoints:state", function(p)
     if type(p) == "table" and isOpen then send("adm:cps", p) end
 end)
 
+-- Вкладка «Жильё» (rp_housing, шаг 11).
+RegisterNetEvent("rp_housing:admin", function(p)
+    if type(p) == "table" and isOpen then send("adm:houses", p) end
+end)
+
 RegisterNetEvent("rp_admin:npcs", function(p)
     if type(p) ~= "table" then return end
     npcDiagnostics = type(p.list) == "table" and #p.list > 0
@@ -382,6 +387,14 @@ AddEventHandler("onClientResourceStart", function(name)
     -- Вкладка «NPC (тест)»: место — в 6 м перед админом, лицом к нему; всё проверяет сервер.
     page:on("adm:npcs", function() TriggerServerEvent("rp_admin:npcs") end)
     page:on("adm:cps", function() TriggerServerEvent("rp_checkpoints:state") end)
+    page:on("adm:houses", function() TriggerServerEvent("rp_housing:adminState") end)
+    page:on("adm:houseCreate", function(p) if type(p) == "table" then TriggerServerEvent("rp_housing:adminCreate", p) end end)
+    for event, server in pairs({ ["adm:houseDoor"] = "adminAddDoor", ["adm:houseTp"] = "adminTeleport",
+                                 ["adm:houseRelease"] = "adminRelease", ["adm:houseDelete"] = "adminDelete" }) do
+        page:on(event, function(p)
+            if type(p) == "table" then TriggerServerEvent("rp_housing:" .. server, math.tointeger(tonumber(p.id))) end
+        end)
+    end
     page:on("adm:cpCreate", function(p)
         if type(p) == "table" then TriggerServerEvent("rp_checkpoints:create", tostring(p.label or ""), tonumber(p.radius)) end
     end)

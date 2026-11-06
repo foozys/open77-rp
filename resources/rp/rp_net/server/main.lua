@@ -400,7 +400,7 @@ function A.home(p, c)
     local orders = sql("scalar", "SELECT COUNT(*) FROM rp_net_orders WHERE character_id = ? AND status = 'waiting'", { c.id })
     return { id = c.id, name = (c.firstName or "") .. " " .. (c.lastName or ""), mail = account and account.mail, nick = account and account.nick,
              bank = balance(bankOf(p)), unreadMail = tonumber(unread) or 0, orders = tonumber(orders) or 0,
-             themes = C.themes, sitePrice = C.sitePrice }
+             themes = C.themes, sitePrice = C.sitePrice, houses = sync("rp_housing", "homes_of", p) }
 end
 
 -- Почта ------------------------------------------------------------------------------------
@@ -614,8 +614,11 @@ function A.site_get(p, c, args)
     end
     local venue = venues[domain]
     if venue then
+        local trauma = venue.trauma and sync("rp_trauma", "plans", p) or nil
+        local realty = venue.realty and await("rp_housing", "market", p) or nil
         return { domain = domain, title = venue.title, theme = venue.theme, kind = "venue", tagline = venue.tagline,
-                 layoutParts = packLayout(staticLayout(venue.blocks)), ads = {}, cover = venue.cover }
+                 layoutParts = packLayout(staticLayout(venue.blocks)), ads = {}, cover = venue.cover,
+                 trauma = type(trauma) == "table" and trauma or nil, realty = type(realty) == "table" and realty or nil }
     end
     local r = siteRow(domain)
     if not r or (int(r.hidden) == 1 and int(r.owner_id) ~= c.id) then return nil, "Сайт " .. domain .. " не найден." end
@@ -843,6 +846,45 @@ function A.img_get(p, c, args)
 end
 
 -- Покупка на сайте корпорации: оплата сразу, товар ждёт в почтомате.
+-- Подписка Trauma Team с сайта (rp_trauma). Деньги и статус — там.
+function A.trauma_buy(p, c, args)
+    if type(args) ~= "table" or type(args.tier) ~= "string" then return nil, "Неверная подписка." end
+    local ok, text = await("rp_trauma", "buy", p, args.tier, args.autorenew == true)
+    if not ok then return nil, text or "Не получилось." end
+    return { text = text, trauma = sync("rp_trauma", "plans", p), bank = balance(bankOf(p)) }
+end
+
+function A.trauma_autorenew(p, c, args)
+    local ok, text = sync("rp_trauma", "set_autorenew", p, type(args) == "table" and args.on == true)
+    if not ok then return nil, text or "Не получилось." end
+    return { text = text, trauma = sync("rp_trauma", "plans", p) }
+end
+
+-- Жильё с сайта realty.nc (rp_housing). Деньги, щепки и двери — там.
+local HOUSE_OPS = { take = true, mark = true, leave = true, deposit = true, offer = true }
+function A.house(p, c, args)
+    local op = type(args) == "table" and args.op
+    local id = type(args) == "table" and int(args.id)
+    if not HOUSE_OPS[op] or not id then return nil, "Неверный запрос." end
+    local ok, text = await("rp_housing", "realty", p, op, id, { amount = int(args.amount), sin = type(args.sin) == "string" and args.sin:sub(1, 20) or nil,
+        price = int(args.price) })
+    if not ok then return nil, text or "Не получилось." end
+    return { text = text, realty = await("rp_housing", "market", p), bank = balance(bankOf(p)) }
+end
+
+-- Вкладка «Дом» — жильё, к которому есть доступ по щепке в нейропорте (проверяет rp_housing).
+local MANAGE_OPS = { state = true, deposit = true, lock = true, grant = true, revoke = true, offer = true }
+function A.house_manage(p, c, args)
+    local op = type(args) == "table" and args.op
+    if not MANAGE_OPS[op] then return nil, "Неверный запрос." end
+    local data, text = await("rp_housing", "manage", p, op, { id = int(args.id), amount = int(args.amount),
+        sin = type(args.sin) == "string" and args.sin:sub(1, 20) or nil, price = int(args.price) })
+    if not data then return nil, text or "Не получилось." end
+    if op == "state" then return { house = data, bank = balance(bankOf(p)) } end
+    data.bank = balance(bankOf(p))
+    return data
+end
+
 function A.shop_buy(p, c, args)
     if type(args) ~= "table" then return nil, "Неверный заказ." end
     local corp = corps[type(args.domain) == "string" and args.domain or ""]

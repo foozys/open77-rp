@@ -121,6 +121,20 @@ NetConfig = {
               { t = "price", name = "Коктейль «Пинк Кэт»", price = 30 },
               { t = "contact", text = "Уотсон, Кабуки." },
           } },
+        -- trauma = true — на сайте подписки Trauma Team (rp_trauma: plans / buy / set_autorenew).
+        { domain = "traumateam.nc", title = "Trauma Team International", theme = "trauma", cover = "traumateam", trauma = true,
+          tagline = "Мы приедем. Где бы вы ни были.",
+          blocks = {
+              { t = "h", text = "Подписка" },
+              { t = "p", text = "При ранении подписчика бригада Trauma Team выезжает сама — сигнал не нужен. Бригады нет на смене — через 2 минуты вас эвакуирует дежурная NPC-бригада. Без подписки Trauma Team не выезжает." },
+          } },
+        -- realty = true — на сайте жильё (rp_housing: market / occupy / pay / dupkey / relock / leave / mark).
+        { domain = "realty.nc", title = "Найт-Сити: недвижимость", theme = "realty", cover = "realty", realty = true,
+          tagline = "Квартиры и дома. Аренда и покупка.",
+          blocks = {
+              { t = "h", text = "Как это работает" },
+              { t = "p", text = "Аренда и налог за купленное жильё списываются со счёта раз в неделю. Не хватило денег — жильё запирается до погашения долга, потом выселение. Ключ — предмет: дубликат можно передать, смена замка обнуляет все ключи." },
+          } },
         { domain = "nightcity.gov.nc", title = "Найт-Сити: городские службы", theme = "corpo", cover = "citygov",
           tagline = "Официальный портал города.",
           blocks = {

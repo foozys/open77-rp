@@ -26,15 +26,6 @@ JobsConfig = {
                 { label = "Капитан", salary = 900, permissions = {} },
             },
         },
-        ems = {
-            label = "Медицинская служба", payFrom = "state",
-            ranks = {
-                { label = "Стажёр", salary = 300, permissions = { "ems.basic" } },
-                { label = "Парамедик", salary = 450, permissions = { "ems.revive" } },
-                { label = "Врач", salary = 600, permissions = {} },
-                { label = "Главный врач", salary = 850, permissions = { "job.manage" } },
-            },
-        },
         mechanic = {
             label = "Автомастерская", payFrom = "society",
             ranks = {
@@ -44,6 +35,8 @@ JobsConfig = {
                 { label = "Владелец", salary = 500, permissions = { "job.manage" } },
             },
         },
+        -- Работа ems убрана (решение владельца 2026-11-06, шаг 8): медики-игроки — фракция
+        -- trauma_team (rp_trauma). Строки rp_character_jobs с ней — как с ripperdoc ниже.
         -- Работа ripperdoc убрана (решение владельца 2026-11-02, шаг 4.1): импланты ставят
         -- Риперы — фракция ripper и rp_surgery. Строки rp_character_jobs с ней не удаляются,
         -- rp_jobs считает такого персонажа безработным (loadMember).

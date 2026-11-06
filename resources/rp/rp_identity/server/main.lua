@@ -141,7 +141,8 @@ local function summary(entry)
             if st.kind == "license_weapon" then view.licenses.weapon = true
             elseif st.kind == "license_vehicle" then view.licenses.vehicle = true
             elseif st.kind == "trauma" then
-                view.trauma = { tier = st.note, label = C.traumaTiers[st.note] or st.note, untilText = st.untilText }
+                view.trauma = { tier = st.note, label = C.traumaTiers[st.note] or st.note, untilText = st.untilText,
+                                expires = st.expires }
             elseif st.kind == "record" then
                 view.records[#view.records + 1] = { id = st.id, note = st.note, date = st.issuedText }
             end
@@ -171,6 +172,28 @@ exports("identity", function(playerId)
     local view = summary(entry)
     view.corporation = corporationOf(playerId)
     return view
+end)
+
+-- Подписка Trauma Team после оплаты (rp_trauma, шаг 8): тот же уровень — срок продлевается от
+-- текущего конца, другой — заменяется с этой минуты. Ждёт БД: вызывать через Open77.exports.call.
+-- { tier, label, untilText }, или nil, reason.
+exports("trauma_grant", function(playerIdArg, tier, daysArg)
+    if GetInvokingResource() ~= "rp_trauma" then return nil, "caller_denied" end
+    local playerId = math.tointeger(tonumber(playerIdArg))
+    local days = math.tointeger(tonumber(daysArg))
+    local entry = playerId and entryOf(playerId)
+    if not entry then return nil, "not_loaded" end
+    if not C.traumaTiers[tier or ""] or not days or days < 1 or days > 365 then return nil, "invalid_argument" end
+    local current = summary(entry).trauma
+    local from = (current and current.tier == tier and current.expires) or now()
+    local _, err = db("update", "DELETE FROM rp_character_statuses WHERE character_id = ? AND kind = 'trauma'", { entry.characterId })
+    if err then return nil, "database_error" end
+    _, err = db("insert", [[INSERT INTO rp_character_statuses (character_id, kind, note, expires_at, issued_by)
+        VALUES (?, 'trauma', ?, FROM_UNIXTIME(?) + INTERVAL ? DAY, ?)]], { entry.characterId, tier, from, days, "rp_trauma" })
+    if err then return nil, "database_error" end
+    journal("trauma_paid", playerId, nil, { tier = tier, days = days })
+    entry = reload(playerId) or entry
+    return summary(entry).trauma
 end)
 
 -- Есть ли у игрока лицензия kind ("weapon" | "vehicle"). Не ждёт.
@@ -271,6 +294,26 @@ exports("substituted", function(target)
         end
     end
     return false
+end)
+
+-- Предъявляемая щепка для замков жилья (rp_housing, 2026-11-06): { sin, holder, forged, annulled }
+-- (annulled — true/false, nil — проверка ещё идёт) или nil — щепки нет. Не ждёт.
+exports("presented_chip", function(target)
+    target = math.tointeger(tonumber(target))
+    local meta = target and presentedChip(target)
+    if not meta or type(meta.sin) ~= "string" then return nil end
+    return { sin = meta.sin, holder = tostring(meta.holder or "?"), forged = meta.forged == true,
+             annulled = chipAnnulled(meta) }
+end)
+
+-- Чей SIN по реестру (настоящие личности): "Имя Фамилия" или nil (поддельный / неизвестный). Ждёт.
+exports("sin_holder", function(sin)
+    if type(sin) ~= "string" or #sin > 20 then return nil end
+    local row = db("single", [[SELECT c.first_name, c.last_name FROM rp_identity i
+        JOIN rp_characters c ON c.id = i.character_id WHERE i.sin = ?]], { sin })
+    if not row then return nil end
+    local name = ((row.first_name or "") .. " " .. (row.last_name or "")):gsub("^%s+", ""):gsub("%s+$", "")
+    return name
 end)
 
 -- Имя для сканера Kiroshi (rp_cyberware) — с щепки в нейропорте, не из реестра; nil — щепки нет.

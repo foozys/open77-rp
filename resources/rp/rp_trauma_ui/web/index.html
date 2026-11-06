@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Trauma Team</title>
+<style>
+  :root { --red: #e64646; --text: #f2f2f2; --muted: #9aa3a8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 15px/1.3 "Segoe UI", Arial, sans-serif; user-select: none; pointer-events: none; }
+  /* Полоса действия бойца под прицелом: «Стабилизация» / «Эвакуация». */
+  #act { position: absolute; left: 50%; top: calc(50% + 110px); transform: translateX(-50%); width: 380px; display: none;
+    padding: 10px 14px 12px; background: rgba(12, 12, 14, 0.9); border: 1px solid rgba(230, 70, 70, 0.7); }
+  #act.on { display: block; }
+  #act .head { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+  #act .head b { color: var(--red); }
+  #act .bar { margin-top: 8px; height: 6px; background: rgba(255, 255, 255, 0.12); }
+  #act .fill { height: 100%; width: 0; background: var(--red); box-shadow: 0 0 10px rgba(230, 70, 70, 0.7); }
+</style>
+</head>
+<body>
+<div id="act"><div class="head"><b id="title"></b><span id="time"></span></div><div class="bar"><div class="fill" id="fill"></div></div></div>
+<script>
+  const $ = id => document.getElementById(id);
+  let timer = null;
+  const TITLES = { stabilize: "Trauma Team · стабилизация", evacuate: "Trauma Team · эвакуация" };
+
+  Open77.on("tt:act", p => {
+    clearInterval(timer); timer = null;
+    if (!p || p.stop) { $("act").className = ""; return; }
+    const ms = Math.max(500, (Number(p.seconds) || 8) * 1000), start = Date.now();
+    $("title").textContent = TITLES[p.kind] || "Trauma Team";
+    $("act").className = "on";
+    const tick = () => {
+      const left = Math.max(0, ms - (Date.now() - start));
+      $("fill").style.width = `${Math.min(100, (1 - left / ms) * 100)}%`;
+      $("time").textContent = `${(left / 1000).toFixed(1)} с`;
+      if (left <= 0) { clearInterval(timer); timer = null; }
+    };
+    tick();
+    timer = setInterval(tick, 50);
+  });
+
+  Open77.ready();
+</script>
+</body>
+</html>

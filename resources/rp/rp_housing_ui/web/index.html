@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Жильё</title>
+<style>
+  :root { --amber: #f0c878; --text: #f2f2f2; --muted: #b9ad98; --bad: #ff5e6c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text);
+    font: 15px/1.3 "Segoe UI", Arial, sans-serif; user-select: none; pointer-events: none; }
+  /* Полоса взлома замка под прицелом. */
+  #pick { position: absolute; left: 50%; top: calc(50% + 110px); transform: translateX(-50%); width: 380px; display: none;
+    padding: 10px 14px 12px; background: rgba(12, 12, 14, 0.9); border: 1px solid rgba(240, 200, 120, 0.7); }
+  #pick.on { display: block; }
+  #pick .head { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+  #pick .head b { color: var(--amber); }
+  #pick .bar { margin-top: 8px; height: 6px; background: rgba(255, 255, 255, 0.12); }
+  #pick .fill { height: 100%; width: 0; background: var(--amber); box-shadow: 0 0 10px rgba(240, 200, 120, 0.7); }
+  /* Окно ALT-меню: выбрать жильё (и цену). */
+  #dialog { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 520px; display: none;
+    padding: 18px 20px; background: rgba(12, 11, 9, 0.96); border: 1px solid rgba(240, 200, 120, 0.7); pointer-events: auto;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.6); }
+  #dialog.on { display: block; }
+  #dialog h2 { margin: 0 0 4px; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: var(--amber); }
+  #dialog .who { margin-bottom: 14px; color: var(--muted); }
+  #dialog .who b { color: var(--text); }
+  #dialog .home { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid rgba(255, 255, 255, 0.12); margin-bottom: 6px; cursor: pointer; }
+  #dialog .home.sel { border-color: var(--amber); background: rgba(240, 200, 120, 0.08); }
+  #dialog .home span { flex: 1; }
+  #dialog .home small { color: var(--muted); }
+  #dialog .row { display: flex; gap: 10px; margin-top: 14px; align-items: center; }
+  #dialog input { flex: 1; padding: 8px 10px; background: rgba(0, 0, 0, 0.5); color: var(--text); border: 1px solid rgba(255, 255, 255, 0.2); font: inherit; outline: none; }
+  #dialog input:focus { border-color: var(--amber); }
+  #dialog button { padding: 7px 14px; background: transparent; color: var(--amber); border: 1px solid var(--amber); font: 12px "Segoe UI", Arial, sans-serif;
+    letter-spacing: 1px; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+  #dialog button:hover { background: rgba(240, 200, 120, 0.12); }
+  #dialog button.ghost { color: var(--muted); border-color: rgba(255, 255, 255, 0.2); }
+  #dialog button.bad { color: var(--bad); border-color: var(--bad); }
+  #dialog .note { margin-top: 10px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="pick"><div class="head"><b id="title"></b><span id="time"></span></div><div class="bar"><div class="fill" id="fill"></div></div></div>
+<div id="dialog"><h2 id="dTitle"></h2><div class="who" id="dWho"></div><div id="dList"></div><div id="dExtra"></div></div>
+<script>
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = String(text); return n; };
+  const money = v => (Number(v) || 0).toLocaleString("ru-RU") + " €$";
+  let timer = null;
+
+  Open77.on("house:pick", p => {
+    clearInterval(timer); timer = null;
+    if (!p || p.stop) { $("pick").className = ""; return; }
+    const ms = Math.max(500, (Number(p.seconds) || 45) * 1000), start = Date.now();
+    $("title").textContent = "Взлом замка · " + (p.name || "");
+    $("pick").className = "on";
+    const tick = () => {
+      const left = Math.max(0, ms - (Date.now() - start));
+      $("fill").style.width = `${Math.min(100, (1 - left / ms) * 100)}%`;
+      $("time").textContent = `${Math.ceil(left / 1000)} с`;
+      if (left <= 0) { clearInterval(timer); timer = null; }
+    };
+    tick();
+    timer = setInterval(tick, 100);
+  });
+
+  // ALT «Жильё: доступ» — по жилью кнопка «Дать доступ» / «Отозвать»; «Жильё: продать» — жильё и цена.
+  const close = () => { $("dialog").className = ""; Open77.emit("dialog:close", {}); };
+  Open77.on("house:dialog", d => {
+    if (!d || !Array.isArray(d.houses)) return;
+    const base = { kind: d.kind, target: d.target, sin: d.sin };
+    const submit = extra => { Open77.emit("dialog:submit", Object.assign({}, base, extra)); close(); };
+    $("dTitle").textContent = d.kind === "sell" ? "Продать жильё" : "Доступ к жилью";
+    $("dWho").replaceChildren(el("b", "", d.holder || "?"), document.createTextNode(` · SIN ${d.sin || "?"}`));
+    const list = $("dList"); list.replaceChildren();
+    const extra = $("dExtra"); extra.replaceChildren();
+    let selected = null;
+    for (const h of d.houses) {
+      const row = el("div", "home");
+      row.append(el("span", "", h.name));
+      if (d.kind === "grant") {
+        row.append(h.access ? el("button", "bad", "Отозвать") : el("button", "", "Дать доступ"));
+        row.lastChild.addEventListener("click", () => submit({ id: h.id, revoke: !!h.access }));
+      } else {
+        row.append(el("small", "", h.debt ? "долг" : `${h.payLabel} ${money(h.weekly)}/нед.`));
+        row.addEventListener("click", () => { selected = h.id; list.querySelectorAll(".home").forEach(x => x.classList.remove("sel")); row.classList.add("sel"); });
+        if (d.houses.length === 1) { selected = h.id; row.classList.add("sel"); }
+      }
+      list.append(row);
+    }
+    const buttons = el("div", "row");
+    if (d.kind === "sell") {
+      const price = el("input"); price.type = "number"; price.min = "0"; price.placeholder = "Цена, €$";
+      const go = el("button", "", "Предложить");
+      let armed = false;
+      go.addEventListener("click", () => {
+        if (selected === null) { go.textContent = "Выберите жильё"; return; }
+        if (!armed) { armed = true; go.textContent = `Подтвердить: ${money(price.value)}`; return; }
+        submit({ id: selected, price: Math.max(0, Math.floor(Number(price.value) || 0)) });
+      });
+      price.addEventListener("input", () => { armed = false; go.textContent = "Предложить"; });
+      buttons.append(price, go);
+      extra.append(buttons, el("div", "note", "Покупатель получит предложение и подтвердит /house accept. Доступы сбросятся, остаток счёта дома — вам."));
+    } else {
+      extra.append(buttons);
+    }
+    const cancel = el("button", "ghost", "Закрыть");
+    cancel.addEventListener("click", close);
+    buttons.append(cancel);
+    $("dialog").className = "on";
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && $("dialog").className === "on") { e.preventDefault(); close(); } });
+
+  Open77.ready();
+</script>
+</body>
+</html>

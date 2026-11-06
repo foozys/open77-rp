@@ -537,7 +537,7 @@ local function showDealer(playerId)
     if not bank then return notify(playerId, "Сначала выберите персонажа.") end
     local list = {}
     for model, def in pairs(VehiclesConfig.catalog) do
-        list[#list + 1] = { model = model, label = def.label, price = def.price }
+        if def.dealer ~= false then list[#list + 1] = { model = model, label = def.label, price = def.price } end
     end
     table.sort(list, function(a, b) return a.price < b.price end)
     TriggerClientEvent("rp_vehicles:show", playerId,
@@ -575,7 +575,7 @@ RegisterNetEvent("rp_vehicles:buy", function(model)
     local def = VehiclesConfig.catalog[model]
     local character = characterOf(playerId)
     local bank = bankOf(playerId)
-    if not def or not character or not bank then return result(playerId, false, "Неверная покупка.") end
+    if not def or def.dealer == false or not character or not bank then return result(playerId, false, "Неверная покупка.") end
     local session = sessions[playerId]
     if session.busy then return end
     -- Раненым и в наручниках не покупают (rp_core can_act, шаг 3.3).
@@ -1074,6 +1074,7 @@ exports("kit_vehicle", function(playerIdArg, model)
     local plate = newPlate()
     if not plate then return nil, "no_plate" end
     local primary, secondary = pickPaint()
+    if type(def.paint) == "table" then primary, secondary = def.paint[1], def.paint[2] end
     local id, err = db("insert", [[INSERT INTO rp_vehicles (character_id, model, record, plate,
         paint_primary, paint_secondary) VALUES (?, ?, ?, ?, ?, ?)]],
         { character.id, model, def.record, plate, primary, secondary })

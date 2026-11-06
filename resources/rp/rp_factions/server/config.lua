@@ -35,6 +35,18 @@ FactionsConfig = {
             description = "Работает иное правило смерти. У других игроков появляется возможность добить вас, что приводит к моментальной смерти персонажа. Также у вас отключена возможность возрождения в больнице — только вызов доктора или отдельные предназначенные для этого импланты могут спасти вас из нока.",
         },
 
+        -- Trauma Team (шаг 8, решения владельца 2026-11-06): частная медицина по подписке.
+        -- Смена, вызовы, стабилизация и эвакуация — rp_trauma; права рангов tt.*.
+        trauma_team = {
+            label = "Trauma Team", group = "corporations", backgrounds = { "civilian", "corporate" },
+            ranks = {
+                { label = "Стажёр", permissions = { "tt.duty" } },
+                { label = "Медик", permissions = { "tt.treat" } },
+                { label = "Старший медик", permissions = {} },
+                { label = "Командир бригады", permissions = { "faction.manage" } },
+            },
+            description = "Частная медицина по подписке: выезд к раненым подписчикам, стабилизация и эвакуация в клинику.",
+        },
         arasaka = { label = "Арасака", group = "corporations", backgrounds = { "corporate" } },
         militech = { label = "Милитех", group = "corporations", backgrounds = { "corporate" } },
         netwatch = { label = "НетВотч", group = "corporations", backgrounds = { "corporate" } },
@@ -67,6 +79,8 @@ FactionsConfig.kits = {
                implants = { "implant_civil_os", "implant_biomonitor" } },
     mercenary = { money = 1500, items = { { "wpn_unity", 1 }, { "ammo_9mm", 45 }, { "medkit", 1 } }, implants = civilOs,
                   vehicle = "maimai" },
+    trauma_team = { money = 2000, items = { { "wpn_lexington", 1 }, { "ammo_9mm", 30 }, { "medkit", 3 }, { "bandage", 5 } },
+                    implants = { "implant_civil_os", "implant_biomonitor" }, vehicle = "tt_hellhound" },
     netwatch = { money = 5000, items = { { "wpn_lexington", 1 }, { "ammo_9mm", 30 } },
                  implants = { "implant_deck_pro", "implant_kiroshi" } },
 }

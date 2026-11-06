@@ -35,6 +35,8 @@ RpConfig = {
     --   rp.objects           — объекты в мире: поставить, двигать, удалить, проверить коллизию (F3 → «Объекты»)
     -- rp_checkpoints:
     --   rp.checkpoints       — КПП-сканеры: поставить, турель, двери, проверить на себе (F3 → «КПП»)
+    -- rp_housing:
+    --   rp.housing           — жильё: места на дверях игры, освободить, удалить (F3 → «Жильё»)
     -- rp_net:
     --   rp.net.moderate      — скрыть/вернуть посты «НайтКом» и сайты игроков (F3 → «Сеть»)
     -- rp_admin:
@@ -60,7 +62,7 @@ RpConfig = {
         { id = "admin", label = "Администратор",
           permissions = { "rp.ban.permanent", "rp.unban", "rp.whitelist.remove", "rp.money", "rp.items", "rp.jobs",
                           "rp.heal", "rp.unwarn", "rp.announce", "rp.shops", "rp.vehicles", "rp.medical", "rp.police", "rp.cyber",
-                          "rp.frozen", "rp.identity.manage", "rp.objects", "rp.npcs", "rp.checkpoints" } },
+                          "rp.frozen", "rp.identity.manage", "rp.objects", "rp.npcs", "rp.checkpoints", "rp.housing" } },
         { id = "lead", label = "Руководство", permissions = { "rp.staff.manage", "rp.tune" } },
     },
 

@@ -126,6 +126,35 @@
   .theme-chrome { background: linear-gradient(180deg, #d9dee2, #9aa4ab); color: #11161a; }
   .theme-chrome .hero { background: linear-gradient(90deg, #ffffff, #b8c2c8); border-bottom: 2px solid #11161a; }
   .theme-chrome .ad, .theme-chrome .good { background: rgba(255, 255, 255, 0.5); border-color: #11161a55; }
+  .theme-realty { background: linear-gradient(180deg, #14110c, #0b0a08); color: #efe6d6; }
+  .theme-realty .hero { background: linear-gradient(90deg, #3a2c16, #1a140b); border-bottom: 2px solid #f0c878; }
+  .theme-realty h3 { color: #f0c878; }
+  .site .homes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .site .home { padding: 12px 14px; border: 1px solid rgba(240, 200, 120, 0.35); background: rgba(0, 0, 0, 0.35); }
+  .site .home.debt { border-color: #ff5e6c; }
+  .site .home .p { color: #f0c878; font-weight: 700; margin: 6px 0; }
+  .site .home .m { font-size: 13px; opacity: 0.85; margin-bottom: 8px; }
+  .site .home .flex { flex-wrap: wrap; }
+  .site .home input, .hs input { width: 150px; padding: 5px 8px; }
+  .site .chipline { margin: 8px 0 4px; font-size: 14px; }
+  .site .chipline.bad, .hs .bad { color: #ff5e6c; }
+  .hs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .hs .card h3 { margin: 0 0 8px; }
+  .hs .flex { flex-wrap: wrap; margin-top: 8px; }
+  .hs table.t td { padding: 6px 8px; }
+  .theme-trauma { background: linear-gradient(180deg, #f4f5f6, #d9dde0); color: #15181b; }
+  .theme-trauma .hero { background: linear-gradient(90deg, #ffffff, #e9ecee); border-bottom: 3px solid #d42a2a; }
+  .theme-trauma h3 { color: #c21f1f; }
+  .site .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+  .site .plan { padding: 14px 16px; border: 1px solid rgba(0, 0, 0, 0.18); background: rgba(255, 255, 255, 0.7); }
+  .site .plan.cur { border: 2px solid #d42a2a; }
+  .site .plan b { font-size: 18px; } .site .plan .p { color: #c21f1f; font-weight: 700; margin: 6px 0; }
+  .site .plan .perks { font-size: 13px; opacity: 0.85; min-height: 54px; }
+  .site .tt-auto { display: flex; align-items: center; gap: 8px; margin-top: 10px; cursor: pointer; }
+  .site .tt-auto input { width: auto; flex: none; margin: 0; } .site .tt-auto span { flex: none; }
+  .theme-trauma .plan button { color: #c21f1f; border-color: #c21f1f; background: rgba(212, 42, 42, 0.06); }
+  .theme-trauma .plan button:hover { background: #c21f1f; color: #fff; }
+  .site .tt-status { margin-top: 12px; padding: 10px 14px; border-left: 3px solid #d42a2a; background: rgba(255, 255, 255, 0.6); }
   .theme-noir { background: #050505; color: #d8d2c4; font-family: Georgia, serif; }
   .theme-noir .hero { background: #111; border-bottom: 1px solid #a8893f; } .theme-noir h3 { color: #c9a95a; }
   .theme-corpo { background: #0b1421; color: #dbe7f5; }
@@ -323,10 +352,14 @@
   ];
   let current = "mail";
   const badges = {};
+  // «Дом» — если по щепке в нейропорте есть жильё (rp_housing: me.houses).
+  const hasHome = () => Array.isArray(me.houses) && me.houses.length > 0;
+  const appsNow = () => hasHome() ? [...APPS, { id: "house", ic: "⌂", label: "Дом" }] : APPS;
   const renderDock = () => {
     const dock = $("dock");
     dock.replaceChildren();
-    for (const a of APPS) {
+    if (current === "house" && !hasHome()) current = "mail";
+    for (const a of appsNow()) {
       const b = el("button", a.id === current ? "sel" : "");
       b.append(el("span", "ic", a.ic), el("span", "", a.label));
       const badge = el("span", "badge", badges[a.id] ? String(badges[a.id]) : "");
@@ -801,6 +834,157 @@
     }
   };
 
+  // Опасное — вторым нажатием (confirm() в игровом WebUI нет).
+  const armed = (label, confirmLabel, run) => {
+    let ready = false;
+    const b = btn(label, "", () => {
+      if (!ready) { ready = true; b.textContent = typeof confirmLabel === "function" ? confirmLabel() : confirmLabel; return; }
+      run(b);
+    });
+    return b;
+  };
+  const numInput = (placeholder, value) => { const i = el("input"); i.type = "number"; i.min = "0"; i.placeholder = placeholder; if (value) i.value = value; return i; };
+  // SIN: только цифры, тире после 4-й и 8-й ставятся сами (вставка из буфера — тоже).
+  const formatSin = v => { const d = String(v || "").replace(/\D/g, "").slice(0, 12); return d.match(/.{1,4}/g)?.join("-") || ""; };
+  const sinInput = () => {
+    const i = el("input"); i.placeholder = "SIN 0000-0000-0000"; i.maxLength = 14; i.inputMode = "numeric";
+    i.addEventListener("input", () => {
+      const digitsBefore = i.value.slice(0, i.selectionStart || 0).replace(/\D/g, "").length;
+      i.value = formatSin(i.value);
+      let pos = 0, seen = 0;
+      while (pos < i.value.length && seen < digitsBefore) { if (/\d/.test(i.value[pos])) seen++; pos++; }
+      i.setSelectionRange(pos, pos);
+    });
+    return i;
+  };
+  const chipText = c => !c ? "Щепки в нейропорте нет — вставьте щепку личности: жильё и ключ привязаны к её SIN."
+    : c.annulled === true ? `Щепка ${c.holder} (SIN ${c.sin}) аннулирована — регистратура её не принимает.`
+    : `Щепка в нейропорте: ${c.holder} · SIN ${c.sin}`;
+
+  // Жильё (сайт realty.nc, rp_housing): ключ — щепка в нейропорте. Свободное — арендовать/купить
+  // на её SIN; «Моё жильё» — счёт дома, передача, отказ; «С доступом» — пополнить счёт.
+  const realtyPanel = s => {
+    const box = el("div");
+    const act = async (op, h, button, extra) => {
+      if (button) button.disabled = true;
+      const r = await ask("house", Object.assign({ op, id: h.id }, extra || {}));
+      if (button) button.disabled = false;
+      if (r) { toast(r.text); if (r.realty) draw(r.realty); refreshHome(); }
+    };
+    const status = h => h.debt ? `ДОЛГ: жильё заперто. Пополните счёт дома до ${h.evictAt}, иначе выселение.`
+      : `Оплачено до ${h.paidUntil} · ${h.locked ? "заперто" : "открыто для всех"}`;
+    const depositRow = h => {
+      const amount = numInput("Сумма, €$", h.debt ? h.weekly : "");
+      const row = el("div", "flex");
+      row.append(amount, btn("Внести на счёт дома", "", b => act("deposit", h, b.target, { amount: Number(amount.value) || 0 })));
+      return row;
+    };
+    const draw = t => {
+      box.textContent = "";
+      const c = t.chip;
+      box.append(el("div", "chipline" + (!c || c.annulled ? " bad" : ""), chipText(c)));
+      const mine = t.mine || [];
+      if (mine.length) {
+        box.append(el("h3", "", "Моё жильё"));
+        const grid = el("div", "homes");
+        for (const h of mine) {
+          const card = el("div", "home" + (h.debt ? " debt" : ""));
+          const pay = h.mode === "buy" ? `куплено · коммунальные ${money0(h.weekly)}/нед.` : `аренда ${money0(h.weekly)}/нед.`;
+          card.append(el("b", "", h.name), el("div", "m", `${h.kindLabel} · ${pay}`), el("div", "m", status(h)),
+            el("div", "p", `Счёт дома: ${money0(h.balance)}`), depositRow(h));
+          if (h.mode === "buy") {
+            const sin = sinInput(), price = numInput("Цена, €$");
+            const sell = el("div", "flex");
+            sell.append(sin, price, armed("Продать", () => `Предложить: ${money0(Number(price.value) || 0)}`,
+              b => act("offer", h, b, { sin: sin.value.trim(), price: Number(price.value) || 0 })));
+            card.append(el("div", "m", "Покупатель — рядом со щепкой этого SIN в нейропорте, подтверждает /house accept."), sell);
+          }
+          const row = el("div", "flex");
+          row.append(btn("На карте", "", () => act("mark", h)), armed("Отказаться", "Подтвердить отказ", b => act("leave", h, b)));
+          card.append(row);
+          grid.append(card);
+        }
+        box.append(grid);
+      }
+      const shared = t.shared || [];
+      if (shared.length) {
+        box.append(el("h3", "", "Жильё с доступом"));
+        const grid = el("div", "homes");
+        for (const h of shared) {
+          const card = el("div", "home" + (h.debt ? " debt" : ""));
+          card.append(el("b", "", h.name), el("div", "m", `${h.kindLabel} · владелец ${h.ownerName || "?"}`), el("div", "m", status(h)),
+            el("div", "p", `Счёт дома: ${money0(h.balance)}`), depositRow(h));
+          const row = el("div", "flex"); row.append(btn("На карте", "", () => act("mark", h)));
+          card.append(row);
+          grid.append(card);
+        }
+        box.append(grid);
+      }
+      box.append(el("h3", "", "Свободное жильё"));
+      const free = t.free || [];
+      if (!free.length) { box.append(el("p", "", "Свободного жилья сейчас нет.")); return; }
+      const grid = el("div", "homes");
+      for (const h of free) {
+        const card = el("div", "home");
+        const first = h.mode === "buy" ? h.price : h.weekly;
+        card.append(el("b", "", h.name), el("div", "p", h.mode === "buy" ? money0(h.price) : `${money0(h.weekly)} / нед.`),
+          el("div", "m", `${h.kindLabel} · ${h.mode === "buy" ? `покупка, коммунальные ${money0(h.weekly)}/нед.` : "аренда, списание раз в неделю"}`));
+        const row = el("div", "flex");
+        row.append(armed(h.mode === "buy" ? "Купить" : "Арендовать", `Подтвердить: ${money0(first)}`, b => act("take", h, b)),
+                   btn("На карте", "", () => act("mark", h)));
+        card.append(row);
+        grid.append(card);
+      }
+      box.append(grid);
+      box.append(el("p", "", `Оформляется на SIN щепки в нейропорте — она и есть ключ. Аренда (или коммунальные у купленного) — со счёта дома раз в неделю; ` +
+        `не хватило — жильё заперто ${t.graceDays} дн. до пополнения, потом выселение.`));
+    };
+    draw(s.realty);
+    return box;
+  };
+  const money0 = v => money(Number(v) || 0);
+
+  // Подписка Trauma Team (сайт traumateam.nc, rp_trauma): уровни, текущая, автопродление.
+  const traumaPanel = s => {
+    const box = el("div");
+    const draw = t => {
+      box.textContent = "";
+      box.append(el("h3", "", "Оформить подписку"));
+      const cur = t.current;
+      box.append(el("div", "tt-status", cur ? `Ваша подписка: «${cur.label}» до ${cur.untilText}.` : "У вас нет подписки Trauma Team."));
+      const auto = el("label", "tt-auto");
+      const cb = el("input"); cb.type = "checkbox"; cb.checked = !!t.autorenew;
+      auto.append(cb, el("span", "", "Автопродление со счёта, когда срок выйдет"));
+      cb.onchange = async () => {
+        if (!cur) { toast("Автопродление включится вместе с оформлением подписки."); return; }
+        const r = await ask("trauma_autorenew", { on: cb.checked });
+        if (r) { toast(r.text); if (r.trauma) draw(r.trauma); } else cb.checked = !cb.checked;
+      };
+      box.append(auto);
+      const grid = el("div", "plans");
+      for (const plan of t.plans || []) {
+        const card = el("div", "plan" + (cur && cur.tier === plan.id ? " cur" : ""));
+        const same = cur && cur.tier === plan.id;
+        let armed = false;
+        const buy = btn(same ? "Продлить" : (cur ? "Сменить" : "Оформить"), "", async () => {
+          // Смена уровня — вторым нажатием: текущая подписка заменяется с этой минуты.
+          if (cur && !same && !armed) { armed = true; buy.textContent = "Подтвердить смену"; toast(`«${cur.label}» заменится на «${plan.label}» с этой минуты.`); return; }
+          buy.disabled = true;
+          const r = await ask("trauma_buy", { tier: plan.id, autorenew: cb.checked });
+          buy.disabled = false;
+          if (r) { toast(r.text); if (r.trauma) draw(r.trauma); refreshHome(); }
+        });
+        card.append(el("b", "", plan.label), el("div", "p", `${money(plan.price)} / ${plan.days} дн.`),
+                    el("div", "perks", plan.perks || ""), buy);
+        grid.append(card);
+      }
+      box.append(grid);
+      box.append(el("p", "", "Оплата сразу со счёта. Тот же уровень продлевается от конца срока."));
+    };
+    draw(s.trauma);
+    return box;
+  };
+
   const renderSite = (s, preview) => {
     const site = el("div", "site theme-" + (s.theme || "neon"));
     const hero = el("div", "hero" + (s.cover || s.coverImg ? " cover" : ""));
@@ -844,6 +1028,8 @@
       site.append(grid);
       site.append(el("p", "", "Оплата сразу со счёта. Заказ ждёт в любом почтомате города."));
     }
+    if (s.trauma && !preview) site.append(traumaPanel(s));
+    if (s.realty && !preview) site.append(realtyPanel(s));
     if (!preview && s.mine) {
       const row = el("div", "flex"); row.style.marginTop = "20px";
       row.append(btn("Редактировать", "", () => { current = "build"; renderDock(); editor(s.domain); }));
@@ -1342,7 +1528,100 @@
     body.append(t);
   };
 
-  const APPS_IMPL = { mail: () => mailApp(), msg: () => msgApp(), nc: () => ncApp(), web: () => webApp(), build: buildApp, ads: adsApp, orders: ordersApp };
+  // -- дом (rp_housing): жильё, к которому есть доступ по щепке в нейропорте --------------------
+  let houseSel = null;
+  const houseApp = async () => {
+    const homes = me.houses || [];
+    if (!homes.some(x => x.id === houseSel)) houseSel = homes.length ? homes[0].id : null;
+    const tabs = homes.length > 1 ? homes.map(x => btn(x.name, x.id === houseSel ? "sel" : "", () => { houseSel = x.id; houseApp(); })) : [];
+    const app = view("Дом", ...tabs);
+    const body = el("div", "body"); app.append(body);
+    if (houseSel === null) { body.append(el("div", "empty", "Жилья нет: вставьте щепку владельца или с доступом в нейропорт.")); return; }
+    const d = await ask("house_manage", { op: "state", id: houseSel });
+    if (!d || !d.house) { body.append(el("div", "empty", "Нет доступа к этому жилью.")); return; }
+    const run = async (op, button, extra) => {
+      if (button) button.disabled = true;
+      const r = await ask("house_manage", Object.assign({ op, id: houseSel }, extra || {}));
+      if (button) button.disabled = false;
+      if (r) { toast(r.text); if (typeof r.bank === "number") { me.bank = r.bank; header(); } if (r.house) draw(r.house); }
+    };
+    const draw = h => {
+      body.replaceChildren();
+      const head = el("div", "card");
+      head.append(el("h3", "", h.name));
+      const c = h.chip;
+      head.append(el("div", !c || c.annulled ? "bad" : "muted", chipText(c)));
+      const role = h.role === "owner" ? "вы — владелец" : "у вас есть доступ";
+      const pay = h.mode === "buy" ? `куплено · коммунальные ${money0(h.weekly)}/нед.` : `аренда ${money0(h.weekly)}/нед.`;
+      head.append(el("div", "muted", `${h.kindLabel} · ${pay} · ${role}`),
+        el("div", h.debt ? "bad" : "", h.debt ? `ДОЛГ: жильё заперто. Пополните счёт до ${h.evictAt}, иначе выселение.`
+          : `Оплачено до ${h.paidUntil} · ${h.locked ? "заперто: открывает щепка с доступом" : "отперто для всех"}`));
+      body.append(head);
+      const grid = el("div", "hs");
+      // Оплата: взнос со своего счёта на счёт дома (с него — аренда или коммунальные).
+      const payCard = el("div", "card");
+      payCard.append(el("h3", "", "Заплатить за жильё"),
+        el("div", "", `Счёт дома: ${money0(h.balance)} · ${h.payLabel} ${money0(h.weekly)} — ${h.paidUntil}`));
+      const amount = numInput("Сумма, €$", h.debt ? h.weekly : "");
+      const payRow = el("div", "flex");
+      payRow.append(amount, btn("Внести на счёт дома", "", b => run("deposit", b.target, { amount: Number(amount.value) || 0 })));
+      const lockRow = el("div", "flex");
+      lockRow.append(btn(h.locked ? "Отпереть для всех" : "Запереть", "", b => run("lock", b.target)));
+      payCard.append(payRow, lockRow);
+      grid.append(payCard);
+      if (h.role === "owner") {
+        const acc = el("div", "card");
+        acc.append(el("h3", "", `Доступ (${(h.access || []).length} из ${h.accessMax})`),
+          el("div", "muted", "Владелец — всегда. Двери открывает щепка с этим SIN в нейропорте."));
+        const t = el("table", "t");
+        for (const a of h.access || []) {
+          const tr = el("tr"), acts = el("td");
+          acts.append(armed("Отозвать", "Подтвердить", b => run("revoke", b, { sin: a.sin })));
+          tr.append(el("td", "", a.sin), el("td", "", a.label || ""), acts);
+          t.append(tr);
+        }
+        if ((h.access || []).length) acc.append(t);
+        const sin = sinInput();
+        const add = el("div", "flex");
+        add.append(sin, btn("Выдать доступ", "", b => run("grant", b.target, { sin: sin.value.trim() })));
+        acc.append(add);
+        grid.append(acc);
+        // «Рядом со мной» — щепки людей в 4 м: доступ и продажа без ввода SIN.
+        let saleSin = null;
+        const near = el("div", "card");
+        near.append(el("h3", "", "Рядом со мной"), el("div", "muted", "Люди в 4 м со щепкой в нейропорте. Подойдите ближе и нажмите «Обновить»."));
+        const nt = el("table", "t");
+        for (const n of h.nearby || []) {
+          const tr = el("tr"), acts = el("td");
+          acts.append(n.access ? armed("Отозвать", "Подтвердить", b => run("revoke", b, { sin: n.sin }))
+                               : btn("Дать доступ", "", b => run("grant", b.target, { sin: n.sin })));
+          if (h.mode === "buy") acts.append(btn("Продать", "ghost", () => { if (saleSin) { saleSin.value = n.sin; saleSin.focus(); } }));
+          tr.append(el("td", "", n.holder), el("td", "", n.sin), acts);
+          nt.append(tr);
+        }
+        if ((h.nearby || []).length) near.append(nt); else near.append(el("div", "", "Рядом никого со щепкой."));
+        const nr = el("div", "flex"); nr.append(btn("Обновить", "ghost", () => houseApp())); near.append(nr);
+        grid.append(near);
+        if (h.mode === "buy") {
+          const sell = el("div", "card");
+          const sSin = sinInput(), price = numInput("Цена, €$");
+          saleSin = sSin;
+          const row = el("div", "flex");
+          row.append(sSin, price, armed("Предложить", () => `Подтвердить: ${money0(Number(price.value) || 0)}`,
+            b => run("offer", b, { sin: sSin.value.trim(), price: Number(price.value) || 0 })));
+          sell.append(el("h3", "", "Продать с рук"),
+            el("div", "muted", `Владелец один — ${h.ownerName || ""} (SIN ${h.ownerSin || "?"}). Покупатель стоит рядом со щепкой ` +
+              "указанного SIN в нейропорте и подтверждает /house accept; доступы сбрасываются, остаток счёта дома — вам."), row);
+          grid.append(sell);
+        }
+      }
+      body.append(grid);
+    };
+    draw(d.house);
+  };
+
+  const APPS_IMPL = { mail: () => mailApp(), msg: () => msgApp(), nc: () => ncApp(), web: () => webApp(), build: buildApp, ads: adsApp,
+                      orders: ordersApp, house: houseApp };
 
   // -- жизненный цикл ------------------------------------------------------------------------
   $("quit").addEventListener("click", () => Open77.emit("net:close", {}));

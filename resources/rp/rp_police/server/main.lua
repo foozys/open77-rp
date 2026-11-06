@@ -415,9 +415,15 @@ RegisterCommand("unwanted", function(source, args)
 end, false)
 
 -- Синхронный статус для сканера: причина наружу не отдаётся, пока она ему не нужна.
+-- Розыск NPC-полиции (rp_wanted, шаг 7) — тоже «в розыске»; уровень наружу не отдаётся.
 exports("wanted", function(playerIdArg)
-    local record = wanted[math.tointeger(tonumber(playerIdArg)) or 0]
-    if type(record) ~= "table" then return false end
+    local playerId = math.tointeger(tonumber(playerIdArg)) or 0
+    local record = wanted[playerId]
+    if type(record) ~= "table" then
+        local npc = sync("rp_wanted", "level", playerId)
+        if (tonumber(npc) or 0) > 0 then return { reason = "NCPD", issuedAt = nil } end
+        return false
+    end
     return { reason = record.reason, issuedAt = record.issuedAt }
 end)
 
@@ -501,6 +507,31 @@ local function cmdJail(source, args)
     log("info", "КПЗ %d -> %d: %d мин, %s", source, id, minutes, reason)
 end
 RegisterCommand("jail", cmdJail, false)
+
+-- Арест NPC-полицией (rp_wanted, шаг 7): в камеру КПЗ на minutes минут, без офицера-игрока.
+-- Ждёт (телепорт): вызывать через Open77.exports.call. true, или nil, reason ("no_cell", …).
+exports("jail_npc", function(playerIdArg, minutesArg, reasonArg)
+    local caller = GetInvokingResource()
+    if caller ~= "rp_wanted" then return nil, "caller_denied" end
+    local playerId = math.tointeger(tonumber(playerIdArg))
+    local minutes = math.tointeger(tonumber(minutesArg))
+    local character = playerId and characterOf(playerId)
+    if not character or not minutes or minutes < 1 then return nil, "invalid_argument" end
+    minutes = math.min(minutes, PoliceConfig.jailMaxMinutes)
+    local reason = tostring(reasonArg or "Задержан NCPD"):sub(1, 255)
+    local cell = nearestPoint(placeOf(playerId), "cell") or anyPoint("cell")
+    if not cell then return nil, "no_cell" end
+    local ok, why = moveTo(playerId, cell)
+    if not ok then return nil, tostring(why) end
+    jailed[playerId] = { characterId = character.id, left = minutes * 60, cellId = cell.id, reason = reason }
+    local _, err = db("update", [[REPLACE INTO rp_police_jail (character_id, seconds_left, reason, officer_character_id)
+        VALUES (?, ?, ?, ?)]], { character.id, minutes * 60, reason, 0 })
+    if err then log("error", "КПЗ #%d не записана: %s", character.id, tostring(err)) end
+    sendJail(playerId)
+    notify(playerId, "Вы в КПЗ на %d мин: %s. Срок идёт, пока вы в игре.", minutes, reason)
+    log("info", "КПЗ (NPC) -> %d: %d мин, %s", playerId, minutes, reason)
+    return true
+end)
 
 -- Контекстное меню (Alt на игроке, rp_police_ui): те же команды с теми же проверками.
 -- a, b — сумма и причина штрафа или минуты и причина КПЗ.

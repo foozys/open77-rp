@@ -220,6 +220,19 @@
   .ccard { padding: 8px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 13px; }
   .ccard .meta { color: var(--muted); font-size: 12px; margin: 2px 0 6px; }
   .ccard .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* Вкладка «Жильё» (rp_housing, шаг 11) — как «КПП» */
+  #houses { grid-column: 2; grid-row: 2; display: none; flex-direction: column; min-height: 0; padding: 12px 16px; gap: 10px; }
+  #houses.open { display: flex; }
+  #hStatus { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  #hStatus.err { color: var(--accent); }
+  #hForm { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+  #hForm label { display: block; color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+  #hForm input, #hForm select { padding: 6px 8px; background: rgba(255, 255, 255, 0.05); color: var(--text); border: 1px solid rgba(255, 255, 255, 0.15);
+    font: inherit; font-size: 13px; outline: none; user-select: text; }
+  #hForm select option { background: #0b1118; }
+  #hName { width: 220px; } #hPrice, #hWeekly { width: 110px; }
+  #hForm .btn { padding: 6px 14px; font-size: 12px; }
+  #hList { flex: 1; overflow-y: auto; border-top: 1px solid rgba(255, 255, 255, 0.08); }
   .ccard .btn { padding: 4px 10px; font-size: 12px; }
   #cIllegal { color: var(--muted); font-size: 12px; }
 
@@ -340,6 +353,19 @@
           <div id="oList"></div>
         </div>
       </div>
+    </div>
+    <div id="houses">
+      <span id="hStatus">Жильё: только уникальные места на дверях игры. Встаньте у двери (до 6 м, дверь должна прогрузиться) и нажмите «Создать у ближайшей двери». Аренда и покупка — сайт realty.nc в NetOS.</span>
+      <div id="hForm">
+        <div><label>Название (с адресом)</label><input type="text" id="hName" placeholder="Кв. 1207, H10, Литл-Чайна" maxlength="64" spellcheck="false"></div>
+        <div><label>Тип</label><select id="hKind"><option value="apartment">Квартира</option><option value="house">Дом</option></select></div>
+        <div><label>Режим</label><select id="hMode"><option value="rent">Аренда</option><option value="buy">Покупка</option></select></div>
+        <div><label>Цена покупки, €$</label><input type="number" id="hPrice" min="1" step="100" value="250000"></div>
+        <div><label id="hWeeklyLabel">Аренда в неделю, €$</label><input type="number" id="hWeekly" min="1" step="50" value="1500"></div>
+        <button class="btn cyan" id="hCreate">Создать у ближайшей двери</button>
+        <button class="btn ghost" id="hRefresh">Обновить</button>
+      </div>
+      <div id="hList"></div>
     </div>
     <div id="cps">
       <span id="cStatus">КПП-сканер: скан идёт сам, когда игрок входит в зону. «Тестовый КПП здесь» — встаньте в центр прохода лицом по ходу движения: рамка, блоки, табличка и точка турели ставятся сами. «Поставить здесь» — только зона (турель и двери — кнопками в карточке).</span>
@@ -602,6 +628,8 @@
     { id: "npcs", label: "NPC (тест)", perm: "rp.npcs", view: "npcs", actions: [] },
     // КПП-сканеры (rp_checkpoints): поставить, турель, двери, проверить на себе, право rp.checkpoints.
     { id: "cps", label: "КПП", perm: "rp.checkpoints", view: "cps", actions: [] },
+    // Жильё (rp_housing, шаг 11): места на дверях игры, освободить, удалить, право rp.housing.
+    { id: "houses", label: "Жильё", perm: "rp.housing", view: "houses", actions: [] },
   ];
 
   function options(source) {
@@ -641,6 +669,7 @@
     $("objects").classList.toggle("open", view === "objects");
     $("npcs").classList.toggle("open", view === "npcs");
     $("cps").classList.toggle("open", view === "cps");
+    $("houses").classList.toggle("open", view === "houses");
     if (view === "journal") { if (!J.loaded) journalQuery(false); return; }
     if (view === "frozen") { frozenQuery(); return; }
     if (view === "net") { netQuery(); return; }
@@ -648,6 +677,7 @@
     if (view === "objects") { objectsQuery(); return; }
     if (view === "npcs") { npcsQuery(); return; }
     if (view === "cps") { cpsQuery(); return; }
+    if (view === "houses") { housesQuery(); return; }
     $("actions").replaceChildren(...(current ? current.actions : []).map(a => {
       const el = document.createElement("div");
       el.className = "action";
@@ -1296,6 +1326,54 @@
   });
   $("cStop").addEventListener("click", () => Open77.emit("adm:cpStop", {}));
   $("cRefresh").addEventListener("click", cpsQuery);
+
+  // -- жильё (rp_housing) ------------------------------------------------------------------------
+  function hStatus(text, err) { $("hStatus").textContent = text; $("hStatus").className = err ? "err" : ""; }
+  function housesQuery() { Open77.emit("adm:houses", {}); }
+  function hButton(label, cls, event, id) {
+    const b = document.createElement("button");
+    b.className = "btn" + (cls ? " " + cls : "");
+    b.textContent = label;
+    b.addEventListener("click", () => { hStatus("…"); Open77.emit(event, { id }); });
+    return b;
+  }
+  function houseCard(h) {
+    const el = document.createElement("div");
+    el.className = "ccard";
+    const title = document.createElement("b");
+    title.textContent = `#${h.id} ${h.name}`;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const money = h.mode === "buy" ? `покупка ${h.price} €$, коммунальные ${h.weekly} €$/нед.` : `аренда ${h.weekly} €$/нед.`;
+    const owner = h.ownerSin ? `владелец ${h.ownerName || "?"} (SIN ${h.ownerSin}), доступов ${h.access}, оплачено до ${h.paidUntil}${h.debt ? " · ДОЛГ, заперто" : ""}` : "свободно";
+    meta.textContent = `${h.kindLabel} · ${money} · дверей: ${h.doors} · ${owner}${h.distance != null ? ` · ${h.distance} м` : ""}`;
+    const row = document.createElement("div");
+    row.className = "row";
+    row.append(hButton("Добавить ближайшую дверь", "cyan", "adm:houseDoor", h.id), hButton("Телепорт к двери", "ghost", "adm:houseTp", h.id),
+      hButton("Освободить", "", "adm:houseRelease", h.id), hButton("Удалить", "", "adm:houseDelete", h.id));
+    el.append(title, meta, row);
+    return el;
+  }
+  Open77.on("adm:houses", p => {
+    if (!p) return;
+    const list = Array.isArray(p.houses) ? p.houses : [];
+    $("hList").replaceChildren(...list.map(houseCard));
+    if (p.message) hStatus(p.message, p.failed);
+    else hStatus(list.length ? `Жилья: ${list.length} (ближние — сверху).` : "Жилья нет. Встаньте у двери и создайте.");
+  });
+  const hModeSync = () => {
+    const buy = $("hMode").value === "buy";
+    $("hPrice").disabled = !buy;
+    $("hWeeklyLabel").textContent = buy ? "Коммунальные в неделю, €$" : "Аренда в неделю, €$";
+  };
+  $("hMode").addEventListener("change", hModeSync);
+  hModeSync();
+  $("hCreate").addEventListener("click", () => {
+    hStatus("…");
+    Open77.emit("adm:houseCreate", { name: $("hName").value.trim(), kind: $("hKind").value, mode: $("hMode").value,
+      price: Number($("hPrice").value) || 0, weekly: Number($("hWeekly").value) || 0 });
+  });
+  $("hRefresh").addEventListener("click", housesQuery);
 
   // -- тестовые NPC (rp_admin) -----------------------------------------------------------------
   // Запись проверяет сервер по каталогу игры. Квестовые персонажи (боссы) могут не появиться,

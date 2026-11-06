@@ -379,6 +379,11 @@ local function callMedics(playerId)
         return notify(playerId, "Вызов уже отправлен. Повторить можно через %d с.",
             MedicalConfig.callCooldownSeconds - (now - d.callAt))
     end
+    -- Подписчик Trauma Team (rp_trauma, шаг 8): вызов бригаде ушёл сам при ранении.
+    local tier = sync("rp_trauma", "covers", playerId)
+    if type(tier) == "string" then
+        return notify(playerId, "Trauma Team уже вызвана по вашей подписке — ждите бригаду.")
+    end
     d.callAt, d.called = now, true
     local medics = medicsOnDuty(MedicalConfig.callPermission)
     if #medics > 0 then
@@ -393,7 +398,7 @@ local function callMedics(playerId)
     elseif not d.npcToken then
         local token = {}
         d.npcToken, d.npcAt = token, now + MedicalConfig.npcArriveSeconds
-        notify(playerId, "Медиков на смене нет. Бригада Trauma Team приедет через %d с, услуга — %d €$.",
+        notify(playerId, "Медиков на смене нет. Бригада скорой приедет через %d с, услуга — %d €$.",
             MedicalConfig.npcArriveSeconds, MedicalConfig.npcPrice)
         log("info", "вызов от %d: медиков нет, NPC-бригада через %d с", playerId, MedicalConfig.npcArriveSeconds)
         CreateThread(function()
@@ -403,7 +408,7 @@ local function callMedics(playerId)
             raise(playerId, MedicalConfig.npcHealth)
             journal("raise", nil, playerId, { by = "npc_team" })
             local paid = charge(playerId, MedicalConfig.npcPrice, "rp.medical.npc")
-            notify(playerId, "Бригада Trauma Team подняла вас. %s", paidText(paid, MedicalConfig.npcPrice))
+            notify(playerId, "Бригада скорой подняла вас. %s", paidText(paid, MedicalConfig.npcPrice))
             log("info", "NPC-бригада подняла %d, оплата %d", playerId, paid)
         end)
     else

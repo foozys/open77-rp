@@ -43,6 +43,9 @@ InvConfig = {
                          weightG = 10, stack = 1, color = "#f1ae48", use = "event",
                          unique = true, needsOs = true, useLabel = "Прочитать досье", shard = true },
         carkey     = { label = "Ключ от машины",    labelEn = "Car key",      w = 1, h = 1, weightG = 20,   stack = 1,  color = "#5ef6ff", use = "event", unique = true, useLabel = "Запереть / открыть" },
+        -- Жильё (rp_housing, шаг 11): ключ — meta { house, gen, label }; отмычка — взлом двери жилья.
+        housekey   = { label = "Старый ключ от жилья", labelEn = "Old house key", w = 1, h = 1, weightG = 20, stack = 1,  color = "#8a7a5a", use = "event", unique = true, useLabel = "Осмотреть", meta = {} }, -- с 2026-11-06 не действует: ключ — щепка (rp_housing)
+        lockpick   = { label = "Отмычка",           labelEn = "Lockpick",     w = 1, h = 1, weightG = 30,   stack = 5,  color = "#9c8a6a", use = "event", useLabel = "Взломать замок" },
         water     ={ label = "Бутылка воды",      labelEn = "Water bottle", w = 1, h = 2, weightG = 500,  stack = 1,  color = "#3a7bd5", use = "consume" },
         sandwich   = { label = "Сэндвич",           labelEn = "Sandwich",     w = 1, h = 1, weightG = 250,  stack = 1,  color = "#c9883a", use = "consume" },
         cigarettes = { label = "Сигареты",          labelEn = "Cigarettes",   w = 1, h = 1, weightG = 40,   stack = 20, color = "#8a8a8a", use = "consume" },

@@ -123,9 +123,10 @@ local function windowStacks(state, revealed, readsShards)
             local meta = record and record.meta or {}
             stacks[index] = { i = stack.i, n = stack.n, x = stack.x, y = stack.y, r = stack.r, c = stack.c,
                               a = readsShards and tonumber(meta.amount) or nil,
-                              -- подпись: номер ключа машины, имя на личной щепке
+                              -- подпись: номер ключа машины, имя на личной щепке, название жилья на ключе
                               t = type(meta.plate) == "string" and meta.plate
-                                  or stack.i == "id_chip" and type(meta.holder) == "string" and meta.holder or nil,
+                                  or stack.i == "id_chip" and type(meta.holder) == "string" and meta.holder
+                                  or stack.i == "housekey" and type(meta.label) == "string" and meta.label or nil,
                               -- одежда: название конкретной вещи вместо общего «Верхняя одежда»
                               l = InvConfig.items[stack.i] and InvConfig.items[stack.i].wear
                                   and type(meta.label) == "string" and meta.label or nil,
@@ -544,7 +545,8 @@ exports("catalog", function()
     local items = {}
     for id, def in pairs(InvConfig.items) do
         items[id] = { label = def.label, labelEn = def.labelEn, w = def.w, h = def.h, weightG = def.weightG,
-                      stack = def.stack, unique = def.unique == true, meta = def.meta }
+                      stack = def.stack, unique = def.unique == true, meta = def.meta,
+                      weapon = def.weapon and true or nil }
     end
     return items
 end)
@@ -637,6 +639,50 @@ exports("give_instance", function(playerId, itemId, meta, price, burn, toSlot)
     if slot then state.stacks[#state.stacks + 1] = { i = itemId, n = 1, u = lines[1].instance, c = slot } end
     refresh(playerId)
     return lines[1].instance
+end)
+
+-- Изъятие при аресте NPC-полицией (rp_wanted, шаг 7), только для rp_*-ресурсов: всё из списка
+-- items ({ [itemId] = true }) — в сетке, на поясе и в слотах оружия — уходит одной операцией
+-- (уникальные — экземплярами, обычные — количеством). Ждёт: вызывать через Open77.exports.call.
+-- { { item, count }, … } (пусто — изымать нечего), или nil, reason.
+exports("confiscate", function(playerId, items)
+    local caller = GetInvokingResource()
+    if type(caller) ~= "string" or caller:sub(1, 3) ~= "rp_" then return nil, "caller_denied" end
+    playerId = math.tointeger(tonumber(playerId))
+    if not playerId or type(items) ~= "table" then return nil, "invalid_argument" end
+    local state, problem = ensure(playerId)
+    if not state then return nil, problem end
+    if state.busy then return nil, "busy" end
+    local lines, taken, counts = {}, {}, {}
+    for _, stack in ipairs(state.stacks) do
+        if items[stack.i] == true and InvConfig.items[stack.i] then
+            if stack.u then
+                lines[#lines + 1] = { instance = stack.u, from = state.account, to = SOURCE }
+                counts[stack.i] = (counts[stack.i] or 0) + 1
+            else
+                counts[stack.i] = (counts[stack.i] or 0) + stack.n
+            end
+        end
+    end
+    for itemId, count in pairs(counts) do
+        if not InvConfig.items[itemId].unique then
+            lines[#lines + 1] = { item = itemId, count = count, from = state.account, to = SOURCE }
+        end
+        taken[#taken + 1] = { item = itemId, count = count }
+    end
+    if #lines == 0 then return taken end
+    local opId = Store.newOpId("rpseize")
+    if not opId then return nil, "store_unavailable" end
+    state.busy = true
+    local receipt, why = Store.transfer({ opId = opId, kind = "rp.confiscate", reason = caller, lines = lines })
+    state.busy = false
+    if not receipt then return nil, why or "busy" end
+    journal("confiscate", nil, playerId, { items = taken, by = caller }, opId)
+    for index = #state.stacks, 1, -1 do
+        if items[state.stacks[index].i] == true then table.remove(state.stacks, index) end
+    end
+    refresh(playerId)
+    return taken
 end)
 
 -- Несколько уникальных предметов одной операцией, только для rp_*-ресурсов (магазин одежды).

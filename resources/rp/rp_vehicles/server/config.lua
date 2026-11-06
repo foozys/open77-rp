@@ -47,5 +47,8 @@ VehiclesConfig = {
         type66    = { label = "Quadra Type-66",          record = "Vehicle.v_sport2_quadra_type66_player",           price = 70000 },
         shion     = { label = "Mizutani Shion",          record = "Vehicle.v_sport2_mizutani_shion_player",          price = 85000 },
         caliburn  = { label = "Rayfield Caliburn",       record = "Vehicle.v_sport1_rayfield_caliburn_player",       price = 250000 },
+        -- Не продаются (dealer = false): только наборы фракций (rp_factions kits); paint — свой цвет.
+        tt_hellhound = { label = "Militech Hellhound Trauma Team", record = "Vehicle.v_standard3_militech_hellhound_player",
+                         price = 0, dealer = false, paint = { "#E8E8E8", "#8E1B1B" } },
     },
 }
